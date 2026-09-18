@@ -988,6 +988,15 @@
     }).length;
   }
 
+  /* What is actually outstanding, named. "3 readings left", not a reassurance. */
+  function remaining(readsLeft, qsLeft){
+    var bits = [];
+    if(readsLeft) bits.push(readsLeft + (readsLeft === 1 ? " reading" : " readings"));
+    if(qsLeft)    bits.push(qsLeft + (qsLeft === 1 ? " question" : " questions"));
+    if(!bits.length) return "Nothing left to do.";
+    return bits.join(" and ") + " left.";
+  }
+
   function renderProgress(){
     var reads = readingCount(), read = readDone(), qs = questionsDone();
     var items = [
@@ -1008,7 +1017,7 @@
     + '    <span class="pgpct">' + pct + '<i>%</i></span>'
     + '    <span class="pgcap">'
     + '      <span class="eyebrow">Your progress</span>'
-    + '      <span class="pgwhen">' + (pct === 100 ? "Nothing left to do." : "Nothing is due until you are ready.") + '</span>'
+    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs)) + '</span>'
     + '    </span>'
     + '  </div>'
     + '  <div class="pgtrack"><span style="width:' + pct + '%"></span></div>'
