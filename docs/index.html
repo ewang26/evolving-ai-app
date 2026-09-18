@@ -517,6 +517,7 @@
   var saved = false;                 // this submission is stored somewhere durable
   var syncState = { state:"idle", msg:"" };
   var step = 0, mode = "form", orgTab = "roster", errs = {}, built = null;
+  var needsPin = false;
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -555,7 +556,12 @@
       S = normalize(mine.sub);
       pin = mine.pin || "";
       saved = !!mine.saved && isComplete(S);
-      step = saved ? 3 : 0;
+      if(saved && API && String(pin).trim().length < 4){
+        saved = false; step = 0;
+        needsPin = true;              // explains itself on the first screen
+      } else {
+        step = saved ? 3 : 0;
+      }
     }
   })();
 
@@ -652,6 +658,9 @@
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
+    +      (needsPin
+            ? '<div class="sync warn">Set a passcode to finish saving your submission. Your answers are still here.</div>'
+            : '')
     + '  <div class="resume">'
     +   (API
         ? '<span class="note">Submitted already? <button class="linkish" id="loadMine" type="button">Load my reading</button> with the email and passcode above.</span>'
@@ -1156,6 +1165,23 @@
     window.scrollTo(0, 0);
   }
 
+  function syncFailed(err){
+    var code = err && err.code;
+    if(code === "bad_pin" || code === "locked"){
+      step = 0;
+      errs.pin = code === "locked"
+        ? "Too many tries. Wait a few minutes, then try again."
+        : "This email already has a submission under a different passcode. Enter that passcode to change it.";
+      syncState = {state:"idle", msg:""}; render();
+      return;
+    }
+    syncState = {state:"local",
+      msg: code === "unconfirmed"
+        ? "The sheet did not confirm your row — try again below."
+        : "The sheet could not be reached — try again below."};
+    render();
+  }
+
   function submit(){
     saved = true; saveLocal(); step = 3;
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
@@ -1163,22 +1189,7 @@
     syncState = {state:"saving", msg:""}; render();
     cloudPush(S, pin).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
-    }, function(err){
-      var code = err && err.code;
-      if(code === "bad_pin" || code === "locked"){
-        step = 0;
-        errs.pin = code === "locked"
-          ? "Too many tries. Wait a few minutes, then try again."
-          : "A submission already exists for this email under a different passcode.";
-        syncState = {state:"idle", msg:""}; render();
-        return;
-      }
-      syncState = {state:"local",
-        msg: code === "unconfirmed"
-          ? "The sheet did not confirm your row — try again below."
-          : "The sheet could not be reached — try again below."};
-      render();
-    });
+    }, syncFailed);
   }
 
   function wireForm(){
@@ -1213,6 +1224,7 @@
       if(!validate(step)){ render(); var bad = view.querySelector(".bad, .err");
         if(bad) bad.scrollIntoView({block:"center", behavior:"smooth"}); return; }
       errs = {};
+      needsPin = false;
       if(step === 2) submit(); else { step++; render(); }
     });
     var back = document.getElementById("back");
@@ -1236,8 +1248,8 @@
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
       syncState = {state:"saving", msg:""}; render();
-      cloudPush(S, pin).then(function(){ syncState = {state:"ok", msg:""}; render(); },
-        function(){ syncState = {state:"error", msg:"Still could not reach the sheet."}; render(); });
+      cloudPush(S, pin).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
+        syncFailed);
     });
 
     var lm = document.getElementById("loadMine");
