@@ -269,8 +269,11 @@ function doGet(e) {
       if (at < 0) return out_({ok: true, row: null}, cb);
 
       var onFile = sh.getRange(at, PASS_COL).getValue();
-      // No passcode on file (a pre-passcode row): nobody may read it back.
-      if (!onFile || !same_(onFile, hash_(p.email, code))) {
+      // No key on file (a pre-key row): nobody may read it back.
+      if (!onFile) return out_({ok: false, error: "bad_pin"}, cb);
+      // A key Sheets ate as a formula: repairable by re-submitting, not a wrong key.
+      if (corrupt_(onFile)) return out_({ok: false, error: "key_reset"}, cb);
+      if (!keyMatches_(onFile, hash_(p.email, code))) {
         noteFail_(p.email);
         return out_({ok: false, error: "bad_pin"}, cb);
       }
