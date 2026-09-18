@@ -924,7 +924,7 @@
             : '')
         + (done
             ? '<button class="discentry" type="button" data-topic="'+t.id+'">'
-              + '<span class="dtitle">Discuss ' + t.rn.toUpperCase() + ' with your group</span>'
+              + '<span class="dtitle">Discuss with your group and see other questions or comments</span>'
               + '<span class="dcount">'
               +   (qcounts[t.id] ? qcounts[t.id] + ' question' + (qcounts[t.id]===1?'':'s') : 'no questions yet')
               +   (counts['topic:'+t.id] ? ' \u00b7 ' + counts['topic:'+t.id] + ' post' + (counts['topic:'+t.id]===1?'':'s') : '')
@@ -1119,6 +1119,8 @@
     + '</section>';
   }
 
+  var RESET_MSG = "Your key did not store correctly. Submit your answers again and it will be fixed.";
+
   function openTopic(tid){
     thread = {key:"topic:" + tid, topic:tid, title:(T(tid) || {}).title || ""};
     topicData = null; postErr = ""; mode = "topic"; render();
@@ -1127,9 +1129,10 @@
       counts[thread.key] = topicData.posts.length;
       render();
     }, function(err){
-      postErr = (err && err.code === "bad_pin")
-        ? "Discussion opens once your submission is saved."
-        : "Could not load the discussion. Try again.";
+      postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "bad_pin")
+          ? "That is not the model on file for this email."
+          : "Could not load the discussion. Try again.";
       render();
     });
   }
@@ -1141,9 +1144,10 @@
     cloudPosts(key).then(function(list){
       posts = list; render();
     }, function(err){
-      postErr = (err && err.code === "bad_pin")
-        ? "Discussion opens once your submission is saved."
-        : "Could not load the discussion. Try Refresh.";
+      postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "bad_pin")
+          ? "That is not the model on file for this email."
+          : "Could not load the discussion. Try Refresh.";
       posts = []; render();
     });
   }
@@ -1588,6 +1592,10 @@
 
   function syncFailed(err){
     var code = err && err.code;
+    if(code === "key_reset"){
+      syncState = {state:"local", msg:"Saved on this device. Submit again to repair your key."};
+      render(); return;
+    }
     if(code === "bad_pin" || code === "locked"){
       step = 0;
       errs.pin = code === "locked"
@@ -1708,7 +1716,8 @@
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
-          code === "bad_pin" ? "That is not the model on file for this email."
+          code === "key_reset" ? RESET_MSG
+          : code === "bad_pin" ? "That is not the model on file for this email."
           : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
@@ -1747,8 +1756,9 @@
           }
         }, function(err){
           send.disabled = false;
-          msg.innerHTML = '<span class="warnt">' + ((err && err.code === "bad_pin")
-            ? "Discussion opens once your submission is saved."
+          msg.innerHTML = '<span class="warnt">' + (
+              (err && err.code === "key_reset") ? RESET_MSG
+            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
             : "Could not post. Try again.") + '</span>';
         });
     });
@@ -1788,8 +1798,9 @@
             : {state:"warn", msg:"It did not come back \u2014 send it again."};
           render();
         }, function(err){
-          debriefState = {state:"warn", msg:(err && err.code === "bad_pin")
-            ? "Available once your submission is saved."
+          debriefState = {state:"warn", msg:
+              (err && err.code === "key_reset") ? RESET_MSG
+            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
             : "Could not send. Try again."};
           render();
         });
