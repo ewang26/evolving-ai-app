@@ -27,8 +27,7 @@ var SHEET_NAME  = "Submissions";
 var ADMIN_KEY   = "CHANGE-ME-to-a-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation", "Community",
-               "1st", "2nd", "3rd", "Q1", "Q2", "Q3",
-               "Proposed topic", "Proposed why", "Payload"];
+               "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Payload"];
 
 function sheet_() {
   var ss = SpreadsheetApp.openById(SHEET_ID);
@@ -55,7 +54,7 @@ function out_(obj, callback) {
 function rowToSub_(row) {
   // The Payload column holds the app's own encoding, so a restore is exact.
   try {
-    return JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(row[13])).getDataAsString());
+    return JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(row[HEADERS.length - 1])).getDataAsString());
   } catch (e) {
     return null;
   }
@@ -89,7 +88,6 @@ function doPost(e) {
       new Date(), sub.n, String(sub.e).trim(), sub.a || "", sub.c || "",
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
       qs[0] || "", qs[1] || "", qs[2] || "",
-      (sub.p && sub.p.t) || "", (sub.p && sub.p.w) || "",
       payload
     ];
 

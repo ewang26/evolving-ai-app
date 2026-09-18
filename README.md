@@ -113,8 +113,8 @@ app now, and submit to the stores in parallel.
 
 Top-right button. Nothing here is visible to participants.
 
-- **Roster** — who has submitted, how many questions each has, and the sixth-topic
-  proposals. Also accepts pasted submissions for anyone who sends theirs by email.
+- **Roster** — who has submitted and how many questions each has. Also accepts pasted
+  submissions for anyone who sends theirs by email.
 - **From the sheet** — enter `ADMIN_KEY` and pull every submission. Safe to re-run; it
   replaces the local roster with whatever the Sheet holds.
 - **Demand** — interest per topic, weighted 3/2/1 by rank.
@@ -139,7 +139,20 @@ browser.
 
 ## Reading lists
 
-The per-topic reading lists in `docs/index.html` (the `TOPICS` array) are a proposed set,
-not organizer-approved. Each pairs an evolutionary-science source with an AI one. Citations
-are author/title/venue/year with no URLs, so they should be checked and linked before the
-list goes out.
+Two papers per focus area, in the `TOPICS` array in `docs/index.html`. Each citation links
+straight to a PDF, and every link was checked to resolve to the right paper before shipping:
+the seven arXiv items by matching `citation_title` on the abstract page, Ostrom's Nobel
+lecture by extracting its text, and the PNAS and Royal Society PDFs by loading them in a
+real browser (both bot-block command-line requests but serve the file to a person).
+
+Page counts come from the PDFs themselves. The Aktipis paper shows no page count because
+its Crossref record carries an article number rather than a page range — better a missing
+chip than an invented figure.
+
+The PDFs are linked, not re-hosted: the arXiv and Nobel items could be mirrored, but the
+PNAS and Royal Society papers are publisher copyright and should not be redistributed from
+a public site.
+
+The selection is still a proposal, not organizer-approved. Each area pairs an
+evolutionary-science source with an AI one, except **Steering Open-Ended AI Ecosystems**,
+where both are AI papers because that is where the literature is.

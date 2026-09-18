@@ -1,7 +1,8 @@
 /* Offline shell. Bump CACHE on every deploy so clients pick up the new build. */
-var CACHE = "eai-v3";
+var CACHE = "eai-v4";
 var ASSETS = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
-              "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+              "./icons/icon-192.png", "./icons/apple-touch-icon.png",
+              "./icons/benchmark-favicon.svg"];
 
 self.addEventListener("install", function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(ASSETS); }).then(function(){ return self.skipWaiting(); }));
