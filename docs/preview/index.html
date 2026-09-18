@@ -336,25 +336,36 @@
   .discentry .dcount{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
     text-transform:uppercase;color:var(--accent)}
 
+  /* Not a widget: hairline rules, a mono label and an italic serif numeral,
+     the same vocabulary as the rest of the page. */
   .progress{
-    display:flex;flex-direction:column;gap:.75rem;
-    border:1px solid var(--line);border-radius:3px;padding:1rem 1.1rem;
-    background:var(--wash);
+    display:flex;flex-direction:column;gap:.9rem;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding-block:1.25rem;
   }
-  .pgbar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
-  .pgbar span{display:block;height:100%;background:var(--accent);transition:width .3s ease}
-  .pglist{display:flex;flex-direction:column;gap:.45rem}
-  .pgrow{display:grid;grid-template-columns:1.1rem 1fr auto;align-items:center;gap:.6rem;
-    font-family:var(--sans);font-size:.85rem;color:var(--muted)}
-  .pgrow.done .pglabel{color:var(--text)}
-  .pgtick{
-    width:1.1rem;height:1.1rem;border:1px solid var(--line);border-radius:2px;
-    display:flex;align-items:center;justify-content:center;
-    font-size:.7rem;color:var(--bg);background:transparent;
+  .pgtop{display:flex;align-items:baseline;gap:.9rem}
+  .pgpct{
+    font-family:var(--serif);font-style:italic;font-size:2.4rem;line-height:.9;
+    color:var(--accent);letter-spacing:-.01em;font-variant-numeric:tabular-nums;
   }
-  .pgrow.done .pgtick{background:var(--accent);border-color:var(--accent)}
-  .pgnote{font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;color:var(--faint);
-    font-variant-numeric:tabular-nums}
+  .pgpct i{font-size:1.1rem;font-style:italic;margin-left:.08em}
+  .pgcap{display:flex;flex-direction:column;gap:.2rem}
+  .pgwhen{font-family:var(--sans);font-size:.78rem;color:var(--faint)}
+  .pgtrack{height:2px;background:var(--line);overflow:hidden}
+  .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
+  .pgitems{list-style:none;display:flex;flex-direction:column}
+  .pgitems li{
+    display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+    padding:.5rem 0;border-bottom:1px dotted var(--line);
+  }
+  .pgitems li:last-child{border-bottom:0;padding-bottom:0}
+  .pgname{font-family:var(--serif);font-size:1.02rem;color:var(--faint)}
+  .pgitems li.done .pgname{color:var(--text)}
+  .pgstate{
+    font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  .pgitems li.done .pgstate{color:var(--accent)}
 
   .readtick{
     align-self:flex-start;display:flex;align-items:center;gap:.45rem;
@@ -979,31 +990,36 @@
 
   function renderProgress(){
     var reads = readingCount(), read = readDone(), qs = questionsDone();
-    var parts = [
-      {label:"Your details", done:!!(S.n && S.e && S.a), note:""},
-      {label:"Three topics chosen", done:chosen().length === 3, note:""},
-      {label:"Readings", done:reads > 0 && read === reads, note:read + " of " + reads},
-      {label:"Questions submitted", done:qs === 3, note:qs + " of 3"}
+    var items = [
+      {label:"Your details",   done:!!(S.n && S.e && S.a), state:"Done"},
+      {label:"Topics chosen",  done:chosen().length === 3, state:"Done"},
+      {label:"Readings",       done:reads > 0 && read === reads, state:read + " of " + reads},
+      {label:"Questions",      done:qs === 3,              state:qs + " of 3"}
     ];
     var frac = ((!!(S.n && S.e && S.a) ? 1 : 0)
               + (chosen().length === 3 ? 1 : 0)
               + (reads ? read / reads : 0)
               + qs / 3) / 4;
+    var pct = Math.round(frac * 100);
+
     return ''
     + '<div class="progress">'
-    + '  <div class="pgbar"><span style="width:' + Math.round(frac * 100) + '%"></span></div>'
-    + '  <div class="pglist">'
-    +      parts.map(function(x){
-             return '<div class="pgrow' + (x.done ? " done" : "") + '">'
-               + '<span class="pgtick">' + (x.done ? "\u2713" : "") + '</span>'
-               + '<span class="pglabel">' + x.label + '</span>'
-               + '<span class="pgnote">' + esc(x.note) + '</span>'
-               + '</div>';
-           }).join("")
+    + '  <div class="pgtop">'
+    + '    <span class="pgpct">' + pct + '<i>%</i></span>'
+    + '    <span class="pgcap">'
+    + '      <span class="eyebrow">Your progress</span>'
+    + '      <span class="pgwhen">' + (qs === 3 ? "Everything is in." : "Nothing is due until you are ready.") + '</span>'
+    + '    </span>'
     + '  </div>'
-    +    (qs < 3
-          ? '<p class="note">Take your time with the reading. Your place is saved \u2014 come back with your email and model whenever you are ready to write.</p>'
-          : '')
+    + '  <div class="pgtrack"><span style="width:' + pct + '%"></span></div>'
+    + '  <ul class="pgitems">'
+    +      items.map(function(x){
+             return '<li class="' + (x.done ? "done" : "") + '">'
+               + '<span class="pgname">' + x.label + '</span>'
+               + '<span class="pgstate">' + esc(x.state) + '</span>'
+               + '</li>';
+           }).join("")
+    + '  </ul>'
     + '</div>';
   }
 
