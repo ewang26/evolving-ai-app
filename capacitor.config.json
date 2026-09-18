@@ -1,0 +1,9 @@
+{
+  "appId": "com.benchmark.evolvingai",
+  "appName": "Evolving AI",
+  "webDir": "app",
+  "bundledWebRuntime": false,
+  "backgroundColor": "#0E1210",
+  "ios": { "contentInset": "always" },
+  "android": { "allowMixedContent": false }
+}

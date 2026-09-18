@@ -1,0 +1,17 @@
+{
+  "name": "Evolving AI — Seminar Prep",
+  "short_name": "Evolving AI",
+  "description": "Rank three focus areas, submit a question for each, and get your pre-read for the Evolving AI gathering.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1210",
+  "theme_color": "#0E1210",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
