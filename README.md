@@ -27,29 +27,41 @@ Then open http://localhost:8787. The organizer console is the button in the top 
 
 ---
 
-## 1. Connect the Google Sheet
+## The Google Sheet (already connected)
 
-Without this, the app still works — submissions stay on the participant's device and in
-their personal link, and the organizer console accepts pasted submissions. Connect the
-Sheet and submissions land in one place automatically.
+Submissions land in **Evolving AI — Seminar Prep Submissions** in Erik's Drive, one row
+per participant keyed on email, via a deployed Apps Script web app. This is live; there is
+nothing to set up.
 
-1. Create a Google Sheet. Rename the first tab to **Submissions**.
-2. **Extensions → Apps Script**. Delete the stub and paste in `docs/sheet-backend.gs`.
-3. Change `ADMIN_KEY` to a long random string. Keep it private — you type it into the
-   organizer console once; it is never shipped in the app.
-4. **Deploy → New deployment → Web app**, with *Execute as:* **Me** and
-   *Who has access:* **Anyone**. Authorize when prompted.
-   ("Anyone" is what lets a participant submit without a Google login. The endpoint only
-   appends submissions; listing the roster requires `ADMIN_KEY`.)
-5. Copy the `/exec` URL into `docs/config.js` as `apiUrl`, then redeploy the site.
+| | |
+| --- | --- |
+| Sheet | `1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY` |
+| Script project | "Evolving AI - submissions endpoint" (standalone, in the same Drive) |
+| Endpoint | set as `apiUrl` in `docs/config.js` |
+| Deployment | Execute as: Erik · Who has access: **Anyone** (anonymous submissions) |
+| Admin key | in the script as `ADMIN_KEY`; deliberately **not** in this repo |
 
-After any edit to the script, re-deploy as a **new version** or the old code keeps serving.
+The organizer console's **From the sheet** tab asks for that admin key and pulls the whole
+roster. The key is stored only in that browser.
 
-**Why it works this way:** a static page cannot read an Apps Script response, because
-Apps Script sends no CORS headers. So submissions go out as a simple `no-cors` POST and
-are then *confirmed* by reading the row back over JSONP, which Apps Script can serve
-cross-origin. The app only reports "Saved to the organizers' sheet" once it has read the
-row back — it never claims a save it has not verified.
+**Why it is built this way:** a static page cannot read an Apps Script response, because
+Apps Script sends no CORS headers. So a submission goes out as a simple `no-cors` POST and
+is then *confirmed* by reading the row back over JSONP, which Apps Script can serve
+cross-origin. The app only reports "Saved to the organizers' sheet" once it has actually
+read the row back, so a silent failure shows as "Saved on this device" plus a retry rather
+than a false success.
+
+**To rotate the admin key:** open the script project, change `ADMIN_KEY`, then
+Deploy → Manage deployments → edit → Version: **New version**. Editing without
+re-deploying changes nothing, because the web app serves the deployed version.
+
+**To move the endpoint** (new Google account, or a fresh deployment): paste
+`docs/sheet-backend.gs` into a new Apps Script project, set `SHEET_ID` and `ADMIN_KEY`,
+deploy as a web app with access **Anyone**, and put the `/exec` URL in `docs/config.js`.
+
+**Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
+a submission. The endpoint only appends or updates rows and never returns the roster
+without the key, so the worst case is junk rows to delete.
 
 ## 2. Deploy the site
 
