@@ -536,7 +536,6 @@
        3. the shared sheet    an Apps Script endpoint, when one is configured
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
-  var LS_OPENED = "eai.opened.v1";
 
   function lsGet(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
   function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
@@ -661,7 +660,7 @@
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", r:["","",""], q:{}, t:"" };
+  var blank = { n:"", e:"", a:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
@@ -676,7 +675,7 @@
   var postErr = "";
   var counts = {};       // thread key -> post count, for the badges
   var qcounts = {};      // topic id -> how many questions have been submitted
-  var opened = lsGet(LS_OPENED, {});   // readings whose PDF has been opened
+  var readTimer = null;
   var debrief = {round:"", group:"", topic:"", claim:"", disagreement:"", settle:""};
   var debriefState = {state:"idle", msg:""};
   var roster = lsGet(LS_ROSTER, []);
@@ -693,6 +692,7 @@
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? o.q : {};
     d.t = o.t || "";
+    d.read = (o.read && typeof o.read === "object") ? o.read : {};
     return d;
   }
   var MIN_Q = 5;   // also used by validate(): keep them in step
@@ -791,14 +791,24 @@
     }
   }
   function markOpened(url){
-    opened[url] = 1; lsSet(LS_OPENED, opened);
+    if(!S.read) S.read = {};
+    S.read[url] = 1; saveLocal(); queueReadSave();
   }
-  function openedCount(){
-    var n = 0;
-    chosen().forEach(function(id){
-      T(id).readings.forEach(function(r){ if(opened[r.url]) n++; });
-    });
-    return n;
+
+  /* A tick is a small thing; save it quietly in the background rather than
+     making anyone wait, and never claim it saved. */
+  function queueReadSave(){
+    if(!API || !saved) return;
+    clearTimeout(readTimer);
+    readTimer = setTimeout(function(){
+      withKey(function(k){
+        return fetch(API, {
+          method:"POST", mode:"no-cors", cache:"no-store",
+          headers:{"Content-Type":"text/plain;charset=utf-8"},
+          body:JSON.stringify({action:"put", sub:S, pin:k})
+        }).then(function(){ return true; });
+      }).then(function(){}, function(){});
+    }, 1800);
   }
   function readingCount(){ return chosen().length * 2; }
 
@@ -958,7 +968,7 @@
   function readDone(){
     var n = 0;
     chosen().forEach(function(id){
-      T(id).readings.forEach(function(r){ if(opened[r.url]) n++; });
+      T(id).readings.forEach(function(r){ if((S.read && S.read[r.url])) n++; });
     });
     return n;
   }
@@ -1016,10 +1026,10 @@
               +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
               + (done
-                  ? '<button class="readtick' + (opened[r.url] ? ' on' : '') + '" type="button" '
+                  ? '<button class="readtick' + ((S.read && S.read[r.url]) ? ' on' : '') + '" type="button" '
                     + 'data-read="'+esc(r.url)+'">'
-                    + '<span class="tickbox">' + (opened[r.url] ? '\u2713' : '') + '</span>'
-                    + (opened[r.url] ? 'Read' : 'Mark as read')
+                    + '<span class="tickbox">' + ((S.read && S.read[r.url]) ? '\u2713' : '') + '</span>'
+                    + ((S.read && S.read[r.url]) ? 'Read' : 'Mark as read')
                     + '</button>'
                   : '')
               + '</div>';
@@ -1048,7 +1058,6 @@
     + '    <h2>Your reading</h2>'
     +      (done ? syncLine()
             : '<p class="intro">Read these before you write your questions. One required text per group.'
-              + (openedCount() ? ' You have opened ' + openedCount() + ' of ' + readingCount() + '.' : '')
               + '</p>')
     + '  </div>'
     +      (done ? renderProgress() : '')
@@ -1794,8 +1803,9 @@
     Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
       b.addEventListener("click", function(){
         var u = b.getAttribute("data-read");
-        if(opened[u]) delete opened[u]; else opened[u] = 1;
-        lsSet(LS_OPENED, opened); render();
+        if(!S.read) S.read = {};
+        if(S.read[u]) delete S.read[u]; else S.read[u] = 1;
+        saveLocal(); queueReadSave(); render();
       });
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
