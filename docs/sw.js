@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE on every deploy so clients pick up the new build. */
-var CACHE = "eai-v7";
+var CACHE = "eai-v8";
 var ASSETS = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
               "./icons/icon-192.png", "./icons/apple-touch-icon.png",
               "./icons/benchmark-favicon.svg"];
