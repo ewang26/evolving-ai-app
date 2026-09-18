@@ -300,6 +300,20 @@
     margin-top:.9rem;display:flex;gap:.45rem;align-items:center}
   .sync::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:currentColor;flex:none}
   .sync.ok{color:var(--ok)} .sync.warn{color:var(--warn)} .sync.working{color:var(--muted)}
+  .discuss{
+    align-self:flex-start;margin-top:.15rem;
+    font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);background:transparent;border:1px solid var(--line);
+    border-radius:2px;padding:.3rem .5rem;cursor:pointer;
+    transition:color .15s,border-color .15s;
+  }
+  .discuss:hover{color:var(--accent);border-color:var(--accent)}
+  .posts{display:flex;flex-direction:column;gap:.8rem;margin-bottom:.3rem}
+  .post{border-left:1px solid var(--line);padding:.1rem 0 .1rem .8rem}
+  .post.mine{border-left-color:var(--accent)}
+  .pmeta{font-family:var(--mono);font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:.3rem}
+  .pbody{font-size:1rem;line-height:1.55}
   .yourq{
     padding:.85rem 1rem;font-size:1.02rem;
     background:rgba(236,193,135,.08);
@@ -437,6 +451,7 @@
        3. the shared sheet    an Apps Script endpoint, when one is configured
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
+  var LS_OPENED = "eai.opened.v1";
 
   function lsGet(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
   function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
@@ -504,6 +519,35 @@
     .then(function(){ return cloudLookup(sub.e, code); })
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
   }
+  function cloudPosts(key){
+    return jsonp({action:"posts", email:S.e, pin:keyFor(pin), thread:key}, 20000)
+      .then(function(res){
+        if(res && res.ok) return res.posts || [];
+        throw {code:(res && res.error) || "refused"};
+      });
+  }
+  function cloudCounts(){
+    return jsonp({action:"counts", email:S.e, pin:keyFor(pin)}, 20000)
+      .then(function(res){ return (res && res.ok) ? (res.counts || {}) : {}; });
+  }
+  function cloudWrite(payload, confirm){
+    if(!API) return Promise.reject({code:"no_api"});
+    return fetch(API, {
+      method:"POST", mode:"no-cors", cache:"no-store",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(payload)
+    })
+    .then(function(){ return wait(1400); })
+    .then(confirm);           // the POST response is unreadable, so confirm by reading back
+  }
+  function cloudDebriefs(){
+    return jsonp({action:"mydebriefs", email:S.e, pin:keyFor(pin)}, 20000)
+      .then(function(res){
+        if(res && res.ok) return res.debriefs || [];
+        throw {code:(res && res.error) || "refused"};
+      });
+  }
+
   function cloudAll(key){
     return jsonp({action:"all", key:key}, 25000).then(function(res){
       if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
@@ -524,6 +568,13 @@
   var needsPin = false;
   var editing = false;   // true while revising an already-saved submission: the
                          // reading step goes back to being a step, not the end
+  var thread = null;     // {key, title} while a discussion thread is open
+  var posts = null;      // loaded posts for that thread, or null while loading
+  var postErr = "";
+  var counts = {};       // thread key -> post count, for the badges
+  var opened = lsGet(LS_OPENED, {});   // readings whose PDF has been opened
+  var debrief = {round:"", group:"", topic:"", claim:"", disagreement:"", settle:""};
+  var debriefState = {state:"idle", msg:""};
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -616,6 +667,18 @@
       }catch(e){ return false; }
     }
   }
+  function markOpened(url){
+    opened[url] = 1; lsSet(LS_OPENED, opened);
+  }
+  function openedCount(){
+    var n = 0;
+    chosen().forEach(function(id){
+      T(id).readings.forEach(function(r){ if(opened[r.url]) n++; });
+    });
+    return n;
+  }
+  function readingCount(){ return chosen().length * 2; }
+
   function flash(btn, msg){
     if(!btn) return;
     var old = btn.getAttribute("data-label") || btn.textContent;
@@ -775,7 +838,7 @@
       var t = T(id);
       return '<div class="topicblock">'
         + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
-        + '<div class="reads">' + t.readings.map(function(r){
+        + '<div class="reads">' + t.readings.map(function(r, i){
             return '<div class="read'+(r.req?" req":"")+'">'
               + '<div class="rmeta">'
               +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
@@ -783,8 +846,15 @@
               +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
               +     (r.len?' · '+r.len:'') + ' · PDF</span>'
               + '</div>'
-              + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+r.cite+'</a></div>'
+              + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
+              +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
+              + (done
+                  ? '<button class="discuss" type="button" data-thread="'+t.id+'#'+i+'" '
+                    + 'data-title="'+esc(r.cite.replace(/<[^>]+>/g,""))+'">'
+                    + 'Discussion' + (counts[t.id+'#'+i] ? ' \u00b7 ' + counts[t.id+'#'+i] : '')
+                    + '</button>'
+                  : '')
               + '</div>';
           }).join("") + '</div>'
         + (done && String(S.q[id]||"").trim()
@@ -801,14 +871,20 @@
     + '  <div class="head thin">'
     + '    <h2>Your reading</h2>'
     +      (done ? syncLine()
-            : '<p class="intro">Read these before you write your questions. One required text per group.</p>')
+            : '<p class="intro">Read these before you write your questions. One required text per group.'
+              + (openedCount() ? ' You have opened ' + openedCount() + ' of ' + readingCount() + '.' : '')
+              + '</p>')
     + '  </div>'
     + blocks
     + (done ? ''
     + '  <div class="topicblock">'
+    + '    <div class="btnrow">'
+    + '      <button class="btn btn-accent" id="openGeneral" type="button" style="flex:0 1 auto">Discussion</button>'
+    + '      <button class="btn btn-out" id="openDebrief" type="button">Group debrief</button>'
+    + '    </div>'
     + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
-    + '      <button class="btn btn-accent" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
+    + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
     + '    </div>'
@@ -823,6 +899,107 @@
             : '')
     + '  </div>' : '')
     + '</section>';
+  }
+
+  function renderDebrief(){
+    var ids = chosen();
+    var sent = debriefState.state === "ok";
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>Group debrief</h2>'
+    + '    <p class="intro">One per group, from whoever is reporting back. Same three fields for every group so they can be read side by side.</p>'
+    +      (debriefState.msg ? '<div class="sync ' + (sent ? "ok" : "warn") + '">' + esc(debriefState.msg) + '</div>' : '')
+    + '  </div>'
+    + '  <div class="fields">'
+    + '    <div class="f"><label for="dround">Round</label>'
+    + '      <select id="dround" data-d="round">'
+    +          ['', '1', '2', '3'].map(function(v){
+                 return '<option value="'+v+'"'+(debrief.round===v?" selected":"")+'>'+(v||"Choose\u2026")+'</option>';
+               }).join("")
+    + '      </select></div>'
+    + '    <div class="f"><label for="dtopic">Topic</label>'
+    + '      <select id="dtopic" data-d="topic">'
+    + '        <option value="">Choose\u2026</option>'
+    +          TOPICS.map(function(t){
+                 return '<option value="'+t.id+'"'+(debrief.topic===t.id?" selected":"")+'>'+t.rn.toUpperCase()+' \u2014 '+esc(t.title)+'</option>';
+               }).join("")
+    + '      </select></div>'
+    + '    <div class="f"><label for="dgroup">Group</label>'
+    + '      <input id="dgroup" data-d="group" type="text" placeholder="R1 \u00b7 B" value="'+esc(debrief.group)+'" /></div>'
+    + '    <div class="f"><label for="dclaim">What did the group land on?</label>'
+    + '      <textarea id="dclaim" data-d="claim" placeholder="The claim you would defend to the room\u2026">'+esc(debrief.claim)+'</textarea></div>'
+    + '    <div class="f"><label for="ddis">Where did you disagree?</label>'
+    + '      <textarea id="ddis" data-d="disagreement" placeholder="The live disagreement, not a summary\u2026">'+esc(debrief.disagreement)+'</textarea></div>'
+    + '    <div class="f"><label for="dsettle">What would settle it?</label>'
+    + '      <textarea id="dsettle" data-d="settle" placeholder="An experiment, a dataset, a proof, a paper\u2026">'+esc(debrief.settle)+'</textarea></div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  function renderThread(){
+    var body = '';
+    if(postErr){
+      body = '<div class="empty">' + esc(postErr) + '</div>';
+    } else if(posts === null){
+      body = '<div class="empty">Loading\u2026</div>';
+    } else if(!posts.length){
+      body = '<div class="empty">No posts yet. Start it off.</div>';
+    } else {
+      body = posts.map(function(p){
+        return '<div class="post' + (p.mine ? ' mine' : '') + '">'
+          + '<div class="pmeta">' + esc(p.name || "Someone")
+          +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
+          +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
+          + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+          + '</div>';
+      }).join("");
+    }
+
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>' + (thread.key === "general" ? "Discussion" : "Discussion") + '</h2>'
+    +      (thread.key === "general"
+            ? '<p class="intro">Anything for the whole group.</p>'
+            : '<p class="intro">' + esc(thread.title) + '</p>')
+    + '  </div>'
+    + '  <div class="posts">' + body + '</div>'
+    + '  <div class="f">'
+    + '    <label for="fpost">Add to the discussion</label>'
+    + '    <textarea id="fpost" placeholder="What do you make of it?"></textarea>'
+    + '    <div class="btnrow" style="margin-top:.55rem">'
+    + '      <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
+    + '      <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
+    + '    </div>'
+    + '    <div class="note" id="postMsg"></div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  function when(iso){
+    try {
+      var d = new Date(iso), now = new Date();
+      var mins = Math.round((now - d) / 60000);
+      if(mins < 1) return "just now";
+      if(mins < 60) return mins + "m ago";
+      if(mins < 60 * 24) return Math.round(mins / 60) + "h ago";
+      return d.toLocaleDateString(undefined, {month:"short", day:"numeric"});
+    } catch(e){ return ""; }
+  }
+
+  function openThread(key, title){
+    thread = {key:key, title:title || ""};
+    posts = null; postErr = "";
+    mode = "thread"; render();
+    cloudPosts(key).then(function(list){
+      posts = list; render();
+    }, function(err){
+      postErr = (err && err.code === "bad_pin")
+        ? "Discussion opens once your submission is saved."
+        : "Could not load the discussion. Try Refresh.";
+      posts = []; render();
+    });
   }
 
   function validate(n){
@@ -1180,6 +1357,19 @@
   var homeBtn = document.getElementById("homeBtn");
 
   function render(){
+    if(mode === "thread" || mode === "debrief"){
+      rail.innerHTML = "";
+      view.innerHTML = (mode === "thread") ? renderThread() : renderDebrief();
+      barIn.innerHTML = '<button class="btn btn-out" id="leaveSub" type="button">Back</button>'
+        + (mode === "debrief"
+            ? '<button class="btn btn-accent" id="sendDebrief" type="button">Send debrief</button>'
+            : '<div class="top-sp"></div>');
+      bar.hidden = false;
+      document.body.classList.remove("nobar");
+      wireSub();
+      window.scrollTo(0, 0);
+      return;
+    }
     if(mode === "org"){
       rail.innerHTML = "";
       view.innerHTML = renderOrg();
@@ -1230,6 +1420,7 @@
     syncState = {state:"saving", msg:""}; render();
     cloudPush(S, keyFor(pin)).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
+      cloudCounts().then(function(c){ counts = c; render(); }, function(){});
     }, syncFailed);
   }
 
@@ -1276,6 +1467,19 @@
       editing = true; step = QUESTIONS; errs = {}; render();
     });
 
+    Array.prototype.forEach.call(view.querySelectorAll("[data-opened]"), function(a){
+      a.addEventListener("click", function(){ markOpened(a.getAttribute("data-opened")); });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
+      b.addEventListener("click", function(){
+        openThread(b.getAttribute("data-thread"), b.getAttribute("data-title"));
+      });
+    });
+    var og = document.getElementById("openGeneral");
+    if(og) og.addEventListener("click", function(){ openThread("general", ""); });
+    var od = document.getElementById("openDebrief");
+    if(od) od.addEventListener("click", function(){ mode = "debrief"; render(); });
+
     var cl = document.getElementById("copyLink");
     if(cl) cl.addEventListener("click", function(){
       copyText(myLink(S)).then(function(ok){ flash(cl, ok ? "Link copied" : "Copy failed"); });
@@ -1316,6 +1520,81 @@
       });
     });
   }
+  function wireSub(){
+    var back = document.getElementById("leaveSub");
+    if(back) back.addEventListener("click", function(){
+      mode = "form"; thread = null; posts = null; postErr = "";
+      debriefState = {state:"idle", msg:""};
+      render();
+    });
+
+    var send = document.getElementById("sendPost");
+    if(send) send.addEventListener("click", function(){
+      var ta = document.getElementById("fpost");
+      var msg = document.getElementById("postMsg");
+      var text = String(ta.value || "").trim();
+      if(!text){ msg.innerHTML = '<span class="warnt">Write something first.</span>'; return; }
+      send.disabled = true; msg.textContent = "Posting\u2026";
+      var key = thread.key;
+      cloudWrite({action:"post", email:S.e, pin:keyFor(pin), thread:key, body:text},
+                 function(){ return cloudPosts(key); })
+        .then(function(list){
+          var landed = list.some(function(p){ return p.mine && p.body === text; });
+          posts = list;
+          counts[key] = list.length;
+          if(landed){ render(); }
+          else {
+            render();
+            var m2 = document.getElementById("postMsg");
+            if(m2) m2.innerHTML = '<span class="warnt">The post did not come back \u2014 try again.</span>';
+          }
+        }, function(err){
+          send.disabled = false;
+          msg.innerHTML = '<span class="warnt">' + ((err && err.code === "bad_pin")
+            ? "Discussion opens once your submission is saved."
+            : "Could not post. Try again.") + '</span>';
+        });
+    });
+
+    var refresh = document.getElementById("refreshPosts");
+    if(refresh) refresh.addEventListener("click", function(){
+      var key = thread.key;
+      posts = null; postErr = ""; render();
+      cloudPosts(key).then(function(list){ posts = list; counts[key] = list.length; render(); },
+        function(){ postErr = "Could not load the discussion."; posts = []; render(); });
+    });
+
+    Array.prototype.forEach.call(view.querySelectorAll("[data-d]"), function(el){
+      el.addEventListener("input", function(){ debrief[el.getAttribute("data-d")] = el.value; });
+      if(el.tagName === "SELECT") el.addEventListener("change", function(){
+        debrief[el.getAttribute("data-d")] = el.value;
+      });
+    });
+
+    var sd = document.getElementById("sendDebrief");
+    if(sd) sd.addEventListener("click", function(){
+      if(!String(debrief.claim || "").trim()){
+        debriefState = {state:"warn", msg:"Say what the group landed on first."}; render(); return;
+      }
+      sd.disabled = true;
+      debriefState = {state:"warn", msg:"Sending\u2026"}; render();
+      cloudWrite({action:"debrief", email:S.e, pin:keyFor(pin), debrief:debrief},
+                 cloudDebriefs)
+        .then(function(list){
+          var landed = list.some(function(d){ return String(d.claim||"").slice(0,40) === String(debrief.claim).slice(0,40); });
+          debriefState = landed
+            ? {state:"ok", msg:"Debrief recorded."}
+            : {state:"warn", msg:"It did not come back \u2014 send it again."};
+          render();
+        }, function(err){
+          debriefState = {state:"warn", msg:(err && err.code === "bad_pin")
+            ? "Available once your submission is saved."
+            : "Could not send. Try again."};
+          render();
+        });
+    });
+  }
+
   function wireOrg(){
     Array.prototype.forEach.call(view.querySelectorAll("[data-tab]"), function(b){
       b.addEventListener("click", function(){ orgTab = b.getAttribute("data-tab"); render(); });
@@ -1407,13 +1686,20 @@
   // Organizers reach the console at .../#organizer — it is never linked from
   // the participant flow, so nobody stumbles into it.
   function checkMode(){
-    var want = /(^|[#&])organizer\b/.test(String(location.hash || "")) ? "org" : "form";
+    var h = String(location.hash || "");
+    var want = /(^|[#&])organizer\b/.test(h) ? "org"
+             : /(^|[#&])debrief\b/.test(h)   ? "debrief"
+             : "form";
     if(want !== mode){ mode = want; render(); }
   }
   window.addEventListener("hashchange", checkMode);
   if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
+  else if(/(^|[#&])debrief\b/.test(String(location.hash || ""))) mode = "debrief";
 
   render();
+  if(API && saved && !editing && normKey(pin).length >= 2){
+    cloudCounts().then(function(c){ counts = c; render(); }, function(){});
+  }
 
   /* offline support — only meaningful on a hosted copy */
   if("serviceWorker" in navigator && window.isSecureContext){
