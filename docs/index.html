@@ -767,7 +767,10 @@
     var s = syncState;
     if(s.state === "saving")  return '<div class="sync working">Saving…</div>';
     if(s.state === "ok")      return '<div class="sync ok">Saved to the organizers’ sheet.</div>';
-    if(s.state === "local")   return '<div class="sync warn">Saved on this device only. '+esc(s.msg||"")+'</div>';
+    if(s.state === "local")   return '<div class="sync warn">'
+      + (API ? 'Saved on this device only. ' + esc(s.msg||"")
+             : 'Saved on this device and in your link \u2014 send it to the organizers below.')
+      + '</div>';
     if(s.state === "error")   return '<div class="sync warn">'+esc(s.msg||"Could not reach the sheet.")+'</div>';
     return "";
   }
