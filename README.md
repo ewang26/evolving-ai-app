@@ -60,11 +60,11 @@ re-deploying changes nothing, because the web app serves the deployed version.
 `docs/sheet-backend.gs` into a new Apps Script project, set `SHEET_ID` and `ADMIN_KEY`,
 deploy as a web app with access **Anyone**, and put the `/exec` URL in `docs/config.js`.
 
-**The key is a question, not a password.** Participants name a favorite organism, which
+**The key is a question, not a password.** Participants name a favorite AI model, which
 gates both directions: you cannot read somebody's submission back, and you cannot overwrite
 it, without theirs. The answer is normalized in the browser (lowercased, punctuation and
-spaces stripped, a trailing "s" dropped) and prefixed `org:`, so "Slime mold", "slime-molds"
-and "SLIMEMOLD" are one key and nobody is locked out by capitals or a plural. Only a salted
+spaces stripped, a trailing "s" dropped) and prefixed `org:`, so "GPT-4", "gpt 4" and
+"gpt4" are one key and nobody is locked out by capitals or a hyphen. Only a salted
 SHA-256 of `email + key` reaches the sheet, so it cannot be used to recover anyone's answer
 and a hash copied between rows is useless. Eight wrong attempts per email triggers a
 15-minute cool-off. To reset someone, clear their **Passcode** cell and they can claim the

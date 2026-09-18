@@ -572,10 +572,10 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
   function chosen(){ return S.r.filter(function(x){ return x; }); }
-  // Normalized before it is ever hashed, so "Slime mold", "slime-molds" and
-  // "SLIMEMOLD" are all the same key — nobody gets locked out by capitals, a
-  // space or a plural. The "org:" prefix keeps it above the endpoint's minimum
-  // length even for a short answer like "ant".
+  // Normalized before it is ever hashed, so "GPT-4", "gpt 4" and "gpt4" are
+  // all the same key — nobody gets locked out by capitals, a space, a hyphen
+  // or a plural. The "org:" prefix keeps it above the endpoint's minimum
+  // length even for a two-character answer.
   function normKey(v){
     return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/s$/, "");
   }
@@ -655,19 +655,19 @@
     + fld("e","Email","email","jane@university.edu", S.e)
     + fld("a","Affiliation","text","Harvard · Human Evolutionary Biology", S.a)
     + '    <div class="f' + (errs.pin?" bad":"") + '">'
-    + '      <label for="fpin">Favorite organism</label>'
+    + '      <label for="fpin">Favorite AI model</label>'
     + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
-    +          'placeholder="Tardigrade" value="'+esc(pin)+'" />'
-    + '      <div class="hint">One word. This is how you get your reading back later.</div>'
+    +          'placeholder="AlphaFold" value="'+esc(pin)+'" />'
+    + '      <div class="hint">Remember this as your personal code for accessing your readings later!</div>'
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
     +      (needsPin
-            ? '<div class="sync warn">Name your favorite organism to finish saving. Your answers are still here.</div>'
+            ? '<div class="sync warn">Name your favorite AI model to finish saving. Your answers are still here.</div>'
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Already submitted? <button class="linkish" id="loadMine" type="button">Load my reading</button> using the email and organism above.</span>'
+        ? '<span class="note">Already submitted? <button class="linkish" id="loadMine" type="button">Load my reading</button> using the email and model above.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -726,7 +726,7 @@
     + '<section class="step">'
     + '  <div class="head thin">'
     + '    <h2>Your questions</h2>'
-    + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with the group the night before it meets.</p>'
+    + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with your specific subgroup partners on Thursday night.</p>'
     + '  </div>'
     + '  <div class="stack">' + cards + '</div>'
     + '</section>';
@@ -802,7 +802,7 @@
       if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
       if(!S.a.trim()) errs.a = "Where are you coming from?";
-      if(normKey(pin).length < 3) errs.pin = "Name one organism.";
+      if(normKey(pin).length < 2) errs.pin = "Name a model.";
     }
     if(n===1){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
@@ -810,7 +810,7 @@
     }
     if(n===2){
       chosen().forEach(function(id){
-        if(String(S.q[id]||"").trim().length < 20) errs["q"+id] = "One real question, please.";
+        if(String(S.q[id]||"").trim().length < 5) errs["q"+id] = "Add a question here.";
       });
     }
     return Object.keys(errs).length === 0;
@@ -1172,7 +1172,7 @@
       step = 0;
       errs.pin = code === "locked"
         ? "Too many tries. Wait a few minutes, then try again."
-        : "This email already has a submission under a different organism. Use that one to change it.";
+        : "This email already has a submission under a different model. Use that one to change it.";
       syncState = {state:"idle", msg:""}; render();
       return;
     }
@@ -1257,7 +1257,7 @@
     if(lm) lm.addEventListener("click", function(){
       var msg = document.getElementById("loadMsg");
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
-      if(normKey(pin).length < 3){ msg.innerHTML = '<span class="warnt">Fill in your organism above too.</span>'; return; }
+      if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
       msg.textContent = "Looking…";
       cloudLookup(S.e, keyFor(pin)).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
@@ -1268,7 +1268,7 @@
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
-          code === "bad_pin" ? "That is not the organism on file for this email."
+          code === "bad_pin" ? "That is not the model on file for this email."
           : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
