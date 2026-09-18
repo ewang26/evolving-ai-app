@@ -300,8 +300,13 @@
     margin-top:.9rem;display:flex;gap:.45rem;align-items:center}
   .sync::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:currentColor;flex:none}
   .sync.ok{color:var(--ok)} .sync.warn{color:var(--warn)} .sync.working{color:var(--muted)}
-  .yourq{padding:.85rem 1rem;font-size:1rem}
-  .yourq .kvk{margin-bottom:.35rem}
+  .yourq{
+    padding:.85rem 1rem;font-size:1.02rem;
+    background:rgba(236,193,135,.08);
+    border:1px solid rgba(236,193,135,.32);
+    border-left:2px solid var(--accent);
+  }
+  .yourq .kvk{color:var(--accent);margin-bottom:.4rem}
 </style>
 </head>
 <body>
@@ -517,6 +522,8 @@
   var syncState = { state:"idle", msg:"" };
   var step = 0, mode = "form", orgTab = "roster", errs = {}, built = null;
   var needsPin = false;
+  var editing = false;   // true while revising an already-saved submission: the
+                         // reading step goes back to being a step, not the end
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -763,7 +770,7 @@
   }
 
   function renderReading(){
-    var ids = chosen(), done = saved;
+    var ids = chosen(), done = saved && !editing;
     var blocks = ids.map(function(id){
       var t = T(id);
       return '<div class="topicblock">'
@@ -1184,7 +1191,7 @@
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
       view.innerHTML = [renderStep0, renderStep1, renderReading, renderQuestions][step]();
-      if(step === READING && saved){
+      if(step === READING && saved && !editing){
         barIn.innerHTML = "";     // the confirmation screen carries its own actions
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
@@ -1193,7 +1200,7 @@
       }
       wireForm();
     }
-    var hideBar = (mode === "form" && step === READING && saved);
+    var hideBar = (mode === "form" && step === READING && saved && !editing);
     bar.hidden = hideBar;
     document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
@@ -1217,7 +1224,7 @@
   }
 
   function submit(){
-    saved = true; saveLocal(); step = READING;
+    saved = true; editing = false; saveLocal(); step = READING;
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
@@ -1265,7 +1272,9 @@
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
 
     var edit = document.getElementById("editMine");
-    if(edit) edit.addEventListener("click", function(){ step = 0; errs = {}; render(); });
+    if(edit) edit.addEventListener("click", function(){
+      editing = true; step = QUESTIONS; errs = {}; render();
+    });
 
     var cl = document.getElementById("copyLink");
     if(cl) cl.addEventListener("click", function(){
@@ -1294,7 +1303,7 @@
       msg.textContent = "Looking…";
       cloudLookup(S.e, keyFor(pin)).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
-        S = normalize(row); saved = true; step = READING;
+        S = normalize(row); saved = true; editing = false; step = READING;
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();
@@ -1392,7 +1401,7 @@
       try { history.replaceState(null, "", location.pathname); } catch(e){}
       mode = "form";
     }
-    step = 0; errs = {}; needsPin = false; render();
+    step = 0; errs = {}; needsPin = false; editing = saved; render();
   });
 
   // Organizers reach the console at .../#organizer — it is never linked from
