@@ -1883,7 +1883,12 @@
         var to = b.getAttribute("data-go");
         if(to === "reads"){
           var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
-          if(first) first.scrollIntoView({block:"center", behavior:"auto"});
+          if(first){
+            // an explicit offset, because scrollIntoView is unreliable from here
+            var box = first.getBoundingClientRect();
+            var y = box.top + window.pageYOffset - Math.max(0, (window.innerHeight - box.height) / 2);
+            window.scrollTo(0, Math.max(0, Math.round(y)));
+          }
           return;
         }
         editing = true; errs = {};
