@@ -683,7 +683,7 @@
   if(!Array.isArray(roster)) roster = [];
 
   var STEPS = ["You", "Topics", "Reading", "Questions"];
-  var TOPICS = 1, READING = 2, QUESTIONS = 3;
+  var STEP_TOPICS = 1, READING = 2, QUESTIONS = 3;   // TOPICS is the focus-area data
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
@@ -1777,7 +1777,7 @@
       errs = {};
       needsPin = false;
       if(step === QUESTIONS){ submit(); return; }
-      if(step === TOPICS){ holdPlace(); return; }   // save first, read at leisure
+      if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
       step++; render();
     });
     var back = document.getElementById("back");
