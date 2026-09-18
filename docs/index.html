@@ -57,7 +57,7 @@
   /* ---------- shell ---------- */
   .top{
     position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
-    background:rgba(14,18,16,.92);
+    background:rgba(28,54,78,.93);
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
     border-bottom:1px solid var(--line);
   }
@@ -201,7 +201,7 @@
   /* ---------- buttons / bar ---------- */
   .bar{
     position:fixed;left:0;right:0;bottom:0;z-index:60;
-    background:rgba(14,18,16,.94);
+    background:rgba(28,54,78,.95);
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
     border-top:1px solid var(--line);
     padding:.8rem 1.1rem calc(.8rem + env(safe-area-inset-bottom,0px));
@@ -413,13 +413,6 @@
     }
   ];
 
-  var COMMUNITIES = [
-    {id:"ai",     label:"AI research"},
-    {id:"evo",    label:"Evolutionary science"},
-    {id:"both",   label:"Both / adjacent"},
-    {id:"fellow", label:"Evolving AI Fellow"}
-  ];
-
   var AGENDA = [
     {t:"8:30–9:00",   h:"Breakfast", s:""},
     {t:"9:00–9:10",   h:"Opening remarks", s:"Peter Fenton and David Sloan Wilson — the five focus areas and the goals for the workshop."},
@@ -487,19 +480,24 @@
   }
   function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
-  function cloudLookup(email){
-    return jsonp({action:"get", email:String(email||"").trim().toLowerCase()})
-      .then(function(res){ return (res && res.ok && res.row) ? res.row : null; });
+  function cloudLookup(email, code){
+    return jsonp({action:"get", email:String(email||"").trim().toLowerCase(), pin:String(code||"")})
+      .then(function(res){
+        if(res && res.ok) return res.row || null;
+        throw {code:(res && res.error) || "refused"};
+      });
   }
-  function cloudPush(sub){
+  function cloudPush(sub, code){
     if(!API) return Promise.reject({code:"no_api"});
     return fetch(API, {
       method:"POST", mode:"no-cors", cache:"no-store",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({action:"put", sub:sub})
+      body:JSON.stringify({action:"put", sub:sub, pin:String(code||"")})
     })
-    .then(function(){ return wait(1200); })
-    .then(function(){ return cloudLookup(sub.e); })
+    .then(function(){ return wait(1400); })
+    // the POST response is unreadable by design, so the read-back IS the result:
+    // a wrong passcode surfaces here as bad_pin instead of a false success
+    .then(function(){ return cloudLookup(sub.e, code); })
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
   }
   function cloudAll(key){
@@ -512,8 +510,10 @@
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", c:"", r:["","",""], q:{} };
+  var blank = { n:"", e:"", a:"", r:["","",""], q:{} };
   var S = JSON.parse(JSON.stringify(blank));
+  var pin = "";                      // deliberately NOT part of S, so the
+                                     // personal link never carries the passcode
   var saved = false;                 // this submission is stored somewhere durable
   var syncState = { state:"idle", msg:"" };
   var step = 0, mode = "form", orgTab = "roster", errs = {}, built = null;
@@ -525,7 +525,7 @@
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
     if(!o) return d;
-    d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || ""; d.c = o.c || "";
+    d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || "";
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? o.q : {};
@@ -536,7 +536,7 @@
     return !!(d.n && d.e && picks.length === 3 &&
       picks.every(function(id){ return String(d.q[id]||"").trim().length >= 20; }));
   }
-  function saveLocal(){ lsSet(LS_ME, {sub:S, saved:saved}); }
+  function saveLocal(){ lsSet(LS_ME, {sub:S, pin:pin, saved:saved}); }
 
   /* ---- boot: personal link beats this device's copy ---- */
   (function boot(){
@@ -553,6 +553,7 @@
     var mine = lsGet(LS_ME, null);
     if(mine && mine.sub){
       S = normalize(mine.sub);
+      pin = mine.pin || "";
       saved = !!mine.saved && isComplete(S);
       step = saved ? 3 : 0;
     }
@@ -566,7 +567,6 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
   function chosen(){ return S.r.filter(function(x){ return x; }); }
-  function commLabel(id){ for(var i=0;i<COMMUNITIES.length;i++) if(COMMUNITIES[i].id===id) return COMMUNITIES[i].label; return "—"; }
   function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
   function firstName(n){ return String(n||"").trim().split(/\s+/)[0] || "you"; }
 
@@ -593,7 +593,7 @@
   }
 
   function plainSubmission(d){
-    var L = ["EVOLVING AI — SEMINAR PREP", "", d.n, d.e, (d.a||"—"), commLabel(d.c), ""];
+    var L = ["EVOLVING AI — SEMINAR PREP", "", d.n, d.e, (d.a||"—"), ""];
     d.r.filter(function(x){return x;}).forEach(function(id, i){
       var t = T(id);
       L.push((i+1) + ". " + t.title);
@@ -644,18 +644,17 @@
     + fld("n","Your name","text","Jane Doe", S.n)
     + fld("e","Email","email","jane@university.edu", S.e)
     + fld("a","Affiliation","text","Harvard · Human Evolutionary Biology", S.a)
-    + '    <div class="f' + (errs.c?" bad":"") + '">'
-    + '      <label for="fc">Arriving from</label>'
-    + '      <select id="fc" data-k="c">'
-    + '        <option value=""' + (S.c?"":" selected") + '>Choose one…</option>'
-    +          COMMUNITIES.map(function(c){ return '<option value="'+c.id+'"'+(S.c===c.id?" selected":"")+'>'+c.label+'</option>'; }).join("")
-    + '      </select>'
-    +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
+    + '    <div class="f' + (errs.pin?" bad":"") + '">'
+    + '      <label for="fpin">Passcode</label>'
+    + '      <input id="fpin" type="password" inputmode="text" autocomplete="new-password" '
+    +          'placeholder="Choose 4 or more characters" value="'+esc(pin)+'" />'
+    + '      <div class="hint">Needed to load your reading on another device, or to change your answers later. Pick something new \u2014 not an existing password.</div>'
+    +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Submitted already? <button class="linkish" id="loadMine" type="button">Load my reading</button> with the email above.</span>'
+        ? '<span class="note">Submitted already? <button class="linkish" id="loadMine" type="button">Load my reading</button> with the email and passcode above.</span>'
         : '<span class="note">Submitted already? Open the personal link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -794,7 +793,7 @@
       if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
       if(!S.a.trim()) errs.a = "Where are you coming from?";
-      if(!S.c) errs.c = "Pick one.";
+      if(String(pin).trim().length < 4) errs.pin = "At least 4 characters.";
     }
     if(n===1){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
@@ -808,7 +807,6 @@
     return Object.keys(errs).length === 0;
   }
 
-  var COMM_ORDER = {ai:0, both:1, fellow:2, evo:3};
   var ROUNDS = 3, IDEAL = 5, MAX_GROUPS = 12;
 
   /* Every participant sits all three of their ranked topics, one per round.
@@ -916,8 +914,7 @@
       cohorts.forEach(function(c){
         var g = Math.max(1, Math.ceil(c.people.length / maxSize));
         var people = c.people.slice().sort(function(a, b){
-          var d = (COMM_ORDER[a.c] == null ? 2 : COMM_ORDER[a.c]) - (COMM_ORDER[b.c] == null ? 2 : COMM_ORDER[b.c]);
-          return d || String(a.n).localeCompare(String(b.n));
+          return String(a.n).localeCompare(String(b.n));
         });
         var buckets = [], i;
         for(i = 0; i < g; i++) buckets.push([]);
@@ -992,13 +989,12 @@
     }).length;
 
     h += '<div class="scroll"><table><thead><tr>'
-      + '<th>Name</th><th>From</th><th>1 · 2 · 3</th><th>Q</th><th></th>'
+      + '<th>Name</th><th>1 · 2 · 3</th><th>Q</th><th></th>'
       + '</tr></thead><tbody>'
       + roster.map(function(p, i){
           var qn = p.r.filter(function(id){ return String(p.q[id]||"").trim(); }).length;
           return '<tr>'
             + '<td>'+esc(p.n)+'<div style="color:var(--faint);font-size:.72rem">'+esc(p.a||p.e||"")+'</div></td>'
-            + '<td style="color:var(--muted)">'+esc(commLabel(p.c))+'</td>'
             + '<td class="mono" style="color:var(--accent);letter-spacing:.06em">'+p.r.map(function(id){return T(id).rn.toUpperCase();}).join(" · ")+'</td>'
             + '<td class="mono" style="color:'+(qn<p.r.length?"var(--warn)":"var(--ok)")+'">'+qn+'/'+p.r.length+'</td>'
             + '<td><button class="ghost" data-del="'+i+'" type="button" style="padding:.25rem .45rem">Remove</button></td>'
@@ -1058,7 +1054,7 @@
             }
             body += '<div class="mem">' + g.people.map(function(p){
               var q = String(p.q[g.topic.id]||"").trim();
-              return '<div class="m"><div class="mname">'+esc(p.n)+' <i>'+esc(p.a||commLabel(p.c))+'</i></div>'
+              return '<div class="m"><div class="mname">'+esc(p.n)+' <i>'+esc(p.a||p.e||"")+'</i></div>'
                 + (sheets ? (q ? '<div class="mq">“'+esc(q)+'”</div>' : '<div class="mq none">No question submitted</div>') : '')
                 + '</div>';
             }).join("") + '</div></div>';
@@ -1080,7 +1076,7 @@
         L.push("");
         g.people.forEach(function(p){
           var q = String(p.q[g.topic.id]||"").trim();
-          L.push("  " + p.n + "  (" + (p.a || commLabel(p.c)) + ")");
+          L.push("  " + p.n + "  (" + (p.a || p.e || "") + ")");
           L.push("    " + (q ? q.replace(/\s+/g," ") : "[no question submitted]"));
           L.push("");
         });
@@ -1091,13 +1087,13 @@
   }
 
   function rosterTsv(){
-    var L = ["Name\tEmail\tAffiliation\tCommunity\t1st\t2nd\t3rd\tQ1\tQ2\tQ3"];
+    var L = ["Name\tEmail\tAffiliation\t1st\t2nd\t3rd\tQ1\tQ2\tQ3"];
     roster.forEach(function(p){
       var qs = p.r.map(function(id){ return String(p.q[id]||"").replace(/\s+/g," ").trim(); });
       while(qs.length < 3) qs.push("");
       var rs = p.r.map(function(id){ return T(id).title; });
       while(rs.length < 3) rs.push("");
-      L.push([p.n, p.e, p.a, commLabel(p.c), rs[0], rs[1], rs[2], qs[0], qs[1], qs[2]].join("\t"));
+      L.push([p.n, p.e, p.a, rs[0], rs[1], rs[2], qs[0], qs[1], qs[2]].join("\t"));
     });
     return L.join("\n");
   }
@@ -1165,11 +1161,20 @@
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
-    cloudPush(S).then(function(){
+    cloudPush(S, pin).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
     }, function(err){
+      var code = err && err.code;
+      if(code === "bad_pin" || code === "locked"){
+        step = 0;
+        errs.pin = code === "locked"
+          ? "Too many tries. Wait a few minutes, then try again."
+          : "A submission already exists for this email under a different passcode.";
+        syncState = {state:"idle", msg:""}; render();
+        return;
+      }
       syncState = {state:"local",
-        msg: err && err.code === "unconfirmed"
+        msg: code === "unconfirmed"
           ? "The sheet did not confirm your row — try again below."
           : "The sheet could not be reached — try again below."};
       render();
@@ -1200,6 +1205,9 @@
       ta.addEventListener("input", function(){ S.q[ta.getAttribute("data-q")] = ta.value; saveLocal(); });
     });
 
+    var pinEl = document.getElementById("fpin");
+    if(pinEl) pinEl.addEventListener("input", function(){ pin = pinEl.value; saveLocal(); });
+
     var next = document.getElementById("next");
     if(next) next.addEventListener("click", function(){
       if(!validate(step)){ render(); var bad = view.querySelector(".bad, .err");
@@ -1228,7 +1236,7 @@
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
       syncState = {state:"saving", msg:""}; render();
-      cloudPush(S).then(function(){ syncState = {state:"ok", msg:""}; render(); },
+      cloudPush(S, pin).then(function(){ syncState = {state:"ok", msg:""}; render(); },
         function(){ syncState = {state:"error", msg:"Still could not reach the sheet."}; render(); });
     });
 
@@ -1236,14 +1244,21 @@
     if(lm) lm.addEventListener("click", function(){
       var msg = document.getElementById("loadMsg");
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
+      if(String(pin).trim().length < 4){ msg.innerHTML = '<span class="warnt">Enter your passcode above too.</span>'; return; }
       msg.textContent = "Looking…";
-      cloudLookup(S.e).then(function(row){
+      cloudLookup(S.e, pin).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = true; step = 3;
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();
-      }, function(){ msg.innerHTML = '<span class="warnt">Could not reach the sheet. Use your personal link instead.</span>'; });
+      }, function(err){
+        var code = err && err.code;
+        msg.innerHTML = '<span class="warnt">' + (
+          code === "bad_pin" ? "That passcode does not match the one on file for this email."
+          : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
+          : "Could not reach the sheet. Use your personal link instead.") + '</span>';
+      });
     });
   }
   function wireOrg(){

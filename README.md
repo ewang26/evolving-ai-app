@@ -40,6 +40,7 @@ nothing to set up.
 | Endpoint | set as `apiUrl` in `docs/config.js` |
 | Deployment | Execute as: Erik · Who has access: **Anyone** (anonymous submissions) |
 | Admin key | in the script as `ADMIN_KEY`; deliberately **not** in this repo |
+| Passcode salt | in the script as `SALT`; never leaves it. Changing it invalidates every passcode |
 
 The organizer console's **From the sheet** tab asks for that admin key and pulls the whole
 roster. The key is stored only in that browser.
@@ -58,6 +59,18 @@ re-deploying changes nothing, because the web app serves the deployed version.
 **To move the endpoint** (new Google account, or a fresh deployment): paste
 `docs/sheet-backend.gs` into a new Apps Script project, set `SHEET_ID` and `ADMIN_KEY`,
 deploy as a web app with access **Anyone**, and put the `/exec` URL in `docs/config.js`.
+
+**Passcodes.** Each participant sets one when they submit. It gates both directions: you
+cannot read somebody's submission back, and you cannot overwrite it, without theirs. Only a
+salted SHA-256 of `email + passcode` is stored, so the sheet cannot be used to recover
+anyone's passcode and a hash copied between rows is useless. Eight wrong attempts per email
+triggers a 15-minute cool-off. A passcode cannot be reset by the app — clear that row's
+**Passcode** cell in the sheet and the participant can claim it again with a fresh one.
+
+One known limitation: the lookup is a JSONP `GET`, so the passcode travels as a query
+parameter. It is HTTPS end to end, but it will appear in the participant's browser history
+and in Apps Script's request logs. Closing that would need a readable POST response, which
+Apps Script cannot give a static page.
 
 **Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
 a submission. The endpoint only appends or updates rows and never returns the roster
@@ -121,16 +134,17 @@ Top-right button. Nothing here is visible to participants.
 - **Subgroups** — three rounds of parallel breakouts. Everyone sits all three of their
   ranked topics, one per round; which topic falls in which round is chosen to open the
   fewest parallel groups, so oversubscribed topics simply run more rooms at once. At
-  55–60 participants this lands on 11–12 groups per round of 4–6 people, with both
-  communities mixed into every group. A group that cannot be filled is flagged
-  *merge or reassign* rather than silently left tiny.
+  55–60 participants this lands on 11–12 groups per round of 4–6 people. A group that
+  cannot be filled is flagged *merge or reassign* rather than silently left tiny.
+  Note: groups are no longer balanced across the two communities, because the app no
+  longer asks which field people come from. Affiliation is the only signal left.
 - **Question sheets** — print-ready, one block per group: topic, required reading, the
   members, and every question they submitted. This is what circulates the night before.
 
 ## Data
 
-Submissions contain a name, email, affiliation, community, three topic choices and three
-questions. They are stored in the Google Sheet you own, in the participant's own browser,
+Submissions contain a name, email, affiliation, a passcode hash, three topic choices and
+three questions. They are stored in the Google Sheet you own, in the participant's own browser,
 and in the personal link the app gives them. There is no third-party analytics, no
 cookies, and no login. The `apiUrl` in `config.js` is public by nature — anyone who reads
 the page source can post a submission to it, so treat the Sheet as append-only input and
