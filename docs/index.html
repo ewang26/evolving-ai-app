@@ -112,12 +112,15 @@
   /* ---------- fields ---------- */
   .fields{display:flex;flex-direction:column;gap:1.1rem}
   .f{display:flex;flex-direction:column;gap:.42rem}
+  .fields.one textarea{min-height:4.4rem}
+  .sixth{margin-top:.4rem;padding-top:1.4rem;border-top:1px solid var(--line)}
+  .sixth textarea{min-height:4.4rem}
   .f > label{
     font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.13em;
     text-transform:uppercase;color:var(--muted);
   }
   .f .hint{font-family:var(--sans);font-size:.8rem;color:var(--faint);line-height:1.45}
-  input[type=text],input[type=email],input[type=password],select,textarea{
+  input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
     width:100%;font-family:var(--sans);font-size:1rem;color:var(--text);
     background:var(--surface);border:1px solid var(--line);border-radius:3px;
     padding:.8rem .85rem;transition:border-color .15s,background .15s;
@@ -292,6 +295,7 @@
     .step{gap:1.9rem}
     .head{padding-bottom:1.5rem}
     .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;align-items:start}
+    .fields.one{display:flex;flex-direction:column;gap:1.4rem}
     .resume,.intro{grid-column:1 / -1}
     .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
     .read{height:100%}
@@ -671,7 +675,7 @@
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", r:["","",""], q:{}, t:"", read:{} };
+  var blank = { n:"", e:"", a:"", w:"", c:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
@@ -692,13 +696,14 @@
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
-  var STEPS = ["You", "Topics", "Reading", "Questions"];
-  var STEP_TOPICS = 1, READING = 2, QUESTIONS = 3;   // TOPICS is the focus-area data
+  var STEPS = ["You", "Work", "Topics", "Reading", "Questions"];
+  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4;   // TOPICS is the focus-area data
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
     if(!o) return d;
     d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || "";
+    d.w = o.w || ""; d.c = o.c || "";
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? o.q : {};
@@ -907,6 +912,44 @@
     + '</section>';
   }
 
+  /* Lenient on purpose: a bare domain is a link, a sentence is not. */
+  function linkOk(v){
+    v = String(v||"").trim();
+    if(!v) return false;
+    if(/\s/.test(v)) return false;
+    return /^https?:\/\/[^.]+\.[^.]/.test(v) || /^[^.\/]+\.[a-z]{2,}(\/|$)/i.test(v);
+  }
+  function tidyLink(v){
+    v = String(v||"").trim();
+    return (v && !/^https?:\/\//i.test(v)) ? "https://" + v : v;
+  }
+
+  function renderWork(){
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>Your work</h2>'
+    + '    <p class="intro">So everyone in your subgroup knows who they are talking to. '
+    +        '(All of this is private to this gathering and is not shared outside it.)</p>'
+    + '  </div>'
+    + '  <div class="fields one">'
+    + '    <div class="f' + (errs.w?" bad":"") + '">'
+    + '      <label for="fw">What you work on</label>'
+    + '      <textarea id="fw" data-k="w" rows="2" '
+    +          'placeholder="One sentence.">'+esc(S.w||"")+'</textarea>'
+    +        (errs.w?'<div class="err">'+errs.w+'</div>':'')
+    + '    </div>'
+    + '    <div class="f' + (errs.c?" bad":"") + '">'
+    + '      <label for="fc">One thing to read, watch or listen to</label>'
+    + '      <input id="fc" data-k="c" type="url" inputmode="url" spellcheck="false" '
+    +          'autocomplete="off" placeholder="https://\u2026" value="'+esc(S.c||"")+'" />'
+    + '      <div class="hint">A paper, a talk, a podcast episode \u2014 anything public that shows what you think about.</div>'
+    +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
+    + '    </div>'
+    + '  </div>'
+    + '</section>';
+  }
+
   function topicOptions(sel, idx){
     var taken = S.r.filter(function(x,i){ return i!==idx && x; });
     var h = '<option value=""' + (sel?"":" selected") + '>Choose a focus area…</option>';
@@ -934,6 +977,11 @@
     + '  <div class="head thin"><h2>Choose three topics</h2></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
+    + '  <div class="f sixth">'
+    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current five</label>'
+    + '    <textarea id="fnewtopic" data-k="t" rows="2" '
+    +        'placeholder="Optional.">'+esc(S.t||"")+'</textarea>'
+    + '  </div>'
     + '</section>';
   }
 
@@ -954,13 +1002,7 @@
     + '    <h2>Your questions</h2>'
     + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with your specific subgroup partners on Thursday night.</p>'
     + '  </div>'
-    + '  <div class="stack">' + cards
-    +   '<div class="card qcard">'
-    +     '<div class="qtop"><span class="rn">+</span><span class="qtitle">A topic we are missing</span></div>'
-    +     '<div class="framing"><b>Optional. If the five focus areas leave out something you came to argue about, name it here.</b></div>'
-    +     '<textarea id="fnewtopic" data-k="t" placeholder="A sixth focus area, and why it belongs\u2026">'+esc(S.t||"")+'</textarea>'
-    +   '</div>'
-    + '</div>'
+    + '  <div class="stack">' + cards + '</div>'
     + '</section>';
   }
 
@@ -1301,7 +1343,11 @@
       if(!S.a.trim()) errs.a = "Where are you coming from?";
       if(normKey(pin).length < 2) errs.pin = "Name a model.";
     }
-    if(n===1){
+    if(n===WORK){
+      if(S.w.trim().length < 10) errs.w = "One sentence is enough.";
+      if(!linkOk(S.c)) errs.c = "Paste a link, starting with http.";
+    }
+    if(n===STEP_TOPICS){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
       if(c.length < 3 || uniq.length < 3) errs.r = "Choose three different focus areas.";
     }
@@ -1645,13 +1691,15 @@
   }
 
   function rosterTsv(){
-    var L = ["Name\tEmail\tAffiliation\t1st\t2nd\t3rd\tQ1\tQ2\tQ3"];
+    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic"];
     roster.forEach(function(p){
       var qs = p.r.map(function(id){ return String(p.q[id]||"").replace(/\s+/g," ").trim(); });
       while(qs.length < 3) qs.push("");
       var rs = p.r.map(function(id){ return T(id).title; });
       while(rs.length < 3) rs.push("");
-      L.push([p.n, p.e, p.a, rs[0], rs[1], rs[2], qs[0], qs[1], qs[2]].join("\t"));
+      var oneline = function(v){ return String(v||"").replace(/\s+/g," ").trim(); };
+      L.push([p.n, p.e, p.a, oneline(p.w), oneline(p.c),
+              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], oneline(p.t)].join("\t"));
     });
     return L.join("\n");
   }
@@ -1715,7 +1763,7 @@
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = [renderStep0, renderStep1, renderReading, renderQuestions][step]();
+      view.innerHTML = [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
       if(step === READING && saved && !editing && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
       } else {
@@ -1811,6 +1859,7 @@
       errs = {};
       needsPin = false;
       if(step === QUESTIONS){ submit(); return; }
+      if(step === WORK){ S.c = tidyLink(S.c); saveLocal(); }
       if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
       step++; render();
     });

@@ -30,7 +30,7 @@ var SALT        = "CHANGE-ME-to-a-second-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation",
                "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Passcode", "Payload",
-               "New topic"];
+               "New topic", "Work", "Link"];
 
 var PASS_COL    = 11;   // 1-based column of the Passcode hash
 
@@ -239,7 +239,9 @@ function doPost(e) {
       qs[0] || "", qs[1] || "", qs[2] || "",
       stored_(mine),
       payload,
-      sub.t || ""
+      sub.t || "",
+      sub.w || "",
+      sub.c || ""
     ];
 
     if (existing > 0) sh.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
