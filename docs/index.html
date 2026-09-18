@@ -96,6 +96,11 @@
   h1 em{font-style:italic;color:var(--accent)}
   .lede{color:var(--muted);font-size:1.0625rem;max-width:34rem;margin-top:.7rem}
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
+  .head.thin{border-bottom:0;padding-bottom:0}
+  .head.thin h2{
+    font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.15em;
+    text-transform:uppercase;color:var(--muted);
+  }
 
   /* ---------- fields ---------- */
   .fields{display:flex;flex-direction:column;gap:1.1rem}
@@ -304,7 +309,6 @@
   <div class="top-in">
     <span class="mark">Evolving <em>AI</em><span>Harvard · Oct 8–10, 2026</span></span>
     <div class="top-sp"></div>
-    <button class="ghost" id="modeBtn" type="button">Organizer</button>
   </div>
   <div class="rail" id="rail" aria-hidden="true"></div>
 </div>
@@ -335,7 +339,6 @@
       id:"T1", rn:"i", short:"Major Evolutionary Transition",
       title:"AI as a Major Evolutionary Transition",
       q:"What can previous major evolutionary transitions teach us about AI, and what evidence would show that a genuinely new system of inheritance or individuality is emerging?",
-      memo:"The gathering's premise is that AI belongs on the list with cells, multicellular bodies, eusocial colonies, and human language. That claim is only interesting if it is falsifiable, so this group's job is to specify the evidence: what new inheritance channel, what new unit of selection, what loss of exit options for the parts.",
       readings:[
         {kind:"evo", req:true, len:"8 pp",
          url:"https://www.pnas.org/doi/pdf/10.1073/pnas.1421402112",
@@ -351,7 +354,6 @@
       id:"T2", rn:"ii", short:"Adaptive Agents to Adaptive Wholes",
       title:"From Adaptive Agents to Adaptive Wholes",
       q:"What evolutionary mechanisms can transform independently optimizing AI agents into coherent, cooperative systems, and keep their collective goals compatible with human flourishing?",
-      memo:"Evolutionary science is unusually specific about when self-interested parts come to function as a cooperative whole \u2014 and the conditions are structural, not attitudinal. The useful output here is a short list of design conditions that transfer to populations of agents, stated precisely enough that someone could build against them.",
       readings:[
         {kind:"evo", req:true, len:"37 pp",
          url:"https://www.nobelprize.org/uploads/2018/06/ostrom_lecture.pdf",
@@ -367,7 +369,6 @@
       id:"T3", rn:"iii", short:"Regulation, Cheating, Breakdown",
       title:"Regulation, Cheating, and Systemic Breakdown",
       q:"How do adaptive systems detect and suppress components that benefit at the expense of the whole, and what can cancer, immunity, development, and conflict suppression teach us about agentic AI?",
-      memo:"Every cooperative system that has lasted runs suppression machinery, and biology has four deeply studied versions of it. The question is which of those mechanisms \u2014 detection, policing, redundancy, apoptosis, developmental constraint \u2014 has no counterpart in deployed agentic systems, and what the failure mode looks like when it is missing.",
       readings:[
         {kind:"evo", req:true, len:"",
          url:"https://royalsocietypublishing.org/doi/pdf/10.1098/rstb.2014.0219",
@@ -383,7 +384,6 @@
       id:"T4", rn:"iv", short:"Human\u2013AI Coevolution",
       title:"Human\u2013AI Coevolution",
       q:"How will humans and AI systems reshape one another's cognition, culture, values, capabilities, and environments through repeated feedback and cultural transmission?",
-      memo:"Cultural evolution already explains how human cognition is downstream of the group rather than the individual. Adding a fast, non-human transmitter to that loop is the actual event of the last three years \u2014 so this group should name the loops that are already running and the ones worth instrumenting before they close.",
       readings:[
         {kind:"bridge", req:true, len:"38 pp",
          url:"https://arxiv.org/pdf/2311.11388",
@@ -399,7 +399,6 @@
       id:"T5", rn:"v", short:"Steering Open-Ended Ecosystems",
       title:"Steering Open-Ended AI Ecosystems",
       q:"What practical strategies can achieve goals of diversity, innovation, and evolvability while shaping the selection pressures acting on agents, companies, markets, and states toward socially beneficial outcomes?",
-      memo:"Nobody instructs an ecosystem; you change what it rewards. This group works one level up from model design \u2014 on the selection pressures acting on agents, labs, markets, and regulators \u2014 and should leave with interventions specific enough to argue about, including who would have to implement them.",
       readings:[
         {kind:"ai", req:true, len:"20 pp",
          url:"https://arxiv.org/pdf/2406.04268",
@@ -642,10 +641,6 @@
   function renderStep0(){
     return ''
     + '<section class="step">'
-    + '  <div class="head">'
-    + '    <h1>Pick three focus areas. Bring <em>one question</em> to each.</h1>'
-    + '    <p class="lede">Each breakout runs as a seminar: required reading beforehand, and every question circulated to the group the night before it meets.</p>'
-    + '  </div>'
     + '  <div class="fields">'
     + fld("n","Your name","text","Jane Doe", S.n)
     + fld("e","Email","email","jane@university.edu", S.e)
@@ -701,10 +696,7 @@
 
     return ''
     + '<section class="step">'
-    + '  <div class="head">'
-    + '    <h1>Which three, <em>in order</em>?</h1>'
-    + '    <p class="lede">You sit all three across the day. The order decides which group you get when a topic is oversubscribed.</p>'
-    + '  </div>'
+    + '  <div class="head thin"><h2>Your three, in order</h2></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
     + '</section>';
@@ -723,10 +715,7 @@
 
     return ''
     + '<section class="step">'
-    + '  <div class="head">'
-    + '    <h1>One question per group.</h1>'
-    + '    <p class="lede">Printed with your name and circulated to your group the night before it meets.</p>'
-    + '  </div>'
+    + '  <div class="head thin"><h2>One question each</h2></div>'
     + '  <div class="stack">' + cards + '</div>'
     + '</section>';
   }
@@ -749,7 +738,6 @@
       var t = T(id);
       return '<div class="topicblock">'
         + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
-        + '<div class="memo">'+esc(t.memo)+'</div>'
         + '<div class="reads">' + t.readings.map(function(r){
             return '<div class="read'+(r.req?" req":"")+'">'
               + '<div class="rmeta">'
@@ -771,13 +759,13 @@
 
     return ''
     + '<section class="step">'
-    + '  <div class="head">'
-    + '    <h1>' + esc(firstName(S.n)) + '’s reading.</h1>'
-    + '    <p class="lede">One required text per group, plus optional depth. Keep the link below and this page comes back on any device.</p>'
+    + '  <div class="head thin">'
+    + '    <h2>' + esc(firstName(S.n)) + '’s reading</h2>'
     +      syncLine()
     + '  </div>'
     + blocks
     + '  <div class="topicblock">'
+    + '    <p class="note">Keep this link and your reading comes back on any device.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-accent" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
@@ -1135,15 +1123,13 @@
   var view = document.getElementById("view");
   var barIn = document.getElementById("barIn");
   var rail = document.getElementById("rail");
-  var modeBtn = document.getElementById("modeBtn");
+  var modeBtn = null;   // the console has no button: it opens on #organizer
 
   function render(){
     if(mode === "org"){
       rail.innerHTML = "";
       view.innerHTML = renderOrg();
-      barIn.innerHTML = '<button class="btn btn-out" id="backForm" type="button">Back</button>'
-        + '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
-      modeBtn.textContent = "Close";
+      barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
       wireOrg();
       wireSheet();
     } else {
@@ -1159,7 +1145,6 @@
           + '<button class="btn btn-accent" id="next" type="button">'
           + (step === 2 ? "Submit" : "Continue") + '</button>';
       }
-      modeBtn.textContent = "Organizer";
       wireForm();
     }
     window.scrollTo(0, 0);
@@ -1277,9 +1262,6 @@
     Array.prototype.forEach.call(view.querySelectorAll("[data-tab]"), function(b){
       b.addEventListener("click", function(){ orgTab = b.getAttribute("data-tab"); render(); });
     });
-    var bf = document.getElementById("backForm");
-    if(bf) bf.addEventListener("click", function(){ mode = "form"; render(); });
-
     var ing = document.getElementById("ingest");
     if(ing) ing.addEventListener("click", function(){
       var ta = document.getElementById("paste");
@@ -1356,10 +1338,14 @@
     });
   }
 
-  modeBtn.addEventListener("click", function(){
-    mode = (mode === "org") ? "form" : "org";
-    render();
-  });
+  // Organizers reach the console at .../#organizer — it is never linked from
+  // the participant flow, so nobody stumbles into it.
+  function checkMode(){
+    var want = /(^|[#&])organizer\b/.test(String(location.hash || "")) ? "org" : "form";
+    if(want !== mode){ mode = want; render(); }
+  }
+  window.addEventListener("hashchange", checkMode);
+  if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
 
   render();
 

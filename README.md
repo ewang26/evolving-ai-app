@@ -124,7 +124,9 @@ app now, and submit to the stores in parallel.
 
 ## Organizer console
 
-Top-right button. Nothing here is visible to participants.
+At **https://ewang26.github.io/evolving-ai-app/#organizer** — not linked from the app, so
+participants never see it. The Google Sheet holds the raw submissions; this is what turns
+them into rooms.
 
 - **Roster** — who has submitted and how many questions each has. Also accepts pasted
   submissions for anyone who sends theirs by email.
