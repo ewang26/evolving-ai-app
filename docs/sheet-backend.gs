@@ -57,6 +57,20 @@ function hash_(email, code) {
     Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8));
 }
 
+/**
+ * A base64 hash can begin with "+" or "/", which Sheets parses as a FORMULA and
+ * stores as #ERROR! — silently locking that person out for good. Writing it
+ * behind a "k:" prefix makes the cell unambiguously text. Bare hashes from
+ * before this fix still verify.
+ */
+var KEY_PREFIX = "k:";
+function stored_(h) { return KEY_PREFIX + h; }
+function corrupt_(v) { return String(v || "").charAt(0) === "#"; }
+function keyMatches_(onFile, h) {
+  onFile = String(onFile || "");
+  return same_(onFile, stored_(h)) || same_(onFile, h);
+}
+
 /** Constant-time-ish compare, so a wrong passcode leaks nothing by timing. */
 function same_(a, b) {
   a = String(a || ""); b = String(b || "");
@@ -114,7 +128,8 @@ function verify_(email, code) {
   var at = findRow_(sh, email);
   if (at < 0) return null;
   var onFile = sh.getRange(at, PASS_COL).getValue();
-  if (!onFile || !same_(onFile, hash_(email, code))) { noteFail_(email); return null; }
+  if (!onFile || corrupt_(onFile)) return "reset";      // needs re-submitting, not a wrong key
+  if (!keyMatches_(onFile, hash_(email, code))) { noteFail_(email); return null; }
   clearFails_(email);
   var row = sh.getRange(at, 1, 1, HEADERS.length).getValues()[0];
   return {name: row[1], email: row[2], affiliation: row[3]};
@@ -168,6 +183,7 @@ function doPost(e) {
     // A discussion post.
     if (body.action === "post") {
       var poster = verify_(body.email, body.pin);
+      if (poster === "reset") return out_({ok: false, error: "key_reset"});
       if (!poster) return out_({ok: false, error: "bad_pin"});
       var text = String(body.body || "").trim();
       if (!text) return out_({ok: false, error: "empty"});
@@ -182,6 +198,7 @@ function doPost(e) {
     // An end-of-day group debrief.
     if (body.action === "debrief") {
       var rap = verify_(body.email, body.pin);
+      if (rap === "reset") return out_({ok: false, error: "key_reset"});
       if (!rap) return out_({ok: false, error: "bad_pin"});
       var d = body.debrief || {};
       if (!String(d.claim || "").trim()) return out_({ok: false, error: "empty"});
@@ -208,7 +225,7 @@ function doPost(e) {
     // An existing entry may only be overwritten by whoever set its passcode.
     if (existing > 0) {
       var onFile = sh.getRange(existing, PASS_COL).getValue();
-      if (onFile && !same_(onFile, mine)) {
+      if (onFile && !corrupt_(onFile) && !keyMatches_(onFile, mine)) {
         noteFail_(sub.e);
         return out_({ok: false, error: "bad_pin"});
       }
@@ -220,7 +237,7 @@ function doPost(e) {
       new Date(), sub.n, String(sub.e).trim(), sub.a || "",
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
       qs[0] || "", qs[1] || "", qs[2] || "",
-      mine,
+      stored_(mine),
       payload,
       sub.t || ""
     ];
@@ -267,6 +284,7 @@ function doGet(e) {
     // "<topicId>#<reading index>", e.g. "T3#0".
     if (p.action === "posts") {
       var who = verify_(p.email, p.pin);
+      if (who === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who) return out_({ok: false, error: "bad_pin"}, cb);
       var want = String(p.thread || "general");
       var posts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
@@ -283,6 +301,7 @@ function doGet(e) {
     // then the thread. One call so the view opens in a single round trip.
     if (p.action === "topic") {
       var whoT = verify_(p.email, p.pin);
+      if (whoT === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!whoT) return out_({ok: false, error: "bad_pin"}, cb);
       var tid = String(p.topic || "");
       var qs = [];
@@ -309,6 +328,7 @@ function doGet(e) {
     // One call for every badge on the reading page.
     if (p.action === "counts") {
       var who2 = verify_(p.email, p.pin);
+      if (who2 === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who2) return out_({ok: false, error: "bad_pin"}, cb);
       var tally = {};
       rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS).forEach(function (r) {
@@ -328,6 +348,7 @@ function doGet(e) {
     // A rapporteur confirming their own debrief landed.
     if (p.action === "mydebriefs") {
       var who3 = verify_(p.email, p.pin);
+      if (who3 === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who3) return out_({ok: false, error: "bad_pin"}, cb);
       var key = String(who3.email).trim().toLowerCase();
       var mine = rowsOf_(tab_(DEBRIEF_SHEET, DEBRIEF_HEADERS), DEBRIEF_HEADERS)
