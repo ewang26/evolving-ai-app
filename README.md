@@ -2,8 +2,9 @@
 
 The pre-gathering app for **Evolving AI**, Harvard University, October 8–10, 2026.
 
-A participant enters their details, ranks three of the five focus areas, writes one
-question per topic, and gets a pre-read assembled from their choices. The organizer
+A participant enters their details, ranks three of the five focus areas, reads the pre-read
+assembled from those choices, then writes one question per topic plus an optional proposal
+for a sixth. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
 
 Everything lives in `docs/` and is a static site — no build step, no server.
@@ -35,7 +36,7 @@ nothing to set up.
 
 | | |
 | --- | --- |
-| Sheet | `1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY` |
+| Sheet | `1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY` (13 columns; `Payload` is looked up by name, so column order can change safely) |
 | Script project | "Evolving AI - submissions endpoint" (standalone, in the same Drive) |
 | Endpoint | set as `apiUrl` in `docs/config.js` |
 | Deployment | Execute as: Erik · Who has access: **Anyone** (anonymous submissions) |

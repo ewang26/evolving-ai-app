@@ -584,6 +584,15 @@
   function keyFor(v){ var n = normKey(v); return n ? "org:" + n : ""; }
 
   function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
+
+  // The email is how somebody gets back in, so flag the usual slips without
+  // blocking anyone whose address really does end in something unusual.
+  var TYPOS = {con:"com", cpm:"com", xom:"com", vom:"com", comm:"com", ocm:"com",
+               cmo:"com", ed:"edu", eud:"edu", edy:"edu", orgg:"org", ogr:"org"};
+  function emailTypo(v){
+    var m = /\.([a-z]{2,5})$/.exec(String(v||"").trim().toLowerCase());
+    return (m && TYPOS[m[1]]) ? TYPOS[m[1]] : "";
+  }
   function firstName(n){ return String(n||"").trim().split(/\s+/)[0] || "you"; }
 
   function copyText(t){
@@ -655,6 +664,7 @@
     + '  <div class="fields">'
     + fld("n","Name","text","Jane Doe", S.n)
     + fld("e","Email","email","jane@university.edu", S.e)
+    +      (emailTypo(S.e) ? '<div class="err">Did you mean .' + emailTypo(S.e) + '?</div>' : '')
     + fld("a","Affiliation","text","Harvard · Human Evolutionary Biology", S.a)
     + '    <div class="f' + (errs.pin?" bad":"") + '">'
     + '      <label for="fpin">Favorite AI model</label>'
@@ -820,7 +830,8 @@
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
       if(c.length < 3 || uniq.length < 3) errs.r = "Choose three different focus areas.";
     }
-    if(n===2){
+    // step READING has nothing to validate
+    if(n===QUESTIONS){
       chosen().forEach(function(id){
         if(String(S.q[id]||"").trim().length < 5) errs["q"+id] = "Add a question here.";
       });
