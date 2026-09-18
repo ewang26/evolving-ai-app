@@ -47,6 +47,7 @@
     -webkit-font-smoothing:antialiased;
     padding-bottom:var(--bar);
   }
+  body.nobar{padding-bottom:2rem}
   ::selection{background:var(--accent);color:var(--bg)}
   a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(236,193,135,.35)}
   a:hover{color:var(--accent-hover)}
@@ -65,7 +66,13 @@
     max-width:40rem;margin-inline:auto;padding:.7rem 1.1rem .6rem;
     display:flex;align-items:center;gap:.75rem;
   }
-  .mark{font-family:var(--serif);font-size:1.02rem;line-height:1.1;letter-spacing:0;border:0}
+  .mark{
+    font-family:var(--serif);font-size:1.02rem;line-height:1.1;letter-spacing:0;
+    background:none;border:0;padding:0;margin:0;color:var(--text);
+    text-align:left;cursor:pointer;display:block;
+  }
+  .mark em{transition:color .15s ease}
+  .mark:hover em{color:var(--accent)}
   .mark em{font-style:italic}
   .mark span{display:block;font-family:var(--mono);font-size:.56rem;letter-spacing:.17em;
     text-transform:uppercase;color:var(--faint);margin-top:.18rem}
@@ -85,10 +92,11 @@
   main{max-width:40rem;margin-inline:auto;padding:1.5rem 1.1rem 2rem}
   .step{display:flex;flex-direction:column;gap:1.35rem}
 
-  .eyebrow{
+  .eyebrow,.head.thin h2{
     font-family:var(--mono);font-size:.63rem;font-weight:500;letter-spacing:.16em;
     text-transform:uppercase;color:var(--accent);
   }
+  .head.thin h2{color:var(--muted)}
   h1{
     font-family:var(--serif);font-weight:400;font-size:1.72rem;line-height:1.22;
     letter-spacing:-.01em;text-wrap:balance;margin-top:.5rem;
@@ -97,10 +105,7 @@
   .lede{color:var(--muted);font-size:1.0625rem;max-width:34rem;margin-top:.7rem}
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
   .head.thin{border-bottom:0;padding-bottom:0}
-  .head.thin h2{
-    font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.15em;
-    text-transform:uppercase;color:var(--muted);
-  }
+
 
   /* ---------- fields ---------- */
   .fields{display:flex;flex-direction:column;gap:1.1rem}
@@ -120,14 +125,11 @@
   input::placeholder,textarea::placeholder{color:#7f9099}
   select{
     appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:2.4rem;
-    background-image:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23C9A36A' stroke-width='1.4'/%3E%3C/svg%3E");
+    background-image:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23ecc187' stroke-width='1.4'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right .9rem center;
   }
   .bad input,.bad select,.bad textarea{border-color:var(--warn)}
   .err{font-family:var(--sans);font-size:.78rem;color:var(--warn)}
-  .counter{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;color:var(--faint);
-    font-variant-numeric:tabular-nums;text-align:right}
-  .counter.short{color:var(--warn)}
 
   /* ---------- rank rows ---------- */
   .pick{display:flex;flex-direction:column;gap:.9rem}
@@ -158,7 +160,6 @@
   /* ---------- reading list ---------- */
   .topicblock{border-top:1px solid var(--line-soft);padding-top:1.15rem;
     display:flex;flex-direction:column;gap:.85rem}
-  .memo{font-size:1rem;color:var(--muted)}
   .reads{display:flex;flex-direction:column;gap:.7rem}
   .read{display:grid;grid-template-columns:1fr;gap:.3rem;
     background:var(--wash);border:1px solid var(--line-soft);border-radius:3px;padding:.8rem .9rem}
@@ -169,10 +170,8 @@
     padding:.2rem .4rem;border-radius:2px;border:1px solid var(--line);color:var(--faint);
   }
   .tag.req{border-color:var(--accent);color:var(--accent)}
-  .tag.ai{border-color:#2d5470;color:#9fc0d6}
-  .tag.evo{border-color:#4a5a3f;color:#b6c79f}
-  .tag.bridge{border-color:#5d4a39;color:#d2ab86}
-  .tag.pdf{border-color:rgba(236,193,135,.5);color:var(--accent)}
+  .rkind{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--faint)}
   .rcite{font-size:1rem;line-height:1.4}
   .rcite b{font-weight:500}
   .rnote{font-family:var(--sans);font-size:.8rem;color:var(--faint);line-height:1.45}
@@ -307,7 +306,7 @@
 <body>
 <div class="top">
   <div class="top-in">
-    <span class="mark">Evolving <em>AI</em><span>Harvard · Oct 8–10, 2026</span></span>
+    <button class="mark" id="homeBtn" type="button" aria-label="Back to the start of the form">Evolving <em>AI</em><span>Harvard · Oct 8–10, 2026</span></button>
     <div class="top-sp"></div>
   </div>
   <div class="rail" id="rail" aria-hidden="true"></div>
@@ -742,9 +741,9 @@
             return '<div class="read'+(r.req?" req":"")+'">'
               + '<div class="rmeta">'
               +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
-              +   '<span class="tag '+r.kind+'">'+(r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")+'</span>'
-              +   (r.len?'<span class="tag">'+r.len+'</span>':'')
-              +   '<span class="tag pdf">PDF</span>'
+              +   '<span class="rkind">'
+              +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
+              +     (r.len?' · '+r.len:'') + ' · PDF</span>'
               + '</div>'
               + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
@@ -1122,8 +1121,10 @@
      ================================================================== */
   var view = document.getElementById("view");
   var barIn = document.getElementById("barIn");
+  var bar = document.getElementById("bar");
   var rail = document.getElementById("rail");
   var modeBtn = null;   // the console has no button: it opens on #organizer
+  var homeBtn = document.getElementById("homeBtn");
 
   function render(){
     if(mode === "org"){
@@ -1138,8 +1139,7 @@
       }).join("");
       view.innerHTML = [renderStep0, renderStep1, renderStep2, renderStep3][step]();
       if(step === 3){
-        barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'
-          + (syncState.state === "ok" ? "Submitted" : saved ? "Saved" : "") + '</span>';
+        barIn.innerHTML = "";     // the reading step carries its own actions inline
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
           + '<button class="btn btn-accent" id="next" type="button">'
@@ -1147,6 +1147,9 @@
       }
       wireForm();
     }
+    var hideBar = (mode === "form" && step === 3);
+    bar.hidden = hideBar;
+    document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
   }
 
@@ -1337,6 +1340,14 @@
       });
     });
   }
+
+  if(homeBtn) homeBtn.addEventListener("click", function(){
+    if(mode === "org"){
+      try { history.replaceState(null, "", location.pathname); } catch(e){}
+      mode = "form";
+    }
+    step = 0; errs = {}; needsPin = false; render();
+  });
 
   // Organizers reach the console at .../#organizer — it is never linked from
   // the participant flow, so nobody stumbles into it.
