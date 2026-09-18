@@ -180,3 +180,40 @@ a public site.
 The selection is still a proposal, not organizer-approved. Each area pairs an
 evolutionary-science source with an AI one, except **Steering Open-Ended AI Ecosystems**,
 where both are AI papers because that is where the literature is.
+
+---
+
+## Discussion, debriefs and reminders (branch: `discussion`)
+
+Not on `main`, so not yet live at the Pages URL.
+
+**Reading discussion.** Every reading card gets a Discussion button once the participant
+has submitted, opening a thread anchored to that specific paper (`<topicId>#<index>`, e.g.
+`T3#0`). Posts live in a **Posts** tab.
+
+**General discussion.** The same thread machinery under the key `general`, reached from the
+button on the confirmation screen.
+
+**Who can take part.** Reading *and* posting require the same email + favorite-AI-model key
+that guards a submission, checked server-side against the Submissions row. So posts are
+attributable, outsiders who find the endpoint see nothing, and only people who have
+actually submitted can join — which matches the seminar rule.
+
+**Group debrief.** `#debrief` (also a button on the confirmation screen). Three identical
+fields for every group — what they landed on, where they disagreed, what would settle it —
+so the results can be read side by side. Lands in a **Debriefs** tab, and the organizer
+console has a Debriefs tab that groups them by round. Deliberately not a chat thread:
+free-form notes from eleven groups do not compare.
+
+**Nudges.** Two parts:
+- In-app: opening a reading's PDF is recorded, and the reading page shows "You have opened
+  3 of 6." It detects the click, not whether anyone read the paper.
+- Email: `sendReminders()` in `docs/sheet-backend.gs` mails anyone with no submission, or a
+  submission missing questions, using an **Invitees** tab (Name, Email) to know who is
+  expected. It is **not armed**: `DRY_RUN = true` and no trigger is installed, so it sends
+  nothing until someone sets `DRY_RUN = false` and adds a Day-timer trigger on
+  `sendReminders`. Run it once with `DRY_RUN` on and read the execution log first.
+
+**Latency, honestly.** Apps Script takes 1–3s per call and cannot push, so posts appear on
+open or Refresh, not live. Fine for this scale; it will not feel like Slack. Swapping the
+store later means replacing `cloudPosts` / `cloudWrite` only.

@@ -591,10 +591,11 @@
     d.t = o.t || "";
     return d;
   }
+  var MIN_Q = 5;   // also used by validate(): keep them in step
   function isComplete(d){
     var picks = d.r.filter(function(x){ return x; });
     return !!(d.n && d.e && picks.length === 3 &&
-      picks.every(function(id){ return String(d.q[id]||"").trim().length >= 20; }));
+      picks.every(function(id){ return String(d.q[id]||"").trim().length >= MIN_Q; }));
   }
   function saveLocal(){ lsSet(LS_ME, {sub:S, pin:pin, saved:saved}); }
 
@@ -1017,7 +1018,7 @@
     // step READING has nothing to validate
     if(n===QUESTIONS){
       chosen().forEach(function(id){
-        if(String(S.q[id]||"").trim().length < 5) errs["q"+id] = "Add a question here.";
+        if(String(S.q[id]||"").trim().length < MIN_Q) errs["q"+id] = "Add a question here.";
       });
     }
     return Object.keys(errs).length === 0;
@@ -1169,7 +1170,7 @@
       + '  <p class="lede">Pull from the sheet, or paste submissions in. Everything below is computed from the roster held in this browser.</p>'
       + '</div>'
       + '<div class="tabs noprint">'
-      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets'].map(function(x){
+      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets','debriefs:Debriefs'].map(function(x){
             var k = x.split(":")[0], l = x.split(":")[1];
             return '<button class="tab'+(orgTab===k?" on":"")+'" data-tab="'+k+'" type="button">'+l+'</button>';
           }).join("")
@@ -1180,6 +1181,7 @@
     if(orgTab === "demand")  h += orgDemand();
     if(orgTab === "groups")  h += orgGroups(false);
     if(orgTab === "sheets")  h += orgGroups(true);
+    if(orgTab === "debriefs") h += orgDebriefs();
     return h + '</section>';
   }
 
@@ -1231,6 +1233,46 @@
     if(missing) h += '<p class="note" style="color:var(--warn)">'+missing+' participant'+(missing===1?" is":"s are")+' missing at least one question. Their group sheet will show the gap.</p>';
 
     return h;
+  }
+
+  var debriefs = null, debriefsErr = "";
+
+  function orgDebriefs(){
+    if(!API) return '<div class="empty">No sheet endpoint configured.</div>';
+    if(debriefsErr) return '<div class="empty">' + esc(debriefsErr) + '</div>';
+    if(debriefs === null){
+      return '<div class="f noprint">'
+        + '  <div class="btnrow"><button class="btn btn-accent btn-sm" id="pullDebriefs" type="button" style="flex:0 1 auto">Load debriefs</button></div>'
+        + '  <div class="hint">Uses the admin key from the \u201cFrom the sheet\u201d tab.</div>'
+        + '</div>';
+    }
+    if(!debriefs.length) return '<div class="empty">No debriefs yet.</div>';
+
+    var byRound = {};
+    debriefs.forEach(function(d){
+      var k = String(d.round || "\u2014");
+      (byRound[k] = byRound[k] || []).push(d);
+    });
+    return Object.keys(byRound).sort().map(function(k){
+      return '<div class="topicblock">'
+        + '<div class="eyebrow">Round ' + esc(k) + ' \u00b7 ' + byRound[k].length + '</div>'
+        + '<div class="stack">' + byRound[k].map(function(d){
+            var t = T(d.topic);
+            return '<div class="grp">'
+              + '<div class="grph">'
+              +   '<span class="grpname">' + esc(d.group || "\u2014") + (t ? ' \u00b7 ' + t.rn : '') + '</span>'
+              +   '<span class="grpsize">' + esc(d.name || "") + '</span>'
+              +   (t ? '<span class="grptitle">' + esc(t.title) + '</span>' : '')
+              + '</div>'
+              + '<div class="mem">'
+              +   '<div class="m"><div class="kvk">Landed on</div><div class="mq">' + esc(d.claim || "") + '</div></div>'
+              +   (d.disagreement ? '<div class="m"><div class="kvk">Disagreement</div><div class="mq">' + esc(d.disagreement) + '</div></div>' : '')
+              +   (d.settle ? '<div class="m"><div class="kvk">Would settle it</div><div class="mq">' + esc(d.settle) + '</div></div>' : '')
+              + '</div>'
+              + '</div>';
+          }).join("") + '</div>'
+        + '</div>';
+    }).join("");
   }
 
   function orgDemand(){
@@ -1376,6 +1418,7 @@
       barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
       wireOrg();
       wireSheet();
+      wireDebriefs();
     } else {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
@@ -1511,6 +1554,7 @@
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();
+        cloudCounts().then(function(c){ counts = c; render(); }, function(){});
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
@@ -1649,6 +1693,21 @@
     });
   }
 
+
+  function wireDebriefs(){
+    var b = document.getElementById("pullDebriefs");
+    if(!b) return;
+    b.addEventListener("click", function(){
+      var key = lsGet(LS_KEY, "");
+      if(!key){ debriefsErr = "Enter the admin key on the \u201cFrom the sheet\u201d tab first."; render(); return; }
+      b.disabled = true; b.textContent = "Loading\u2026";
+      jsonp({action:"debriefs", key:key}, 25000).then(function(res){
+        if(res && res.ok){ debriefs = res.debriefs || []; debriefsErr = ""; }
+        else { debriefsErr = (res && res.error === "bad_key") ? "That admin key was refused." : "Could not load debriefs."; }
+        render();
+      }, function(){ debriefsErr = "Could not reach the sheet."; render(); });
+    });
+  }
 
   function wireSheet(){
     var pull = document.getElementById("pull");
