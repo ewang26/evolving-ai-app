@@ -669,10 +669,10 @@
     return ''
     + '<section class="step">'
     + '  <div class="fields">'
-    + fld("n","Name","text","Jane Doe", S.n)
-    + fld("e","Email","email","jane@university.edu", S.e)
+    + fld("n","Name","text","Charles Darwin", S.n)
+    + fld("e","Email","email","darwin@cam.ac.uk", S.e)
     +      (emailTypo(S.e) ? '<div class="err">Did you mean .' + emailTypo(S.e) + '?</div>' : '')
-    + fld("a","Affiliation","text","Harvard · Human Evolutionary Biology", S.a)
+    + fld("a","Affiliation","text","Cambridge", S.a)
     + '    <div class="f' + (errs.pin?" bad":"") + '">'
     + '      <label for="fpin">Favorite AI model</label>'
     + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
