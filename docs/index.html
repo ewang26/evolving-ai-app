@@ -337,6 +337,40 @@
   .discentry .dcount{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
     text-transform:uppercase;color:var(--accent)}
 
+  .progress{
+    display:flex;flex-direction:column;gap:.75rem;
+    border:1px solid var(--line);border-radius:3px;padding:1rem 1.1rem;
+    background:var(--wash);
+  }
+  .pgbar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+  .pgbar span{display:block;height:100%;background:var(--accent);transition:width .3s ease}
+  .pglist{display:flex;flex-direction:column;gap:.45rem}
+  .pgrow{display:grid;grid-template-columns:1.1rem 1fr auto;align-items:center;gap:.6rem;
+    font-family:var(--sans);font-size:.85rem;color:var(--muted)}
+  .pgrow.done .pglabel{color:var(--text)}
+  .pgtick{
+    width:1.1rem;height:1.1rem;border:1px solid var(--line);border-radius:2px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.7rem;color:var(--bg);background:transparent;
+  }
+  .pgrow.done .pgtick{background:var(--accent);border-color:var(--accent)}
+  .pgnote{font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;color:var(--faint);
+    font-variant-numeric:tabular-nums}
+
+  .readtick{
+    align-self:flex-start;display:flex;align-items:center;gap:.45rem;
+    background:none;border:0;padding:.35rem 0 0;cursor:pointer;
+    font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--faint);
+  }
+  .readtick:hover{color:var(--accent)}
+  .readtick.on{color:var(--accent)}
+  .readtick .tickbox{
+    width:.9rem;height:.9rem;border:1px solid var(--line);border-radius:2px;
+    display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--bg);
+  }
+  .readtick.on .tickbox{background:var(--accent);border-color:var(--accent)}
+
   /* the general room is the one thing worth making loud */
   .genentry{
     display:grid;grid-template-columns:1fr auto;align-items:center;gap:.2rem 1rem;
@@ -649,7 +683,7 @@
   if(!Array.isArray(roster)) roster = [];
 
   var STEPS = ["You", "Topics", "Reading", "Questions"];
-  var READING = 2, QUESTIONS = 3;
+  var TOPICS = 1, READING = 2, QUESTIONS = 3;
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
@@ -685,7 +719,7 @@
     if(mine && mine.sub){
       S = normalize(mine.sub);
       pin = mine.pin || "";
-      saved = !!mine.saved && isComplete(S);
+      saved = !!mine.saved && chosen().length === 3;
       if(saved && API && normKey(pin).length < 3){
         saved = false; step = 0;
         needsPin = true;              // explains itself on the first screen
@@ -921,6 +955,49 @@
     return "";
   }
 
+  function readDone(){
+    var n = 0;
+    chosen().forEach(function(id){
+      T(id).readings.forEach(function(r){ if(opened[r.url]) n++; });
+    });
+    return n;
+  }
+  function questionsDone(){
+    return chosen().filter(function(id){
+      return String(S.q[id]||"").trim().length >= MIN_Q;
+    }).length;
+  }
+
+  function renderProgress(){
+    var reads = readingCount(), read = readDone(), qs = questionsDone();
+    var parts = [
+      {label:"Your details", done:!!(S.n && S.e && S.a), note:""},
+      {label:"Three topics chosen", done:chosen().length === 3, note:""},
+      {label:"Readings", done:reads > 0 && read === reads, note:read + " of " + reads},
+      {label:"Questions submitted", done:qs === 3, note:qs + " of 3"}
+    ];
+    var frac = ((!!(S.n && S.e && S.a) ? 1 : 0)
+              + (chosen().length === 3 ? 1 : 0)
+              + (reads ? read / reads : 0)
+              + qs / 3) / 4;
+    return ''
+    + '<div class="progress">'
+    + '  <div class="pgbar"><span style="width:' + Math.round(frac * 100) + '%"></span></div>'
+    + '  <div class="pglist">'
+    +      parts.map(function(x){
+             return '<div class="pgrow' + (x.done ? " done" : "") + '">'
+               + '<span class="pgtick">' + (x.done ? "\u2713" : "") + '</span>'
+               + '<span class="pglabel">' + x.label + '</span>'
+               + '<span class="pgnote">' + esc(x.note) + '</span>'
+               + '</div>';
+           }).join("")
+    + '  </div>'
+    +    (qs < 3
+          ? '<p class="note">Take your time with the reading. Your place is saved \u2014 come back with your email and model whenever you are ready to write.</p>'
+          : '')
+    + '</div>';
+  }
+
   function renderReading(){
     var ids = chosen(), done = saved && !editing;
     var blocks = ids.map(function(id){
@@ -938,6 +1015,13 @@
               + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
               +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
+              + (done
+                  ? '<button class="readtick' + (opened[r.url] ? ' on' : '') + '" type="button" '
+                    + 'data-read="'+esc(r.url)+'">'
+                    + '<span class="tickbox">' + (opened[r.url] ? '\u2713' : '') + '</span>'
+                    + (opened[r.url] ? 'Read' : 'Mark as read')
+                    + '</button>'
+                  : '')
               + '</div>';
           }).join("") + '</div>'
         + (done && String(S.q[id]||"").trim()
@@ -967,6 +1051,7 @@
               + (openedCount() ? ' You have opened ' + openedCount() + ' of ' + readingCount() + '.' : '')
               + '</p>')
     + '  </div>'
+    +      (done ? renderProgress() : '')
     + blocks
     + (done ? ''
     + '  <div class="topicblock">'
@@ -1597,16 +1682,16 @@
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
       view.innerHTML = [renderStep0, renderStep1, renderReading, renderQuestions][step]();
-      if(step === READING && saved && !editing){
-        barIn.innerHTML = "";     // the confirmation screen carries its own actions
+      if(step === READING && saved && !editing && questionsDone() === 3){
+        barIn.innerHTML = "";     // nothing left to do
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
           + '<button class="btn btn-accent" id="next" type="button">'
-          + (step === QUESTIONS ? "Submit" : "Continue") + '</button>';
+          + (step === QUESTIONS ? "Submit" : step === READING ? "Write my questions" : "Continue") + '</button>';
       }
       wireForm();
     }
-    var hideBar = (mode === "form" && step === READING && saved && !editing);
+    var hideBar = (mode === "form" && step === READING && saved && !editing && questionsDone() === 3);
     bar.hidden = hideBar;
     document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
@@ -1631,6 +1716,20 @@
         ? "The sheet did not confirm your row — try again below."
         : "The sheet could not be reached — try again below."};
     render();
+  }
+
+  /* Writes the record as soon as the topics are picked. Nothing forces anybody
+     into the questions: they can close the tab, read over a few days, and come
+     back to the same reading with email + model. */
+  function holdPlace(){
+    step = READING;
+    try { history.replaceState(null, "", myLink(S)); } catch(e){}
+    if(!API){ saved = true; saveLocal(); syncState = {state:"local", msg:""}; render(); return; }
+    syncState = {state:"saving", msg:""}; render();
+    withKey(function(k){ return cloudPush(S, k); }).then(function(){
+      saved = true; editing = false; syncState = {state:"ok", msg:""}; saveLocal(); render();
+      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+    }, syncFailed);
   }
 
   function submit(){
@@ -1677,7 +1776,9 @@
         if(bad) bad.scrollIntoView({block:"center", behavior:"smooth"}); return; }
       errs = {};
       needsPin = false;
-      if(step === QUESTIONS) submit(); else { step++; render(); }
+      if(step === QUESTIONS){ submit(); return; }
+      if(step === TOPICS){ holdPlace(); return; }   // save first, read at leisure
+      step++; render();
     });
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
@@ -1689,6 +1790,13 @@
 
     Array.prototype.forEach.call(view.querySelectorAll("[data-opened]"), function(a){
       a.addEventListener("click", function(){ markOpened(a.getAttribute("data-opened")); });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
+      b.addEventListener("click", function(){
+        var u = b.getAttribute("data-read");
+        if(opened[u]) delete opened[u]; else opened[u] = 1;
+        lsSet(LS_OPENED, opened); render();
+      });
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
       b.addEventListener("click", function(){
