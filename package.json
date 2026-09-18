@@ -4,7 +4,7 @@
   "private": true,
   "description": "Seminar prep app for the Evolving AI gathering — Harvard, October 8–10, 2026",
   "scripts": {
-    "dev": "python3 -m http.server 8787 --directory app",
+    "dev": "python3 -m http.server 8787 --directory docs",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android"

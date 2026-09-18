@@ -6,13 +6,13 @@ A participant enters their details, ranks three of the five focus areas, writes 
 question per topic, and gets a pre-read assembled from their choices. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
 
-Everything lives in `app/` and is a static site — no build step, no server.
+Everything lives in `docs/` and is a static site — no build step, no server.
 
 ```
-app/index.html          the whole app (participant flow + organizer console)
-app/config.js           the one file you edit per deployment
-app/manifest.webmanifest, app/sw.js, app/icons/   installable/offline support
-app/sheet-backend.gs    the Google Apps Script that writes to the shared Sheet
+docs/index.html          the whole app (participant flow + organizer console)
+docs/config.js           the one file you edit per deployment
+docs/manifest.webmanifest, docs/sw.js, docs/icons/   installable/offline support
+docs/sheet-backend.gs    the Google Apps Script that writes to the shared Sheet
 ```
 
 ---
@@ -34,14 +34,14 @@ their personal link, and the organizer console accepts pasted submissions. Conne
 Sheet and submissions land in one place automatically.
 
 1. Create a Google Sheet. Rename the first tab to **Submissions**.
-2. **Extensions → Apps Script**. Delete the stub and paste in `app/sheet-backend.gs`.
+2. **Extensions → Apps Script**. Delete the stub and paste in `docs/sheet-backend.gs`.
 3. Change `ADMIN_KEY` to a long random string. Keep it private — you type it into the
    organizer console once; it is never shipped in the app.
 4. **Deploy → New deployment → Web app**, with *Execute as:* **Me** and
    *Who has access:* **Anyone**. Authorize when prompted.
    ("Anyone" is what lets a participant submit without a Google login. The endpoint only
    appends submissions; listing the roster requires `ADMIN_KEY`.)
-5. Copy the `/exec` URL into `app/config.js` as `apiUrl`, then redeploy the site.
+5. Copy the `/exec` URL into `docs/config.js` as `apiUrl`, then redeploy the site.
 
 After any edit to the script, re-deploy as a **new version** or the old code keeps serving.
 
@@ -53,7 +53,7 @@ row back — it never claims a save it has not verified.
 
 ## 2. Deploy the site
 
-Any static host works. This repo is set up for GitHub Pages from `/app`:
+Any static host works. This repo publishes from `main` / `/docs`:
 
 ```bash
 git add -A && git commit -m "Update app" && git push
@@ -71,7 +71,7 @@ builds exist, and for most of them it is all they will ever need.
 
 ## 4. Ship to the App Store and Google Play
 
-The app is wrapped with [Capacitor](https://capacitorjs.com), which loads `app/` inside a
+The app is wrapped with [Capacitor](https://capacitorjs.com), which loads `docs/` inside a
 native shell. The scaffold is committed; the native projects are generated locally
 because they need Xcode and Android Studio:
 
@@ -127,7 +127,7 @@ browser.
 
 ## Reading lists
 
-The per-topic reading lists in `app/index.html` (the `TOPICS` array) are a proposed set,
+The per-topic reading lists in `docs/index.html` (the `TOPICS` array) are a proposed set,
 not organizer-approved. Each pairs an evolutionary-science source with an AI one. Citations
 are author/title/venue/year with no URLs, so they should be checked and linked before the
 list goes out.
