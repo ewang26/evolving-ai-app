@@ -1094,7 +1094,7 @@
       return '<div class="topicblock">'
         + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
         + '<div class="reads">' + t.readings.map(function(r, i){
-            return '<div class="read'+(r.req?" req":"")+'">'
+            return '<div class="read'+(r.req?" req":"")+((S.read && S.read[r.url])?" ticked":"")+'">'
               + '<div class="rmeta">'
               +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
               +   '<span class="rkind">'
@@ -1882,7 +1882,7 @@
       b.addEventListener("click", function(){
         var to = b.getAttribute("data-go");
         if(to === "reads"){
-          var first = view.querySelector(".read:not(.done)") || view.querySelector(".read");
+          var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
           if(first) first.scrollIntoView({block:"center", behavior:"smooth"});
           return;
         }
