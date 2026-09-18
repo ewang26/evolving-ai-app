@@ -22,15 +22,16 @@
  * Re-deploy after any edit (Deploy > Manage deployments > edit > Version: New).
  */
 
-var SHEET_NAME = "Submissions";
-var ADMIN_KEY  = "CHANGE-ME-to-a-long-random-string";
+var SHEET_ID    = "1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY";
+var SHEET_NAME  = "Submissions";
+var ADMIN_KEY   = "CHANGE-ME-to-a-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation", "Community",
                "1st", "2nd", "3rd", "Q1", "Q2", "Q3",
                "Proposed topic", "Proposed why", "Payload"];
 
 function sheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = SpreadsheetApp.openById(SHEET_ID);
   var sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   if (sh.getLastRow() === 0) {
     sh.appendRow(HEADERS);

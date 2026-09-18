@@ -5,6 +5,6 @@
            console accepts pasted submissions instead.
            Setup: see sheet-backend.gs and README.md. */
 window.EAI_CONFIG = {
-  apiUrl: "",
+  apiUrl: "https://script.google.com/macros/s/AKfycbxPqMTtvA8nZnTPS4J3bl7yekPPWafkvvuJTliI0eJx9vvxTCSBr2feWLnGyD726eGN/exec",
   deadline: "Monday, October 5"
 };
