@@ -1009,7 +1009,7 @@
     + '    <span class="pgpct">' + pct + '<i>%</i></span>'
     + '    <span class="pgcap">'
     + '      <span class="eyebrow">Your progress</span>'
-    + '      <span class="pgwhen">' + (qs === 3 ? "Everything is in." : "Nothing is due until you are ready.") + '</span>'
+    + '      <span class="pgwhen">' + (pct === 100 ? "Nothing left to do." : "Nothing is due until you are ready.") + '</span>'
     + '    </span>'
     + '  </div>'
     + '  <div class="pgtrack"><span style="width:' + pct + '%"></span></div>'
