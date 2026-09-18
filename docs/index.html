@@ -509,7 +509,7 @@
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", r:["","",""], q:{} };
+  var blank = { n:"", e:"", a:"", r:["","",""], q:{}, t:"" };
   var S = JSON.parse(JSON.stringify(blank));
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
@@ -520,7 +520,8 @@
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
-  var STEPS = ["You", "Three topics", "Questions", "Reading"];
+  var STEPS = ["You", "Topics", "Reading", "Questions"];
+  var READING = 2, QUESTIONS = 3;
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
@@ -529,6 +530,7 @@
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? o.q : {};
+    d.t = o.t || "";
     return d;
   }
   function isComplete(d){
@@ -547,7 +549,7 @@
     } catch(e){ fromHash = null; }
 
     if(fromHash){
-      S = normalize(fromHash); saved = true; step = 3; saveLocal();
+      S = normalize(fromHash); saved = true; step = READING; saveLocal();
       return;
     }
     var mine = lsGet(LS_ME, null);
@@ -559,7 +561,7 @@
         saved = false; step = 0;
         needsPin = true;              // explains itself on the first screen
       } else {
-        step = saved ? 3 : 0;
+        step = saved ? READING : 0;
       }
     }
   })();
@@ -711,7 +713,7 @@
     + '</section>';
   }
 
-  function renderStep2(){
+  function renderQuestions(){
     var cards = chosen().map(function(id){
       var t = T(id);
       return '<div class="card qcard' + (errs["q"+id]?" bad":"") + '">'
@@ -728,7 +730,13 @@
     + '    <h2>Your questions</h2>'
     + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with your specific subgroup partners on Thursday night.</p>'
     + '  </div>'
-    + '  <div class="stack">' + cards + '</div>'
+    + '  <div class="stack">' + cards
+    +   '<div class="card qcard">'
+    +     '<div class="qtop"><span class="rn">+</span><span class="qtitle">A topic we are missing</span></div>'
+    +     '<div class="framing"><b>Optional. If the five focus areas leave out something you came to argue about, name it here.</b></div>'
+    +     '<textarea id="fnewtopic" data-k="t" placeholder="A sixth focus area, and why it belongs\u2026">'+esc(S.t||"")+'</textarea>'
+    +   '</div>'
+    + '</div>'
     + '</section>';
   }
 
@@ -744,8 +752,8 @@
     return "";
   }
 
-  function renderStep3(){
-    var ids = chosen();
+  function renderReading(){
+    var ids = chosen(), done = saved;
     var blocks = ids.map(function(id){
       var t = T(id);
       return '<div class="topicblock">'
@@ -762,10 +770,12 @@
               + '<div class="rnote">'+esc(r.note)+'</div>'
               + '</div>';
           }).join("") + '</div>'
-        + '<div class="card flat yourq">'
-        +   '<div class="kvk">Your question</div>'
-        +   '<div>'+esc(S.q[id]||"")+'</div>'
-        + '</div>'
+        + (done && String(S.q[id]||"").trim()
+            ? '<div class="card flat yourq">'
+              + '<div class="kvk">Your question</div>'
+              + '<div>'+esc(S.q[id])+'</div>'
+              + '</div>'
+            : '')
         + '</div>';
     }).join("");
 
@@ -773,9 +783,11 @@
     + '<section class="step">'
     + '  <div class="head thin">'
     + '    <h2>Your reading</h2>'
-    +      syncLine()
+    +      (done ? syncLine()
+            : '<p class="intro">Read these before you write your questions. One required text per group.</p>')
     + '  </div>'
     + blocks
+    + (done ? ''
     + '  <div class="topicblock">'
     + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
@@ -792,7 +804,7 @@
               + '<div class="btnrow"><button class="btn btn-out" id="copySub" type="button">Copy submission</button></div>'
               + '</div></details>'
             : '')
-    + '  </div>'
+    + '  </div>' : '')
     + '</section>';
   }
 
@@ -1011,6 +1023,16 @@
         }).join("")
       + '</tbody></table></div>';
 
+    var props = roster.filter(function(p){ return p.t && String(p.t).trim(); });
+    if(props.length){
+      h += '<div class="topicblock"><div class="eyebrow">Proposed topics \u00b7 '+props.length+'</div>'
+        + props.map(function(p){
+            return '<div class="card flat"><div>'+esc(p.t)+'</div>'
+              + '<div class="kvk" style="margin-top:.45rem">'+esc(p.n)+'</div></div>';
+          }).join("")
+        + '</div>';
+    }
+
     if(missing) h += '<p class="note" style="color:var(--warn)">'+missing+' participant'+(missing===1?" is":"s are")+' missing at least one question. Their group sheet will show the gap.</p>';
 
     return h;
@@ -1150,17 +1172,17 @@
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = [renderStep0, renderStep1, renderStep2, renderStep3][step]();
-      if(step === 3){
-        barIn.innerHTML = "";     // the reading step carries its own actions inline
+      view.innerHTML = [renderStep0, renderStep1, renderReading, renderQuestions][step]();
+      if(step === READING && saved){
+        barIn.innerHTML = "";     // the confirmation screen carries its own actions
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
           + '<button class="btn btn-accent" id="next" type="button">'
-          + (step === 2 ? "Submit" : "Continue") + '</button>';
+          + (step === QUESTIONS ? "Submit" : "Continue") + '</button>';
       }
       wireForm();
     }
-    var hideBar = (mode === "form" && step === 3);
+    var hideBar = (mode === "form" && step === READING && saved);
     bar.hidden = hideBar;
     document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
@@ -1184,7 +1206,7 @@
   }
 
   function submit(){
-    saved = true; saveLocal(); step = 3;
+    saved = true; saveLocal(); step = READING;
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
@@ -1226,7 +1248,7 @@
         if(bad) bad.scrollIntoView({block:"center", behavior:"smooth"}); return; }
       errs = {};
       needsPin = false;
-      if(step === 2) submit(); else { step++; render(); }
+      if(step === QUESTIONS) submit(); else { step++; render(); }
     });
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
@@ -1261,7 +1283,7 @@
       msg.textContent = "Looking…";
       cloudLookup(S.e, keyFor(pin)).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
-        S = normalize(row); saved = true; step = 3;
+        S = normalize(row); saved = true; step = READING;
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();

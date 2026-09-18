@@ -29,7 +29,8 @@ var ADMIN_KEY   = "CHANGE-ME-to-a-long-random-string";
 var SALT        = "CHANGE-ME-to-a-second-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation",
-               "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Passcode", "Payload"];
+               "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Passcode", "Payload",
+               "New topic"];
 
 var PASS_COL    = 11;   // 1-based column of the Passcode hash
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
@@ -94,7 +95,7 @@ function out_(obj, callback) {
 function rowToSub_(row) {
   // The Payload column holds the app's own encoding, so a restore is exact.
   try {
-    return JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(row[HEADERS.length - 1])).getDataAsString());
+    return JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(row[HEADERS.indexOf("Payload")])).getDataAsString());
   } catch (e) {
     return null;
   }
@@ -144,7 +145,8 @@ function doPost(e) {
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
       qs[0] || "", qs[1] || "", qs[2] || "",
       mine,
-      payload
+      payload,
+      sub.t || ""
     ];
 
     if (existing > 0) sh.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
