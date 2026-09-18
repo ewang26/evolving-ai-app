@@ -45,9 +45,9 @@
     background:var(--bg);color:var(--text);
     font-family:var(--serif);font-size:1.0625rem;line-height:1.6;
     -webkit-font-smoothing:antialiased;
-    padding-bottom:var(--bar);
+    padding-bottom:calc(var(--bar) + env(safe-area-inset-bottom,0px));
   }
-  body.nobar{padding-bottom:2rem}
+  body.nobar{padding-bottom:calc(2rem + env(safe-area-inset-bottom,0px))}
   ::selection{background:var(--accent);color:var(--bg)}
   a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(236,193,135,.35)}
   a:hover{color:var(--accent-hover)}
@@ -57,7 +57,8 @@
 
   /* ---------- shell ---------- */
   .top{
-    position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
+    position:sticky;top:0;z-index:50;
+    padding-top:env(safe-area-inset-top,0px);
     background:rgba(28,54,78,.93);
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
     border-bottom:1px solid var(--line);
@@ -111,12 +112,15 @@
   /* ---------- fields ---------- */
   .fields{display:flex;flex-direction:column;gap:1.1rem}
   .f{display:flex;flex-direction:column;gap:.42rem}
+  .fields.one textarea{min-height:4.4rem}
+  .sixth{margin-top:.4rem;padding-top:1.4rem;border-top:1px solid var(--line)}
+  .sixth textarea{min-height:4.4rem}
   .f > label{
     font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.13em;
     text-transform:uppercase;color:var(--muted);
   }
   .f .hint{font-family:var(--sans);font-size:.8rem;color:var(--faint);line-height:1.45}
-  input[type=text],input[type=email],input[type=password],select,textarea{
+  input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
     width:100%;font-family:var(--sans);font-size:1rem;color:var(--text);
     background:var(--surface);border:1px solid var(--line);border-radius:3px;
     padding:.8rem .85rem;transition:border-color .15s,background .15s;
@@ -281,6 +285,30 @@
     h1{font-size:2.05rem}
     .row{grid-template-columns:2.7rem 1fr}
   }
+
+  /* On a laptop the phone column reads as an accident. Widen it, give the
+     page real vertical air, and let the two papers in a topic sit side by
+     side instead of stacking down a narrow ribbon. */
+  @media (min-width:62rem){
+    .top-in,.rail,.bar-in{max-width:54rem}
+    main{max-width:54rem;padding:2.4rem 2rem 3rem}
+    .step{gap:1.9rem}
+    .head{padding-bottom:1.5rem}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;align-items:start}
+    .fields.one{display:flex;flex-direction:column;gap:1.4rem;align-items:stretch}
+    .resume,.intro{grid-column:1 / -1}
+    .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
+    .read{height:100%}
+    .topicblock{padding-top:1.8rem;gap:1rem}
+    .qcard textarea{min-height:6.5rem}
+    .posts{gap:1rem}
+    .pbody{font-size:1.02rem}
+    .grp{padding:1.2rem}
+  }
+  @media (min-width:75rem){
+    .top-in,.rail,.bar-in{max-width:60rem}
+    main{max-width:60rem}
+  }
   @media print{
     body{background:#fff;color:#000;padding:0}
     .top,.bar,.tabs,.noprint{display:none !important}
@@ -300,6 +328,92 @@
     margin-top:.9rem;display:flex;gap:.45rem;align-items:center}
   .sync::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:currentColor;flex:none}
   .sync.ok{color:var(--ok)} .sync.warn{color:var(--warn)} .sync.working{color:var(--muted)}
+  /* the way into a discussion should read as a door, not a footnote */
+  .discentry{
+    display:flex;flex-direction:column;gap:.25rem;width:100%;text-align:left;
+    background:rgba(236,193,135,.07);border:1px solid rgba(236,193,135,.32);
+    border-left:2px solid var(--accent);border-radius:3px;
+    padding:.85rem 1rem;cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  .discentry:hover{background:rgba(236,193,135,.13);border-color:var(--accent)}
+  .discentry .dtitle{font-family:var(--serif);font-size:1.05rem;color:var(--text);line-height:1.25}
+  .discentry .dcount{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--accent)}
+
+  /* Not a widget: hairline rules, a mono label and an italic serif numeral,
+     the same vocabulary as the rest of the page. */
+  .progress{
+    display:flex;flex-direction:column;gap:.9rem;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding-block:1.25rem;
+  }
+  .pgtop{display:flex;align-items:baseline;gap:.9rem}
+  .pgpct{
+    font-family:var(--serif);font-style:italic;font-size:2.4rem;line-height:.9;
+    color:var(--accent);letter-spacing:-.01em;font-variant-numeric:tabular-nums;
+  }
+  .pgpct i{font-size:1.1rem;font-style:italic;margin-left:.08em}
+  .pgcap{display:flex;flex-direction:column;gap:.2rem}
+  .pgwhen{font-family:var(--sans);font-size:.78rem;color:var(--faint)}
+  .pgtrack{height:2px;background:rgba(236,193,135,.16);overflow:hidden}
+  .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
+  .pgitems{list-style:none;display:flex;flex-direction:column}
+  .pgitems li{
+    display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+    padding:.42rem 0;border-bottom:1px dotted var(--line);
+  }
+  .pgitems li:last-child{border-bottom:0;padding-bottom:0}
+  .pgname{font-family:var(--serif);font-size:1.02rem;color:var(--faint)}
+  .pgitems li.done .pgname{color:var(--text)}
+  .pgstate{
+    font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  .pgitems li.done .pgstate{color:var(--accent)}
+
+  .readtick{
+    align-self:flex-start;display:flex;align-items:center;gap:.45rem;
+    background:none;border:0;padding:.35rem 0 0;cursor:pointer;
+    font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--faint);
+  }
+  .readtick:hover{color:var(--accent)}
+  .readtick.on{color:var(--accent)}
+  .readtick .tickbox{
+    width:.9rem;height:.9rem;border:1px solid var(--line);border-radius:2px;
+    display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--bg);
+  }
+  .readtick.on .tickbox{background:var(--accent);border-color:var(--accent)}
+
+  /* the general room is the one thing worth making loud */
+  .genentry{
+    display:grid;grid-template-columns:1fr auto;align-items:center;gap:.2rem 1rem;
+    width:100%;text-align:left;cursor:pointer;
+    background:var(--accent);border:0;border-radius:3px;padding:1rem 1.15rem;
+    transition:background .15s;
+  }
+  .genentry:hover{background:var(--accent-hover)}
+  .genentry .gtitle{font-family:var(--serif);font-size:1.15rem;color:var(--bg);line-height:1.2}
+  .genentry .gsub{font-family:var(--sans);font-size:.78rem;color:rgba(28,54,78,.75);grid-row:2}
+  .genentry .gbadge{
+    grid-row:1 / span 2;font-family:var(--mono);font-size:.9rem;color:var(--bg);
+    border:1px solid rgba(28,54,78,.35);border-radius:2px;padding:.3rem .6rem;
+    font-variant-numeric:tabular-nums;
+  }
+  .quietlink{
+    background:none;border:0;padding:.2rem 0;cursor:pointer;text-align:left;
+    font-family:var(--sans);font-size:.82rem;color:var(--muted);
+    border-bottom:1px solid transparent;align-self:flex-start;
+  }
+  .quietlink:hover{color:var(--accent)}
+  .post.q{border-left-color:rgba(236,193,135,.55)}
+  .posts{display:flex;flex-direction:column;gap:.8rem;margin-bottom:.3rem}
+  .post{border-left:1px solid var(--line);padding:.1rem 0 .1rem .8rem}
+  .post.mine{border-left-color:var(--accent)}
+  .pmeta{font-family:var(--mono);font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:.3rem}
+  .pbody{font-size:1rem;line-height:1.55}
   .yourq{
     padding:.85rem 1rem;font-size:1.02rem;
     background:rgba(236,193,135,.08);
@@ -504,6 +618,53 @@
     .then(function(){ return cloudLookup(sub.e, code); })
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
   }
+  function cloudPosts(key){
+    return withKey(function(k){ return postsWith(k, key); });
+  }
+  function postsWith(k, key){
+    return jsonp({action:"posts", email:S.e, pin:k, thread:key}, 20000)
+      .then(function(res){
+        if(res && res.ok) return res.posts || [];
+        throw {code:(res && res.error) || "refused"};
+      });
+  }
+  function cloudCounts(){
+    return withKey(function(k){
+      return jsonp({action:"counts", email:S.e, pin:k}, 20000).then(function(res){
+        if(res && res.ok) return {counts:res.counts || {}, questions:res.questions || {}};
+        throw {code:(res && res.error) || "refused"};
+      });
+    });
+  }
+  function cloudTopic(tid){
+    return withKey(function(k){
+      return jsonp({action:"topic", email:S.e, pin:k, topic:tid}, 20000).then(function(res){
+        if(res && res.ok) return res;
+        throw {code:(res && res.error) || "refused"};
+      });
+    });
+  }
+  function cloudWrite(payload, confirm){
+    if(!API) return Promise.reject({code:"no_api"});
+    return fetch(API, {
+      method:"POST", mode:"no-cors", cache:"no-store",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(payload)
+    })
+    .then(function(){ return wait(1400); })
+    .then(confirm);           // the POST response is unreadable, so confirm by reading back
+  }
+  function cloudDebriefs(){
+    return withKey(function(k){ return debriefsWith(k); });
+  }
+  function debriefsWith(k){
+    return jsonp({action:"mydebriefs", email:S.e, pin:k}, 20000)
+      .then(function(res){
+        if(res && res.ok) return res.debriefs || [];
+        throw {code:(res && res.error) || "refused"};
+      });
+  }
+
   function cloudAll(key){
     return jsonp({action:"all", key:key}, 25000).then(function(res){
       if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
@@ -514,7 +675,7 @@
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", r:["","",""], q:{}, t:"" };
+  var blank = { n:"", e:"", a:"", w:"", c:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
@@ -524,26 +685,37 @@
   var needsPin = false;
   var editing = false;   // true while revising an already-saved submission: the
                          // reading step goes back to being a step, not the end
+  var thread = null;     // {key, title} while a discussion thread is open
+  var posts = null;      // loaded posts for that thread, or null while loading
+  var postErr = "";
+  var counts = {};       // thread key -> post count, for the badges
+  var qcounts = {};      // topic id -> how many questions have been submitted
+  var readTimer = null;
+  var debrief = {round:"", group:"", topic:"", claim:"", disagreement:"", settle:""};
+  var debriefState = {state:"idle", msg:""};
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
-  var STEPS = ["You", "Topics", "Reading", "Questions"];
-  var READING = 2, QUESTIONS = 3;
+  var STEPS = ["You", "Work", "Topics", "Reading", "Questions"];
+  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4;   // TOPICS is the focus-area data
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
     if(!o) return d;
     d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || "";
+    d.w = o.w || ""; d.c = o.c || "";
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? o.q : {};
     d.t = o.t || "";
+    d.read = (o.read && typeof o.read === "object") ? o.read : {};
     return d;
   }
+  var MIN_Q = 5;   // also used by validate(): keep them in step
   function isComplete(d){
     var picks = d.r.filter(function(x){ return x; });
     return !!(d.n && d.e && picks.length === 3 &&
-      picks.every(function(id){ return String(d.q[id]||"").trim().length >= 20; }));
+      picks.every(function(id){ return String(d.q[id]||"").trim().length >= MIN_Q; }));
   }
   function saveLocal(){ lsSet(LS_ME, {sub:S, pin:pin, saved:saved}); }
 
@@ -563,7 +735,7 @@
     if(mine && mine.sub){
       S = normalize(mine.sub);
       pin = mine.pin || "";
-      saved = !!mine.saved && isComplete(S);
+      saved = !!mine.saved && chosen().length === 3;
       if(saved && API && normKey(pin).length < 3){
         saved = false; step = 0;
         needsPin = true;              // explains itself on the first screen
@@ -589,6 +761,24 @@
     return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/s$/, "");
   }
   function keyFor(v){ var n = normKey(v); return n ? "org:" + n : ""; }
+
+  /* Submissions made before the key became a question were hashed from the raw
+     passcode, so the normalized form can never match them. Try the current form
+     first, then the legacy one, instead of locking those people out. */
+  function keyCandidates(){
+    var a = keyFor(pin), b = String(pin || "").trim();
+    return (b && b !== a) ? [a, b] : [a];
+  }
+  function withKey(fn){
+    var ks = keyCandidates(), i = 0;
+    function attempt(){
+      return fn(ks[i]).then(null, function(err){
+        if(err && err.code === "bad_pin" && ++i < ks.length) return attempt();
+        throw err;
+      });
+    }
+    return attempt();
+  }
 
   function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
 
@@ -616,6 +806,28 @@
       }catch(e){ return false; }
     }
   }
+  function markOpened(url){
+    if(!S.read) S.read = {};
+    S.read[url] = 1; saveLocal(); queueReadSave();
+  }
+
+  /* A tick is a small thing; save it quietly in the background rather than
+     making anyone wait, and never claim it saved. */
+  function queueReadSave(){
+    if(!API || !saved) return;
+    clearTimeout(readTimer);
+    readTimer = setTimeout(function(){
+      withKey(function(k){
+        return fetch(API, {
+          method:"POST", mode:"no-cors", cache:"no-store",
+          headers:{"Content-Type":"text/plain;charset=utf-8"},
+          body:JSON.stringify({action:"put", sub:S, pin:k})
+        }).then(function(){ return true; });
+      }).then(function(){}, function(){});
+    }, 1800);
+  }
+  function readingCount(){ return chosen().length * 2; }
+
   function flash(btn, msg){
     if(!btn) return;
     var old = btn.getAttribute("data-label") || btn.textContent;
@@ -700,6 +912,44 @@
     + '</section>';
   }
 
+  /* Lenient on purpose: a bare domain is a link, a sentence is not. */
+  function linkOk(v){
+    v = String(v||"").trim();
+    if(!v) return false;
+    if(/\s/.test(v)) return false;
+    return /^https?:\/\/[^.]+\.[^.]/.test(v) || /^[^.\/]+\.[a-z]{2,}(\/|$)/i.test(v);
+  }
+  function tidyLink(v){
+    v = String(v||"").trim();
+    return (v && !/^https?:\/\//i.test(v)) ? "https://" + v : v;
+  }
+
+  function renderWork(){
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>Your work</h2>'
+    + '    <p class="intro">So everyone in your subgroup knows who they are talking to. '
+    +        '(All of this is private to this gathering and is not shared outside it.)</p>'
+    + '  </div>'
+    + '  <div class="fields one">'
+    + '    <div class="f' + (errs.w?" bad":"") + '">'
+    + '      <label for="fw">What you work on (in one sentence)</label>'
+    + '      <textarea id="fw" data-k="w" rows="2" '
+    +          'placeholder="Coordination in multi-agent AI systems.">'+esc(S.w||"")+'</textarea>'
+    +        (errs.w?'<div class="err">'+errs.w+'</div>':'')
+    + '    </div>'
+    + '    <div class="f' + (errs.c?" bad":"") + '">'
+    + '      <label for="fc">An example of my work that others can look at</label>'
+    + '      <input id="fc" data-k="c" type="url" inputmode="url" spellcheck="false" '
+    +          'autocomplete="off" placeholder="https://\u2026" value="'+esc(S.c||"")+'" />'
+    + '      <div class="hint">A link to something public you\u2019ve worked on (e.g., a paper, blog post, podcast, book, model, or something else).</div>'
+    +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
+    + '    </div>'
+    + '  </div>'
+    + '</section>';
+  }
+
   function topicOptions(sel, idx){
     var taken = S.r.filter(function(x,i){ return i!==idx && x; });
     var h = '<option value=""' + (sel?"":" selected") + '>Choose a focus area…</option>';
@@ -727,6 +977,10 @@
     + '  <div class="head thin"><h2>Choose three topics</h2></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
+    + '  <div class="f sixth">'
+    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current five that you\u2019re most interested in discussing</label>'
+    + '    <textarea id="fnewtopic" data-k="t" rows="2">'+esc(S.t||"")+'</textarea>'
+    + '  </div>'
     + '</section>';
   }
 
@@ -747,13 +1001,7 @@
     + '    <h2>Your questions</h2>'
     + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with your specific subgroup partners on Thursday night.</p>'
     + '  </div>'
-    + '  <div class="stack">' + cards
-    +   '<div class="card qcard">'
-    +     '<div class="qtop"><span class="rn">+</span><span class="qtitle">A topic we are missing</span></div>'
-    +     '<div class="framing"><b>Optional. If the five focus areas leave out something you came to argue about, name it here.</b></div>'
-    +     '<textarea id="fnewtopic" data-k="t" placeholder="A sixth focus area, and why it belongs\u2026">'+esc(S.t||"")+'</textarea>'
-    +   '</div>'
-    + '</div>'
+    + '  <div class="stack">' + cards + '</div>'
     + '</section>';
   }
 
@@ -769,13 +1017,70 @@
     return "";
   }
 
+  function readDone(){
+    var n = 0;
+    chosen().forEach(function(id){
+      T(id).readings.forEach(function(r){ if((S.read && S.read[r.url])) n++; });
+    });
+    return n;
+  }
+  function questionsDone(){
+    return chosen().filter(function(id){
+      return String(S.q[id]||"").trim().length >= MIN_Q;
+    }).length;
+  }
+
+  /* What is actually outstanding, named. "3 readings left", not a reassurance. */
+  function remaining(readsLeft, qsLeft){
+    var bits = [];
+    if(readsLeft) bits.push(readsLeft + (readsLeft === 1 ? " reading" : " readings"));
+    if(qsLeft)    bits.push(qsLeft + (qsLeft === 1 ? " question" : " questions"));
+    if(!bits.length) return "Nothing left to do.";
+    return bits.join(" and ") + " left.";
+  }
+
+  function renderProgress(){
+    var reads = readingCount(), read = readDone(), qs = questionsDone();
+    var items = [
+      {label:"Your details",   done:!!(S.n && S.e && S.a), state:"Done"},
+      {label:"Topics chosen",  done:chosen().length === 3, state:"Done"},
+      {label:"Readings",       done:reads > 0 && read === reads, state:read + " of " + reads},
+      {label:"Questions",      done:qs === 3,              state:qs + " of 3"}
+    ];
+    var frac = ((!!(S.n && S.e && S.a) ? 1 : 0)
+              + (chosen().length === 3 ? 1 : 0)
+              + (reads ? read / reads : 0)
+              + qs / 3) / 4;
+    var pct = Math.round(frac * 100);
+
+    return ''
+    + '<div class="progress">'
+    + '  <div class="pgtop">'
+    + '    <span class="pgpct">' + pct + '<i>%</i></span>'
+    + '    <span class="pgcap">'
+    + '      <span class="eyebrow">Your progress</span>'
+    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs)) + '</span>'
+    + '    </span>'
+    + '  </div>'
+    + '  <div class="pgtrack"><span style="width:' + pct + '%"></span></div>'
+    + '  <ul class="pgitems">'
+    +      items.map(function(x){
+             return '<li class="' + (x.done ? "done" : "") + '">'
+               + '<span class="pgname">' + x.label + '</span>'
+               + '<span class="pgstate">' + esc(x.state) + '</span>'
+               + '</li>';
+           }).join("")
+    + '  </ul>'
+    + '</div>';
+  }
+
   function renderReading(){
     var ids = chosen(), done = saved && !editing;
     var blocks = ids.map(function(id){
       var t = T(id);
       return '<div class="topicblock">'
         + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
-        + '<div class="reads">' + t.readings.map(function(r){
+        + '<div class="reads">' + t.readings.map(function(r, i){
             return '<div class="read'+(r.req?" req":"")+'">'
               + '<div class="rmeta">'
               +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
@@ -783,8 +1088,16 @@
               +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
               +     (r.len?' · '+r.len:'') + ' · PDF</span>'
               + '</div>'
-              + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+r.cite+'</a></div>'
+              + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
+              +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
+              + (done
+                  ? '<button class="readtick' + ((S.read && S.read[r.url]) ? ' on' : '') + '" type="button" '
+                    + 'data-read="'+esc(r.url)+'">'
+                    + '<span class="tickbox">' + ((S.read && S.read[r.url]) ? '\u2713' : '') + '</span>'
+                    + ((S.read && S.read[r.url]) ? 'Read' : 'Mark as read')
+                    + '</button>'
+                  : '')
               + '</div>';
           }).join("") + '</div>'
         + (done && String(S.q[id]||"").trim()
@@ -792,6 +1105,15 @@
               + '<div class="kvk">Your question</div>'
               + '<div>'+esc(S.q[id])+'</div>'
               + '</div>'
+            : '')
+        + (done
+            ? '<button class="discentry" type="button" data-topic="'+t.id+'">'
+              + '<span class="dtitle">Discuss with your group and see other questions or comments</span>'
+              + '<span class="dcount">'
+              +   (qcounts[t.id] ? qcounts[t.id] + ' question' + (qcounts[t.id]===1?'':'s') : 'no questions yet')
+              +   (counts['topic:'+t.id] ? ' \u00b7 ' + counts['topic:'+t.id] + ' post' + (counts['topic:'+t.id]===1?'':'s') : '')
+              + '</span>'
+              + '</button>'
             : '')
         + '</div>';
     }).join("");
@@ -801,14 +1123,24 @@
     + '  <div class="head thin">'
     + '    <h2>Your reading</h2>'
     +      (done ? syncLine()
-            : '<p class="intro">Read these before you write your questions. One required text per group.</p>')
+            : '<p class="intro">Read these before you write your questions. One required text per group.'
+              + '</p>')
     + '  </div>'
+    +      (done ? renderProgress() : '')
     + blocks
     + (done ? ''
     + '  <div class="topicblock">'
+    + '    <button class="genentry" id="openGeneral" type="button">'
+    + '      <span class="gtitle">General discussion</span>'
+    + '      <span class="gsub">For the whole group, not one topic</span>'
+    + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
+    + '    </button>'
+    + '    <button class="quietlink" id="openDebrief" type="button">'
+    + '      Group debrief \u2014 fill this in after your group meets'
+    + '    </button>'
     + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
-    + '      <button class="btn btn-accent" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
+    + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
     + '    </div>'
@@ -825,6 +1157,183 @@
     + '</section>';
   }
 
+  function renderDebrief(){
+    var ids = chosen();
+    var sent = debriefState.state === "ok";
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>Group debrief</h2>'
+    + '    <p class="intro">One per group, from whoever is reporting back.</p>'
+    +      (debriefState.msg ? '<div class="sync ' + (sent ? "ok" : "warn") + '">' + esc(debriefState.msg) + '</div>' : '')
+    + '  </div>'
+    + '  <div class="fields">'
+    + '    <div class="f"><label for="dround">Round</label>'
+    + '      <select id="dround" data-d="round">'
+    +          ['', '1', '2', '3'].map(function(v){
+                 return '<option value="'+v+'"'+(debrief.round===v?" selected":"")+'>'+(v||"Choose\u2026")+'</option>';
+               }).join("")
+    + '      </select></div>'
+    + '    <div class="f"><label for="dtopic">Topic</label>'
+    + '      <select id="dtopic" data-d="topic">'
+    + '        <option value="">Choose\u2026</option>'
+    +          TOPICS.map(function(t){
+                 return '<option value="'+t.id+'"'+(debrief.topic===t.id?" selected":"")+'>'+t.rn.toUpperCase()+' \u2014 '+esc(t.title)+'</option>';
+               }).join("")
+    + '      </select></div>'
+    + '    <div class="f"><label for="dgroup">Group</label>'
+    + '      <input id="dgroup" data-d="group" type="text" placeholder="R1 \u00b7 B" value="'+esc(debrief.group)+'" /></div>'
+    + '    <div class="f"><label for="dclaim">What did the group land on?</label>'
+    + '      <textarea id="dclaim" data-d="claim" placeholder="The claim you would defend to the room\u2026">'+esc(debrief.claim)+'</textarea></div>'
+    + '    <div class="f"><label for="ddis">Where did you disagree?</label>'
+    + '      <textarea id="ddis" data-d="disagreement" placeholder="The live disagreement, not a summary\u2026">'+esc(debrief.disagreement)+'</textarea></div>'
+    + '    <div class="f"><label for="dsettle">What would settle it?</label>'
+    + '      <textarea id="dsettle" data-d="settle" placeholder="An experiment, a dataset, a proof, a paper\u2026">'+esc(debrief.settle)+'</textarea></div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  function renderThread(){
+    var body = '';
+    if(postErr){
+      body = '<div class="empty">' + esc(postErr) + '</div>';
+    } else if(posts === null){
+      body = '<div class="empty">Loading\u2026</div>';
+    } else if(!posts.length){
+      body = '<div class="empty">No posts yet. Start it off.</div>';
+    } else {
+      body = posts.map(function(p){
+        return '<div class="post' + (p.mine ? ' mine' : '') + '">'
+          + '<div class="pmeta">' + esc(p.name || "Someone")
+          +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
+          +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
+          + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+          + '</div>';
+      }).join("");
+    }
+
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>' + (thread.key === "general" ? "Discussion" : "Discussion") + '</h2>'
+    +      (thread.key === "general"
+            ? '<p class="intro">Anything for the whole group.</p>'
+            : '<p class="intro">' + esc(thread.title) + '</p>')
+    + '  </div>'
+    + '  <div class="posts">' + body + '</div>'
+    + '  <div class="f">'
+    + '    <label for="fpost">Add to the discussion</label>'
+    + '    <textarea id="fpost" placeholder="What do you make of it?"></textarea>'
+    + '    <div class="btnrow" style="margin-top:.55rem">'
+    + '      <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
+    + '      <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
+    + '    </div>'
+    + '    <div class="note" id="postMsg"></div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  function when(iso){
+    try {
+      var d = new Date(iso), now = new Date();
+      var mins = Math.round((now - d) / 60000);
+      if(mins < 1) return "just now";
+      if(mins < 60) return mins + "m ago";
+      if(mins < 60 * 24) return Math.round(mins / 60) + "h ago";
+      return d.toLocaleDateString(undefined, {month:"short", day:"numeric"});
+    } catch(e){ return ""; }
+  }
+
+  var topicData = null;
+
+  function renderTopic(){
+    var t = T(thread.topic), body = '', qs = '';
+    if(postErr){
+      body = '<div class="empty">' + esc(postErr) + '</div>';
+    } else if(topicData === null){
+      body = '<div class="empty">Loading\u2026</div>';
+    } else {
+      qs = topicData.questions.length
+        ? '<div class="posts">' + topicData.questions.map(function(q){
+            return '<div class="post q' + (q.mine ? ' mine' : '') + '">'
+              + '<div class="pmeta">' + esc(q.name || "Someone")
+              +   (q.affiliation ? ' \u00b7 ' + esc(q.affiliation) : '')
+              +   (q.mine ? ' \u00b7 yours' : '') + '</div>'
+              + '<div class="pbody">' + esc(q.q) + '</div>'
+              + '</div>';
+          }).join("") + '</div>'
+        : '<div class="empty">No questions submitted for this topic yet.</div>';
+      body = topicData.posts.length
+        ? topicData.posts.map(function(p){
+            return '<div class="post' + (p.mine ? ' mine' : '') + '">'
+              + '<div class="pmeta">' + esc(p.name || "Someone")
+              +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
+              +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
+              + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+              + '</div>';
+          }).join("")
+        : '<div class="empty">No replies yet.</div>';
+    }
+
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>' + (t ? esc(t.title) : "Discussion") + '</h2>'
+    + '    <p class="intro">' + (t ? esc(t.q) : "") + '</p>'
+    + '  </div>'
+    + '  <div class="topicblock">'
+    + '    <div class="eyebrow">Questions submitted for this group</div>'
+    +      qs
+    + '  </div>'
+    + '  <div class="topicblock">'
+    + '    <div class="eyebrow">Discussion</div>'
+    + '    <div class="posts">' + body + '</div>'
+    + '    <div class="f">'
+    + '      <label for="fpost">Add to the discussion</label>'
+    + '      <textarea id="fpost" placeholder="Answer a question above, or ask your own\u2026"></textarea>'
+    + '      <div class="btnrow" style="margin-top:.55rem">'
+    + '        <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
+    + '        <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
+    + '      </div>'
+    + '      <div class="note" id="postMsg"></div>'
+    + '    </div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  var RESET_MSG = "Your key did not store correctly. Submit your answers again and it will be fixed.";
+
+  function openTopic(tid){
+    thread = {key:"topic:" + tid, topic:tid, title:(T(tid) || {}).title || ""};
+    topicData = null; postErr = ""; mode = "topic"; render();
+    cloudTopic(tid).then(function(res){
+      topicData = {questions:res.questions || [], posts:res.posts || []};
+      counts[thread.key] = topicData.posts.length;
+      render();
+    }, function(err){
+      postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "bad_pin")
+          ? "That is not the model on file for this email."
+          : "Could not load the discussion. Try again.";
+      render();
+    });
+  }
+
+  function openThread(key, title){
+    thread = {key:key, title:title || ""};
+    posts = null; postErr = "";
+    mode = "thread"; render();
+    cloudPosts(key).then(function(list){
+      posts = list; render();
+    }, function(err){
+      postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "bad_pin")
+          ? "That is not the model on file for this email."
+          : "Could not load the discussion. Try Refresh.";
+      posts = []; render();
+    });
+  }
+
   function validate(n){
     errs = {};
     if(n===0){
@@ -833,14 +1342,18 @@
       if(!S.a.trim()) errs.a = "Where are you coming from?";
       if(normKey(pin).length < 2) errs.pin = "Name a model.";
     }
-    if(n===1){
+    if(n===WORK){
+      if(S.w.trim().length < 10) errs.w = "One sentence is enough.";
+      if(!linkOk(S.c)) errs.c = "Paste a link, starting with http.";
+    }
+    if(n===STEP_TOPICS){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
       if(c.length < 3 || uniq.length < 3) errs.r = "Choose three different focus areas.";
     }
     // step READING has nothing to validate
     if(n===QUESTIONS){
       chosen().forEach(function(id){
-        if(String(S.q[id]||"").trim().length < 5) errs["q"+id] = "Add a question here.";
+        if(String(S.q[id]||"").trim().length < MIN_Q) errs["q"+id] = "Add a question here.";
       });
     }
     return Object.keys(errs).length === 0;
@@ -992,7 +1505,7 @@
       + '  <p class="lede">Pull from the sheet, or paste submissions in. Everything below is computed from the roster held in this browser.</p>'
       + '</div>'
       + '<div class="tabs noprint">'
-      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets'].map(function(x){
+      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets','debriefs:Debriefs'].map(function(x){
             var k = x.split(":")[0], l = x.split(":")[1];
             return '<button class="tab'+(orgTab===k?" on":"")+'" data-tab="'+k+'" type="button">'+l+'</button>';
           }).join("")
@@ -1003,6 +1516,7 @@
     if(orgTab === "demand")  h += orgDemand();
     if(orgTab === "groups")  h += orgGroups(false);
     if(orgTab === "sheets")  h += orgGroups(true);
+    if(orgTab === "debriefs") h += orgDebriefs();
     return h + '</section>';
   }
 
@@ -1054,6 +1568,46 @@
     if(missing) h += '<p class="note" style="color:var(--warn)">'+missing+' participant'+(missing===1?" is":"s are")+' missing at least one question. Their group sheet will show the gap.</p>';
 
     return h;
+  }
+
+  var debriefs = null, debriefsErr = "";
+
+  function orgDebriefs(){
+    if(!API) return '<div class="empty">No sheet endpoint configured.</div>';
+    if(debriefsErr) return '<div class="empty">' + esc(debriefsErr) + '</div>';
+    if(debriefs === null){
+      return '<div class="f noprint">'
+        + '  <div class="btnrow"><button class="btn btn-accent btn-sm" id="pullDebriefs" type="button" style="flex:0 1 auto">Load debriefs</button></div>'
+        + '  <div class="hint">Uses the admin key from the \u201cFrom the sheet\u201d tab.</div>'
+        + '</div>';
+    }
+    if(!debriefs.length) return '<div class="empty">No debriefs yet.</div>';
+
+    var byRound = {};
+    debriefs.forEach(function(d){
+      var k = String(d.round || "\u2014");
+      (byRound[k] = byRound[k] || []).push(d);
+    });
+    return Object.keys(byRound).sort().map(function(k){
+      return '<div class="topicblock">'
+        + '<div class="eyebrow">Round ' + esc(k) + ' \u00b7 ' + byRound[k].length + '</div>'
+        + '<div class="stack">' + byRound[k].map(function(d){
+            var t = T(d.topic);
+            return '<div class="grp">'
+              + '<div class="grph">'
+              +   '<span class="grpname">' + esc(d.group || "\u2014") + (t ? ' \u00b7 ' + t.rn : '') + '</span>'
+              +   '<span class="grpsize">' + esc(d.name || "") + '</span>'
+              +   (t ? '<span class="grptitle">' + esc(t.title) + '</span>' : '')
+              + '</div>'
+              + '<div class="mem">'
+              +   '<div class="m"><div class="kvk">Landed on</div><div class="mq">' + esc(d.claim || "") + '</div></div>'
+              +   (d.disagreement ? '<div class="m"><div class="kvk">Disagreement</div><div class="mq">' + esc(d.disagreement) + '</div></div>' : '')
+              +   (d.settle ? '<div class="m"><div class="kvk">Would settle it</div><div class="mq">' + esc(d.settle) + '</div></div>' : '')
+              + '</div>'
+              + '</div>';
+          }).join("") + '</div>'
+        + '</div>';
+    }).join("");
   }
 
   function orgDemand(){
@@ -1136,13 +1690,15 @@
   }
 
   function rosterTsv(){
-    var L = ["Name\tEmail\tAffiliation\t1st\t2nd\t3rd\tQ1\tQ2\tQ3"];
+    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic"];
     roster.forEach(function(p){
       var qs = p.r.map(function(id){ return String(p.q[id]||"").replace(/\s+/g," ").trim(); });
       while(qs.length < 3) qs.push("");
       var rs = p.r.map(function(id){ return T(id).title; });
       while(rs.length < 3) rs.push("");
-      L.push([p.n, p.e, p.a, rs[0], rs[1], rs[2], qs[0], qs[1], qs[2]].join("\t"));
+      var oneline = function(v){ return String(v||"").replace(/\s+/g," ").trim(); };
+      L.push([p.n, p.e, p.a, oneline(p.w), oneline(p.c),
+              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], oneline(p.t)].join("\t"));
     });
     return L.join("\n");
   }
@@ -1180,27 +1736,43 @@
   var homeBtn = document.getElementById("homeBtn");
 
   function render(){
+    if(mode === "thread" || mode === "debrief" || mode === "topic"){
+      rail.innerHTML = "";
+      view.innerHTML = (mode === "thread") ? renderThread()
+                     : (mode === "topic")  ? renderTopic()
+                     : renderDebrief();
+      barIn.innerHTML = '<button class="btn btn-out" id="leaveSub" type="button">Back</button>'
+        + (mode === "debrief"
+            ? '<button class="btn btn-accent" id="sendDebrief" type="button">Send debrief</button>'
+            : '<div class="top-sp"></div>');
+      bar.hidden = false;
+      document.body.classList.remove("nobar");
+      wireSub();
+      window.scrollTo(0, 0);
+      return;
+    }
     if(mode === "org"){
       rail.innerHTML = "";
       view.innerHTML = renderOrg();
       barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
       wireOrg();
       wireSheet();
+      wireDebriefs();
     } else {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = [renderStep0, renderStep1, renderReading, renderQuestions][step]();
-      if(step === READING && saved && !editing){
-        barIn.innerHTML = "";     // the confirmation screen carries its own actions
+      view.innerHTML = [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
+      if(step === READING && saved && !editing && questionsDone() === 3){
+        barIn.innerHTML = "";     // nothing left to do
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
           + '<button class="btn btn-accent" id="next" type="button">'
-          + (step === QUESTIONS ? "Submit" : "Continue") + '</button>';
+          + (step === QUESTIONS ? "Submit" : step === READING ? "Write my questions" : "Continue") + '</button>';
       }
       wireForm();
     }
-    var hideBar = (mode === "form" && step === READING && saved && !editing);
+    var hideBar = (mode === "form" && step === READING && saved && !editing && questionsDone() === 3);
     bar.hidden = hideBar;
     document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
@@ -1208,6 +1780,10 @@
 
   function syncFailed(err){
     var code = err && err.code;
+    if(code === "key_reset"){
+      syncState = {state:"local", msg:"Saved on this device. Submit again to repair your key."};
+      render(); return;
+    }
     if(code === "bad_pin" || code === "locked"){
       step = 0;
       errs.pin = code === "locked"
@@ -1223,13 +1799,28 @@
     render();
   }
 
+  /* Writes the record as soon as the topics are picked. Nothing forces anybody
+     into the questions: they can close the tab, read over a few days, and come
+     back to the same reading with email + model. */
+  function holdPlace(){
+    step = READING;
+    try { history.replaceState(null, "", myLink(S)); } catch(e){}
+    if(!API){ saved = true; saveLocal(); syncState = {state:"local", msg:""}; render(); return; }
+    syncState = {state:"saving", msg:""}; render();
+    withKey(function(k){ return cloudPush(S, k); }).then(function(){
+      saved = true; editing = false; syncState = {state:"ok", msg:""}; saveLocal(); render();
+      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+    }, syncFailed);
+  }
+
   function submit(){
     saved = true; editing = false; saveLocal(); step = READING;
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
-    cloudPush(S, keyFor(pin)).then(function(){
+    withKey(function(k){ return cloudPush(S, k); }).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
+      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
     }, syncFailed);
   }
 
@@ -1266,7 +1857,10 @@
         if(bad) bad.scrollIntoView({block:"center", behavior:"smooth"}); return; }
       errs = {};
       needsPin = false;
-      if(step === QUESTIONS) submit(); else { step++; render(); }
+      if(step === QUESTIONS){ submit(); return; }
+      if(step === WORK){ S.c = tidyLink(S.c); saveLocal(); }
+      if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
+      step++; render();
     });
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
@@ -1275,6 +1869,30 @@
     if(edit) edit.addEventListener("click", function(){
       editing = true; step = QUESTIONS; errs = {}; render();
     });
+
+    Array.prototype.forEach.call(view.querySelectorAll("[data-opened]"), function(a){
+      a.addEventListener("click", function(){ markOpened(a.getAttribute("data-opened")); });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
+      b.addEventListener("click", function(){
+        var u = b.getAttribute("data-read");
+        if(!S.read) S.read = {};
+        if(S.read[u]) delete S.read[u]; else S.read[u] = 1;
+        saveLocal(); queueReadSave(); render();
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
+      b.addEventListener("click", function(){
+        openThread(b.getAttribute("data-thread"), b.getAttribute("data-title"));
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-topic]"), function(b){
+      b.addEventListener("click", function(){ openTopic(b.getAttribute("data-topic")); });
+    });
+    var og = document.getElementById("openGeneral");
+    if(og) og.addEventListener("click", function(){ openThread("general", ""); });
+    var od = document.getElementById("openDebrief");
+    if(od) od.addEventListener("click", function(){ mode = "debrief"; render(); });
 
     var cl = document.getElementById("copyLink");
     if(cl) cl.addEventListener("click", function(){
@@ -1291,7 +1909,7 @@
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
       syncState = {state:"saving", msg:""}; render();
-      cloudPush(S, keyFor(pin)).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
+      withKey(function(k){ return cloudPush(S, k); }).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
         syncFailed);
     });
 
@@ -1301,21 +1919,107 @@
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
       if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
       msg.textContent = "Looking…";
-      cloudLookup(S.e, keyFor(pin)).then(function(row){
+      withKey(function(k){ return cloudLookup(S.e, k); }).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = true; editing = false; step = READING;
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();
+        cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
-          code === "bad_pin" ? "That is not the model on file for this email."
+          code === "key_reset" ? RESET_MSG
+          : code === "bad_pin" ? "That is not the model on file for this email."
           : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
     });
   }
+  function wireSub(){
+    var back = document.getElementById("leaveSub");
+    if(back) back.addEventListener("click", function(){
+      mode = "form"; thread = null; posts = null; topicData = null; postErr = "";
+      debriefState = {state:"idle", msg:""};
+      render();
+    });
+
+    var send = document.getElementById("sendPost");
+    if(send) send.addEventListener("click", function(){
+      var ta = document.getElementById("fpost");
+      var msg = document.getElementById("postMsg");
+      var text = String(ta.value || "").trim();
+      if(!text){ msg.innerHTML = '<span class="warnt">Write something first.</span>'; return; }
+      send.disabled = true; msg.textContent = "Posting\u2026";
+      var key = thread.key;
+      withKey(function(k){
+        return cloudWrite({action:"post", email:S.e, pin:k, thread:key, body:text},
+                          function(){ return postsWith(k, key); });
+      })
+        .then(function(list){
+          var landed = list.some(function(p){ return p.mine && p.body === text; });
+          posts = list;
+          if(topicData) topicData.posts = list;
+          counts[key] = list.length;
+          if(landed){ render(); }
+          else {
+            render();
+            var m2 = document.getElementById("postMsg");
+            if(m2) m2.innerHTML = '<span class="warnt">The post did not come back \u2014 try again.</span>';
+          }
+        }, function(err){
+          send.disabled = false;
+          msg.innerHTML = '<span class="warnt">' + (
+              (err && err.code === "key_reset") ? RESET_MSG
+            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
+            : "Could not post. Try again.") + '</span>';
+        });
+    });
+
+    var refresh = document.getElementById("refreshPosts");
+    if(refresh) refresh.addEventListener("click", function(){
+      var key = thread.key;
+      posts = null; if(topicData) topicData = {questions:topicData.questions, posts:[]};
+      postErr = ""; render();
+      cloudPosts(key).then(function(list){
+        posts = list; if(topicData) topicData.posts = list; counts[key] = list.length; render(); },
+        function(){ postErr = "Could not load the discussion."; posts = []; render(); });
+    });
+
+    Array.prototype.forEach.call(view.querySelectorAll("[data-d]"), function(el){
+      el.addEventListener("input", function(){ debrief[el.getAttribute("data-d")] = el.value; });
+      if(el.tagName === "SELECT") el.addEventListener("change", function(){
+        debrief[el.getAttribute("data-d")] = el.value;
+      });
+    });
+
+    var sd = document.getElementById("sendDebrief");
+    if(sd) sd.addEventListener("click", function(){
+      if(!String(debrief.claim || "").trim()){
+        debriefState = {state:"warn", msg:"Say what the group landed on first."}; render(); return;
+      }
+      sd.disabled = true;
+      debriefState = {state:"warn", msg:"Sending\u2026"}; render();
+      withKey(function(k){
+        return cloudWrite({action:"debrief", email:S.e, pin:k, debrief:debrief},
+                          function(){ return debriefsWith(k); });
+      })
+        .then(function(list){
+          var landed = list.some(function(d){ return String(d.claim||"").slice(0,40) === String(debrief.claim).slice(0,40); });
+          debriefState = landed
+            ? {state:"ok", msg:"Debrief recorded."}
+            : {state:"warn", msg:"It did not come back \u2014 send it again."};
+          render();
+        }, function(err){
+          debriefState = {state:"warn", msg:
+              (err && err.code === "key_reset") ? RESET_MSG
+            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
+            : "Could not send. Try again."};
+          render();
+        });
+    });
+  }
+
   function wireOrg(){
     Array.prototype.forEach.call(view.querySelectorAll("[data-tab]"), function(b){
       b.addEventListener("click", function(){ orgTab = b.getAttribute("data-tab"); render(); });
@@ -1371,6 +2075,21 @@
   }
 
 
+  function wireDebriefs(){
+    var b = document.getElementById("pullDebriefs");
+    if(!b) return;
+    b.addEventListener("click", function(){
+      var key = lsGet(LS_KEY, "");
+      if(!key){ debriefsErr = "Enter the admin key on the \u201cFrom the sheet\u201d tab first."; render(); return; }
+      b.disabled = true; b.textContent = "Loading\u2026";
+      jsonp({action:"debriefs", key:key}, 25000).then(function(res){
+        if(res && res.ok){ debriefs = res.debriefs || []; debriefsErr = ""; }
+        else { debriefsErr = (res && res.error === "bad_key") ? "That admin key was refused." : "Could not load debriefs."; }
+        render();
+      }, function(){ debriefsErr = "Could not reach the sheet."; render(); });
+    });
+  }
+
   function wireSheet(){
     var pull = document.getElementById("pull");
     if(!pull) return;
@@ -1397,23 +2116,35 @@
   }
 
   if(homeBtn) homeBtn.addEventListener("click", function(){
-    if(mode === "org"){
+    // home from anywhere: a thread, the debrief, the console
+    if(/organizer|debrief/.test(String(location.hash || ""))){
       try { history.replaceState(null, "", location.pathname); } catch(e){}
-      mode = "form";
     }
-    step = 0; errs = {}; needsPin = false; editing = saved; render();
+    mode = "form";
+    thread = null; topicData = null; posts = null; postErr = "";
+    debriefState = {state:"idle", msg:""};
+    editing = false; errs = {}; needsPin = false;
+    step = saved ? READING : 0;
+    render();
   });
 
   // Organizers reach the console at .../#organizer — it is never linked from
   // the participant flow, so nobody stumbles into it.
   function checkMode(){
-    var want = /(^|[#&])organizer\b/.test(String(location.hash || "")) ? "org" : "form";
+    var h = String(location.hash || "");
+    var want = /(^|[#&])organizer\b/.test(h) ? "org"
+             : /(^|[#&])debrief\b/.test(h)   ? "debrief"
+             : "form";
     if(want !== mode){ mode = want; render(); }
   }
   window.addEventListener("hashchange", checkMode);
   if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
+  else if(/(^|[#&])debrief\b/.test(String(location.hash || ""))) mode = "debrief";
 
   render();
+  if(API && saved && !editing && normKey(pin).length >= 2){
+    cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+  }
 
   /* offline support — only meaningful on a hosted copy */
   if("serviceWorker" in navigator && window.isSecureContext){
