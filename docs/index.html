@@ -281,6 +281,29 @@
     h1{font-size:2.05rem}
     .row{grid-template-columns:2.7rem 1fr}
   }
+
+  /* On a laptop the phone column reads as an accident. Widen it, give the
+     page real vertical air, and let the two papers in a topic sit side by
+     side instead of stacking down a narrow ribbon. */
+  @media (min-width:62rem){
+    .top-in,.rail,.bar-in{max-width:54rem}
+    main{max-width:54rem;padding:2.4rem 2rem 3rem}
+    .step{gap:1.9rem}
+    .head{padding-bottom:1.5rem}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;align-items:start}
+    .resume,.intro{grid-column:1 / -1}
+    .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
+    .read{height:100%}
+    .topicblock{padding-top:1.8rem;gap:1rem}
+    .qcard textarea{min-height:6.5rem}
+    .posts{gap:1rem}
+    .pbody{font-size:1.02rem}
+    .grp{padding:1.2rem}
+  }
+  @media (min-width:75rem){
+    .top-in,.rail,.bar-in{max-width:60rem}
+    main{max-width:60rem}
+  }
   @media print{
     body{background:#fff;color:#000;padding:0}
     .top,.bar,.tabs,.noprint{display:none !important}
@@ -300,14 +323,19 @@
     margin-top:.9rem;display:flex;gap:.45rem;align-items:center}
   .sync::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:currentColor;flex:none}
   .sync.ok{color:var(--ok)} .sync.warn{color:var(--warn)} .sync.working{color:var(--muted)}
-  .discuss{
-    align-self:flex-start;margin-top:.15rem;
-    font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--muted);background:transparent;border:1px solid var(--line);
-    border-radius:2px;padding:.3rem .5rem;cursor:pointer;
-    transition:color .15s,border-color .15s;
+  /* the way into a discussion should read as a door, not a footnote */
+  .discentry{
+    display:flex;flex-direction:column;gap:.25rem;width:100%;text-align:left;
+    background:rgba(236,193,135,.07);border:1px solid rgba(236,193,135,.32);
+    border-left:2px solid var(--accent);border-radius:3px;
+    padding:.85rem 1rem;cursor:pointer;
+    transition:background .15s,border-color .15s;
   }
-  .discuss:hover{color:var(--accent);border-color:var(--accent)}
+  .discentry:hover{background:rgba(236,193,135,.13);border-color:var(--accent)}
+  .discentry .dtitle{font-family:var(--serif);font-size:1.05rem;color:var(--text);line-height:1.25}
+  .discentry .dcount{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--accent)}
+  .post.q{border-left-color:rgba(236,193,135,.55)}
   .posts{display:flex;flex-direction:column;gap:.8rem;margin-bottom:.3rem}
   .post{border-left:1px solid var(--line);padding:.1rem 0 .1rem .8rem}
   .post.mine{border-left-color:var(--accent)}
@@ -520,15 +548,30 @@
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
   }
   function cloudPosts(key){
-    return jsonp({action:"posts", email:S.e, pin:keyFor(pin), thread:key}, 20000)
+    return withKey(function(k){ return postsWith(k, key); });
+  }
+  function postsWith(k, key){
+    return jsonp({action:"posts", email:S.e, pin:k, thread:key}, 20000)
       .then(function(res){
         if(res && res.ok) return res.posts || [];
         throw {code:(res && res.error) || "refused"};
       });
   }
   function cloudCounts(){
-    return jsonp({action:"counts", email:S.e, pin:keyFor(pin)}, 20000)
-      .then(function(res){ return (res && res.ok) ? (res.counts || {}) : {}; });
+    return withKey(function(k){
+      return jsonp({action:"counts", email:S.e, pin:k}, 20000).then(function(res){
+        if(res && res.ok) return {counts:res.counts || {}, questions:res.questions || {}};
+        throw {code:(res && res.error) || "refused"};
+      });
+    });
+  }
+  function cloudTopic(tid){
+    return withKey(function(k){
+      return jsonp({action:"topic", email:S.e, pin:k, topic:tid}, 20000).then(function(res){
+        if(res && res.ok) return res;
+        throw {code:(res && res.error) || "refused"};
+      });
+    });
   }
   function cloudWrite(payload, confirm){
     if(!API) return Promise.reject({code:"no_api"});
@@ -541,7 +584,10 @@
     .then(confirm);           // the POST response is unreadable, so confirm by reading back
   }
   function cloudDebriefs(){
-    return jsonp({action:"mydebriefs", email:S.e, pin:keyFor(pin)}, 20000)
+    return withKey(function(k){ return debriefsWith(k); });
+  }
+  function debriefsWith(k){
+    return jsonp({action:"mydebriefs", email:S.e, pin:k}, 20000)
       .then(function(res){
         if(res && res.ok) return res.debriefs || [];
         throw {code:(res && res.error) || "refused"};
@@ -572,6 +618,7 @@
   var posts = null;      // loaded posts for that thread, or null while loading
   var postErr = "";
   var counts = {};       // thread key -> post count, for the badges
+  var qcounts = {};      // topic id -> how many questions have been submitted
   var opened = lsGet(LS_OPENED, {});   // readings whose PDF has been opened
   var debrief = {round:"", group:"", topic:"", claim:"", disagreement:"", settle:""};
   var debriefState = {state:"idle", msg:""};
@@ -641,6 +688,24 @@
     return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/s$/, "");
   }
   function keyFor(v){ var n = normKey(v); return n ? "org:" + n : ""; }
+
+  /* Submissions made before the key became a question were hashed from the raw
+     passcode, so the normalized form can never match them. Try the current form
+     first, then the legacy one, instead of locking those people out. */
+  function keyCandidates(){
+    var a = keyFor(pin), b = String(pin || "").trim();
+    return (b && b !== a) ? [a, b] : [a];
+  }
+  function withKey(fn){
+    var ks = keyCandidates(), i = 0;
+    function attempt(){
+      return fn(ks[i]).then(null, function(err){
+        if(err && err.code === "bad_pin" && ++i < ks.length) return attempt();
+        throw err;
+      });
+    }
+    return attempt();
+  }
 
   function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
 
@@ -850,12 +915,6 @@
               + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
               +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
               + '<div class="rnote">'+esc(r.note)+'</div>'
-              + (done
-                  ? '<button class="discuss" type="button" data-thread="'+t.id+'#'+i+'" '
-                    + 'data-title="'+esc(r.cite.replace(/<[^>]+>/g,""))+'">'
-                    + 'Discussion' + (counts[t.id+'#'+i] ? ' \u00b7 ' + counts[t.id+'#'+i] : '')
-                    + '</button>'
-                  : '')
               + '</div>';
           }).join("") + '</div>'
         + (done && String(S.q[id]||"").trim()
@@ -863,6 +922,15 @@
               + '<div class="kvk">Your question</div>'
               + '<div>'+esc(S.q[id])+'</div>'
               + '</div>'
+            : '')
+        + (done
+            ? '<button class="discentry" type="button" data-topic="'+t.id+'">'
+              + '<span class="dtitle">Discuss ' + t.rn.toUpperCase() + ' with your group</span>'
+              + '<span class="dcount">'
+              +   (qcounts[t.id] ? qcounts[t.id] + ' question' + (qcounts[t.id]===1?'':'s') : 'no questions yet')
+              +   (counts['topic:'+t.id] ? ' \u00b7 ' + counts['topic:'+t.id] + ' post' + (counts['topic:'+t.id]===1?'':'s') : '')
+              + '</span>'
+              + '</button>'
             : '')
         + '</div>';
     }).join("");
@@ -879,10 +947,16 @@
     + blocks
     + (done ? ''
     + '  <div class="topicblock">'
-    + '    <div class="btnrow">'
-    + '      <button class="btn btn-accent" id="openGeneral" type="button" style="flex:0 1 auto">Discussion</button>'
-    + '      <button class="btn btn-out" id="openDebrief" type="button">Group debrief</button>'
-    + '    </div>'
+    + '    <button class="discentry wide" id="openGeneral" type="button">'
+    + '      <span class="dtitle">General discussion</span>'
+    + '      <span class="dcount">Anything for the whole group'
+    +          (counts["general"] ? ' \u00b7 ' + counts["general"] + ' post' + (counts["general"]===1?'':'s') : '')
+    + '      </span>'
+    + '    </button>'
+    + '    <button class="discentry wide" id="openDebrief" type="button">'
+    + '      <span class="dtitle">Group debrief</span>'
+    + '      <span class="dcount">What your subgroup landed on, at day\u2019s end</span>'
+    + '    </button>'
     + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
@@ -987,6 +1061,78 @@
       if(mins < 60 * 24) return Math.round(mins / 60) + "h ago";
       return d.toLocaleDateString(undefined, {month:"short", day:"numeric"});
     } catch(e){ return ""; }
+  }
+
+  var topicData = null;
+
+  function renderTopic(){
+    var t = T(thread.topic), body = '', qs = '';
+    if(postErr){
+      body = '<div class="empty">' + esc(postErr) + '</div>';
+    } else if(topicData === null){
+      body = '<div class="empty">Loading\u2026</div>';
+    } else {
+      qs = topicData.questions.length
+        ? '<div class="posts">' + topicData.questions.map(function(q){
+            return '<div class="post q' + (q.mine ? ' mine' : '') + '">'
+              + '<div class="pmeta">' + esc(q.name || "Someone")
+              +   (q.affiliation ? ' \u00b7 ' + esc(q.affiliation) : '')
+              +   (q.mine ? ' \u00b7 yours' : '') + '</div>'
+              + '<div class="pbody">' + esc(q.q) + '</div>'
+              + '</div>';
+          }).join("") + '</div>'
+        : '<div class="empty">No questions submitted for this topic yet.</div>';
+      body = topicData.posts.length
+        ? topicData.posts.map(function(p){
+            return '<div class="post' + (p.mine ? ' mine' : '') + '">'
+              + '<div class="pmeta">' + esc(p.name || "Someone")
+              +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
+              +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
+              + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+              + '</div>';
+          }).join("")
+        : '<div class="empty">No replies yet. Take one of the questions on.</div>';
+    }
+
+    return ''
+    + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <h2>' + (t ? esc(t.title) : "Discussion") + '</h2>'
+    + '    <p class="intro">' + (t ? esc(t.q) : "") + '</p>'
+    + '  </div>'
+    + '  <div class="topicblock">'
+    + '    <div class="eyebrow">Questions submitted for this group</div>'
+    +      qs
+    + '  </div>'
+    + '  <div class="topicblock">'
+    + '    <div class="eyebrow">Discussion</div>'
+    + '    <div class="posts">' + body + '</div>'
+    + '    <div class="f">'
+    + '      <label for="fpost">Add to the discussion</label>'
+    + '      <textarea id="fpost" placeholder="Answer one of the questions above, or raise another\u2026"></textarea>'
+    + '      <div class="btnrow" style="margin-top:.55rem">'
+    + '        <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
+    + '        <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
+    + '      </div>'
+    + '      <div class="note" id="postMsg"></div>'
+    + '    </div>'
+    + '  </div>'
+    + '</section>';
+  }
+
+  function openTopic(tid){
+    thread = {key:"topic:" + tid, topic:tid, title:(T(tid) || {}).title || ""};
+    topicData = null; postErr = ""; mode = "topic"; render();
+    cloudTopic(tid).then(function(res){
+      topicData = {questions:res.questions || [], posts:res.posts || []};
+      counts[thread.key] = topicData.posts.length;
+      render();
+    }, function(err){
+      postErr = (err && err.code === "bad_pin")
+        ? "Discussion opens once your submission is saved."
+        : "Could not load the discussion. Try again.";
+      render();
+    });
   }
 
   function openThread(key, title){
@@ -1399,9 +1545,11 @@
   var homeBtn = document.getElementById("homeBtn");
 
   function render(){
-    if(mode === "thread" || mode === "debrief"){
+    if(mode === "thread" || mode === "debrief" || mode === "topic"){
       rail.innerHTML = "";
-      view.innerHTML = (mode === "thread") ? renderThread() : renderDebrief();
+      view.innerHTML = (mode === "thread") ? renderThread()
+                     : (mode === "topic")  ? renderTopic()
+                     : renderDebrief();
       barIn.innerHTML = '<button class="btn btn-out" id="leaveSub" type="button">Back</button>'
         + (mode === "debrief"
             ? '<button class="btn btn-accent" id="sendDebrief" type="button">Send debrief</button>'
@@ -1461,9 +1609,9 @@
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
-    cloudPush(S, keyFor(pin)).then(function(){
+    withKey(function(k){ return cloudPush(S, k); }).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
-      cloudCounts().then(function(c){ counts = c; render(); }, function(){});
+      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
     }, syncFailed);
   }
 
@@ -1518,6 +1666,9 @@
         openThread(b.getAttribute("data-thread"), b.getAttribute("data-title"));
       });
     });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-topic]"), function(b){
+      b.addEventListener("click", function(){ openTopic(b.getAttribute("data-topic")); });
+    });
     var og = document.getElementById("openGeneral");
     if(og) og.addEventListener("click", function(){ openThread("general", ""); });
     var od = document.getElementById("openDebrief");
@@ -1538,7 +1689,7 @@
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
       syncState = {state:"saving", msg:""}; render();
-      cloudPush(S, keyFor(pin)).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
+      withKey(function(k){ return cloudPush(S, k); }).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
         syncFailed);
     });
 
@@ -1548,13 +1699,13 @@
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
       if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
       msg.textContent = "Looking…";
-      cloudLookup(S.e, keyFor(pin)).then(function(row){
+      withKey(function(k){ return cloudLookup(S.e, k); }).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = true; editing = false; step = READING;
         syncState = {state:"ok", msg:""}; saveLocal();
         try { history.replaceState(null, "", myLink(S)); } catch(e){}
         render();
-        cloudCounts().then(function(c){ counts = c; render(); }, function(){});
+        cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
@@ -1567,7 +1718,7 @@
   function wireSub(){
     var back = document.getElementById("leaveSub");
     if(back) back.addEventListener("click", function(){
-      mode = "form"; thread = null; posts = null; postErr = "";
+      mode = "form"; thread = null; posts = null; topicData = null; postErr = "";
       debriefState = {state:"idle", msg:""};
       render();
     });
@@ -1580,11 +1731,14 @@
       if(!text){ msg.innerHTML = '<span class="warnt">Write something first.</span>'; return; }
       send.disabled = true; msg.textContent = "Posting\u2026";
       var key = thread.key;
-      cloudWrite({action:"post", email:S.e, pin:keyFor(pin), thread:key, body:text},
-                 function(){ return cloudPosts(key); })
+      withKey(function(k){
+        return cloudWrite({action:"post", email:S.e, pin:k, thread:key, body:text},
+                          function(){ return postsWith(k, key); });
+      })
         .then(function(list){
           var landed = list.some(function(p){ return p.mine && p.body === text; });
           posts = list;
+          if(topicData) topicData.posts = list;
           counts[key] = list.length;
           if(landed){ render(); }
           else {
@@ -1603,8 +1757,10 @@
     var refresh = document.getElementById("refreshPosts");
     if(refresh) refresh.addEventListener("click", function(){
       var key = thread.key;
-      posts = null; postErr = ""; render();
-      cloudPosts(key).then(function(list){ posts = list; counts[key] = list.length; render(); },
+      posts = null; if(topicData) topicData = {questions:topicData.questions, posts:[]};
+      postErr = ""; render();
+      cloudPosts(key).then(function(list){
+        posts = list; if(topicData) topicData.posts = list; counts[key] = list.length; render(); },
         function(){ postErr = "Could not load the discussion."; posts = []; render(); });
     });
 
@@ -1622,8 +1778,10 @@
       }
       sd.disabled = true;
       debriefState = {state:"warn", msg:"Sending\u2026"}; render();
-      cloudWrite({action:"debrief", email:S.e, pin:keyFor(pin), debrief:debrief},
-                 cloudDebriefs)
+      withKey(function(k){
+        return cloudWrite({action:"debrief", email:S.e, pin:k, debrief:debrief},
+                          function(){ return debriefsWith(k); });
+      })
         .then(function(list){
           var landed = list.some(function(d){ return String(d.claim||"").slice(0,40) === String(debrief.claim).slice(0,40); });
           debriefState = landed
@@ -1757,7 +1915,7 @@
 
   render();
   if(API && saved && !editing && normKey(pin).length >= 2){
-    cloudCounts().then(function(c){ counts = c; render(); }, function(){});
+    cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
   }
 
   /* offline support — only meaningful on a hosted copy */

@@ -279,6 +279,33 @@ function doGet(e) {
       return out_({ok: true, posts: posts, me: who.name}, cb);
     }
 
+    // A subtopic's discussion: everybody's submitted question for that topic,
+    // then the thread. One call so the view opens in a single round trip.
+    if (p.action === "topic") {
+      var whoT = verify_(p.email, p.pin);
+      if (!whoT) return out_({ok: false, error: "bad_pin"}, cb);
+      var tid = String(p.topic || "");
+      var qs = [];
+      rowsOf_(sheet_(), HEADERS).forEach(function (r) {
+        var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
+        for (var i = 0; i < 3; i++) {
+          if (String(picks[i]) === tid && String(answers[i] || "").trim()) {
+            qs.push({name: r[1], affiliation: r[3], q: answers[i],
+                     mine: String(r[2]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()});
+          }
+        }
+      });
+      var tkey = "topic:" + tid;
+      var tposts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
+        .filter(function (r) { return String(r[2]) === tkey; })
+        .map(function (r) {
+          return {id: r[0], at: r[1] ? new Date(r[1]).toISOString() : "",
+                  name: r[3], affiliation: r[5], body: r[6],
+                  mine: String(r[4]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()};
+        });
+      return out_({ok: true, questions: qs, posts: tposts}, cb);
+    }
+
     // One call for every badge on the reading page.
     if (p.action === "counts") {
       var who2 = verify_(p.email, p.pin);
@@ -287,7 +314,15 @@ function doGet(e) {
       rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS).forEach(function (r) {
         var k = String(r[2]); tally[k] = (tally[k] || 0) + 1;
       });
-      return out_({ok: true, counts: tally}, cb);
+      var qtally = {};
+      rowsOf_(sheet_(), HEADERS).forEach(function (r) {
+        var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
+        for (var i = 0; i < 3; i++) {
+          var tid2 = String(picks[i] || "");
+          if (tid2 && String(answers[i] || "").trim()) qtally[tid2] = (qtally[tid2] || 0) + 1;
+        }
+      });
+      return out_({ok: true, counts: tally, questions: qtally}, cb);
     }
 
     // A rapporteur confirming their own debrief landed.
