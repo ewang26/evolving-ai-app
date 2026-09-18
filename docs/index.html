@@ -105,6 +105,7 @@
   .lede{color:var(--muted);font-size:1.0625rem;max-width:34rem;margin-top:.7rem}
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
   .head.thin{border-bottom:0;padding-bottom:0}
+  .intro{color:var(--muted);font-size:1rem;line-height:1.55;max-width:32rem;margin-top:.7rem}
 
 
   /* ---------- fields ---------- */
@@ -146,7 +147,7 @@
     font-size:.94rem;color:var(--muted);border-left:1px solid var(--line);
     padding:.1rem 0 .1rem .75rem;
   }
-  .framing b{font-weight:400;color:var(--text);font-style:italic}
+  .framing b{font-weight:400;color:var(--text)}
 
   /* ---------- cards ---------- */
   .card{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:1.1rem}
@@ -554,7 +555,7 @@
       S = normalize(mine.sub);
       pin = mine.pin || "";
       saved = !!mine.saved && isComplete(S);
-      if(saved && API && String(pin).trim().length < 4){
+      if(saved && API && normKey(pin).length < 3){
         saved = false; step = 0;
         needsPin = true;              // explains itself on the first screen
       } else {
@@ -571,6 +572,15 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
   function chosen(){ return S.r.filter(function(x){ return x; }); }
+  // Normalized before it is ever hashed, so "Slime mold", "slime-molds" and
+  // "SLIMEMOLD" are all the same key — nobody gets locked out by capitals, a
+  // space or a plural. The "org:" prefix keeps it above the endpoint's minimum
+  // length even for a short answer like "ant".
+  function normKey(v){
+    return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/s$/, "");
+  }
+  function keyFor(v){ var n = normKey(v); return n ? "org:" + n : ""; }
+
   function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
   function firstName(n){ return String(n||"").trim().split(/\s+/)[0] || "you"; }
 
@@ -641,24 +651,24 @@
     return ''
     + '<section class="step">'
     + '  <div class="fields">'
-    + fld("n","Your name","text","Jane Doe", S.n)
+    + fld("n","Name","text","Jane Doe", S.n)
     + fld("e","Email","email","jane@university.edu", S.e)
     + fld("a","Affiliation","text","Harvard · Human Evolutionary Biology", S.a)
     + '    <div class="f' + (errs.pin?" bad":"") + '">'
-    + '      <label for="fpin">Passcode</label>'
-    + '      <input id="fpin" type="password" inputmode="text" autocomplete="new-password" '
-    +          'placeholder="Choose 4 or more characters" value="'+esc(pin)+'" />'
-    + '      <div class="hint">Needed to load your reading on another device, or to change your answers later.</div>'
+    + '      <label for="fpin">Favorite organism</label>'
+    + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
+    +          'placeholder="Tardigrade" value="'+esc(pin)+'" />'
+    + '      <div class="hint">One word. This is how you get your reading back later.</div>'
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
     +      (needsPin
-            ? '<div class="sync warn">Set a passcode to finish saving your submission. Your answers are still here.</div>'
+            ? '<div class="sync warn">Name your favorite organism to finish saving. Your answers are still here.</div>'
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Submitted already? <button class="linkish" id="loadMine" type="button">Load my reading</button> with the email and passcode above.</span>'
-        : '<span class="note">Submitted already? Open the personal link you saved to get your reading back.</span>')
+        ? '<span class="note">Already submitted? <button class="linkish" id="loadMine" type="button">Load my reading</button> using the email and organism above.</span>'
+        : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
     + '  <details>'
@@ -695,7 +705,7 @@
 
     return ''
     + '<section class="step">'
-    + '  <div class="head thin"><h2>Your three, in order</h2></div>'
+    + '  <div class="head thin"><h2>Choose three topics</h2></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
     + '</section>';
@@ -714,7 +724,10 @@
 
     return ''
     + '<section class="step">'
-    + '  <div class="head thin"><h2>One question each</h2></div>'
+    + '  <div class="head thin">'
+    + '    <h2>Your questions</h2>'
+    + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with the group the night before it meets.</p>'
+    + '  </div>'
     + '  <div class="stack">' + cards + '</div>'
     + '</section>';
   }
@@ -759,12 +772,12 @@
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <h2>' + esc(firstName(S.n)) + '’s reading</h2>'
+    + '    <h2>Your reading</h2>'
     +      syncLine()
     + '  </div>'
     + blocks
     + '  <div class="topicblock">'
-    + '    <p class="note">Keep this link and your reading comes back on any device.</p>'
+    + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-accent" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
@@ -789,7 +802,7 @@
       if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
       if(!S.a.trim()) errs.a = "Where are you coming from?";
-      if(String(pin).trim().length < 4) errs.pin = "At least 4 characters.";
+      if(normKey(pin).length < 3) errs.pin = "Name one organism.";
     }
     if(n===1){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
@@ -1159,7 +1172,7 @@
       step = 0;
       errs.pin = code === "locked"
         ? "Too many tries. Wait a few minutes, then try again."
-        : "This email already has a submission under a different passcode. Enter that passcode to change it.";
+        : "This email already has a submission under a different organism. Use that one to change it.";
       syncState = {state:"idle", msg:""}; render();
       return;
     }
@@ -1175,7 +1188,7 @@
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
     if(!API){ syncState = {state:"local", msg:""}; render(); return; }
     syncState = {state:"saving", msg:""}; render();
-    cloudPush(S, pin).then(function(){
+    cloudPush(S, keyFor(pin)).then(function(){
       syncState = {state:"ok", msg:""}; saveLocal(); render();
     }, syncFailed);
   }
@@ -1236,7 +1249,7 @@
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
       syncState = {state:"saving", msg:""}; render();
-      cloudPush(S, pin).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
+      cloudPush(S, keyFor(pin)).then(function(){ syncState = {state:"ok", msg:""}; saveLocal(); render(); },
         syncFailed);
     });
 
@@ -1244,9 +1257,9 @@
     if(lm) lm.addEventListener("click", function(){
       var msg = document.getElementById("loadMsg");
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
-      if(String(pin).trim().length < 4){ msg.innerHTML = '<span class="warnt">Enter your passcode above too.</span>'; return; }
+      if(normKey(pin).length < 3){ msg.innerHTML = '<span class="warnt">Fill in your organism above too.</span>'; return; }
       msg.textContent = "Looking…";
-      cloudLookup(S.e, pin).then(function(row){
+      cloudLookup(S.e, keyFor(pin)).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = true; step = 3;
         syncState = {state:"ok", msg:""}; saveLocal();
@@ -1255,7 +1268,7 @@
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
-          code === "bad_pin" ? "That passcode does not match the one on file for this email."
+          code === "bad_pin" ? "That is not the organism on file for this email."
           : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });

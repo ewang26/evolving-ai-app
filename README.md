@@ -60,12 +60,19 @@ re-deploying changes nothing, because the web app serves the deployed version.
 `docs/sheet-backend.gs` into a new Apps Script project, set `SHEET_ID` and `ADMIN_KEY`,
 deploy as a web app with access **Anyone**, and put the `/exec` URL in `docs/config.js`.
 
-**Passcodes.** Each participant sets one when they submit. It gates both directions: you
-cannot read somebody's submission back, and you cannot overwrite it, without theirs. Only a
-salted SHA-256 of `email + passcode` is stored, so the sheet cannot be used to recover
-anyone's passcode and a hash copied between rows is useless. Eight wrong attempts per email
-triggers a 15-minute cool-off. A passcode cannot be reset by the app — clear that row's
-**Passcode** cell in the sheet and the participant can claim it again with a fresh one.
+**The key is a question, not a password.** Participants name a favorite organism, which
+gates both directions: you cannot read somebody's submission back, and you cannot overwrite
+it, without theirs. The answer is normalized in the browser (lowercased, punctuation and
+spaces stripped, a trailing "s" dropped) and prefixed `org:`, so "Slime mold", "slime-molds"
+and "SLIMEMOLD" are one key and nobody is locked out by capitals or a plural. Only a salted
+SHA-256 of `email + key` reaches the sheet, so it cannot be used to recover anyone's answer
+and a hash copied between rows is useless. Eight wrong attempts per email triggers a
+15-minute cool-off. To reset someone, clear their **Passcode** cell and they can claim the
+row again.
+
+A one-word answer carries less entropy than a password — that is a deliberate trade for a
+group of people who would (rightly) find a password prompt insulting. The lockout is what
+makes it workable, and the worst case is someone reading another attendee's three questions.
 
 One known limitation: the lookup is a JSONP `GET`, so the passcode travels as a query
 parameter. It is HTTPS end to end, but it will appear in the participant's browser history
