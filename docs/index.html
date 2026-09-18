@@ -934,16 +934,16 @@
     + '  </div>'
     + '  <div class="fields one">'
     + '    <div class="f' + (errs.w?" bad":"") + '">'
-    + '      <label for="fw">What you work on</label>'
+    + '      <label for="fw">What you work on (in one sentence)</label>'
     + '      <textarea id="fw" data-k="w" rows="2" '
-    +          'placeholder="One sentence.">'+esc(S.w||"")+'</textarea>'
+    +          'placeholder="Coordination in multi-agent AI systems.">'+esc(S.w||"")+'</textarea>'
     +        (errs.w?'<div class="err">'+errs.w+'</div>':'')
     + '    </div>'
     + '    <div class="f' + (errs.c?" bad":"") + '">'
-    + '      <label for="fc">One thing to read, watch or listen to</label>'
+    + '      <label for="fc">An example of my work that others can look at</label>'
     + '      <input id="fc" data-k="c" type="url" inputmode="url" spellcheck="false" '
     +          'autocomplete="off" placeholder="https://\u2026" value="'+esc(S.c||"")+'" />'
-    + '      <div class="hint">A paper, a talk, a podcast episode \u2014 anything public that shows what you think about.</div>'
+    + '      <div class="hint">A link to a paper, presentation, podcast, product, or something else.</div>'
     +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
     + '    </div>'
     + '  </div>'
@@ -978,9 +978,8 @@
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
     + '  <div class="f sixth">'
-    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current five</label>'
-    + '    <textarea id="fnewtopic" data-k="t" rows="2" '
-    +        'placeholder="Optional.">'+esc(S.t||"")+'</textarea>'
+    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current five that you\u2019re most interested in discussing</label>'
+    + '    <textarea id="fnewtopic" data-k="t" rows="2">'+esc(S.t||"")+'</textarea>'
     + '  </div>'
     + '</section>';
   }
