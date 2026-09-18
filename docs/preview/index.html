@@ -1866,7 +1866,7 @@
     var next = document.getElementById("next");
     if(next) next.addEventListener("click", function(){
       if(!validate(step)){ render(); var bad = view.querySelector(".bad, .err");
-        if(bad) bad.scrollIntoView({block:"center", behavior:"smooth"}); return; }
+        if(bad) bad.scrollIntoView({block:"center", behavior:"auto"}); return; }
       errs = {};
       needsPin = false;
       if(step === QUESTIONS){ submit(); return; }
@@ -1882,7 +1882,7 @@
         var to = b.getAttribute("data-go");
         if(to === "reads"){
           var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
-          if(first) first.scrollIntoView({block:"center", behavior:"smooth"});
+          if(first) first.scrollIntoView({block:"center", behavior:"auto"});
           return;
         }
         editing = true; errs = {};
