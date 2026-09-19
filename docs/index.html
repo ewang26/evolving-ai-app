@@ -300,6 +300,7 @@
     .fields.one{display:flex;flex-direction:column;gap:1.4rem;align-items:stretch}
     .resume,.intro,.f.wide{grid-column:1 / -1}
     .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
+    .reads.solo{grid-template-columns:1fr}
     .read{height:100%}
     .topicblock{padding-top:1.8rem;gap:1rem}
     .qcard textarea{min-height:6.5rem}
@@ -460,6 +461,14 @@
   })();
   var DEADLINE = CFG.deadline || "Monday, October 5";
 
+  /* Read by everyone, whichever three topics they pick. */
+  var COMMON = {
+    kind:"bridge", req:true, len:"10 pp",
+    url:"https://www.pnas.org/doi/pdf/10.1073/pnas.2527700123",
+    cite:"V. M\u00fcller, L. Steels & E. Szathm\u00e1ry, <b>\u201cEvolvable AI: Threats of a new major transition in evolution\u201d</b> \u00b7 PNAS, 2026",
+    note:"Separates \u201cbreeder\u201d AI, where people still control reproduction, from \u201cecosystem\u201d AI, where selection escapes it. The frame the whole weekend argues with."
+  };
+
   var TOPICS = [
     {
       id:"T1", rn:"i", short:"Major Evolutionary Transition",
@@ -481,10 +490,10 @@
       title:"From Adaptive Agents to Adaptive Wholes",
       q:"What evolutionary mechanisms can transform independently optimizing AI agents into coherent, cooperative systems, and keep their collective goals compatible with human flourishing?",
       readings:[
-        {kind:"evo", req:true, len:"37 pp",
-         url:"https://www.nobelprize.org/uploads/2018/06/ostrom_lecture.pdf",
-         cite:"E. Ostrom, <b>\u201cBeyond Markets and States: Polycentric Governance of Complex Economic Systems\u201d</b> \u00b7 Nobel lecture, 2009",
-         note:"The design conditions under which self-governing groups hold together instead of collapsing into defection."},
+        {kind:"evo", req:true, len:"7 pp",
+         url:"https://websites.umich.edu/~axe/research/Axelrod%20and%20Hamilton%20EC%201981.pdf",
+         cite:"R. Axelrod & W. D. Hamilton, <b>\u201cThe Evolution of Cooperation\u201d</b> \u00b7 Science, 1981",
+         note:"When cooperation can get started among self-interested agents, survive, and resist invasion once established."},
         {kind:"ai", len:"68 pp",
          url:"https://arxiv.org/pdf/2012.08630",
          cite:"A. Dafoe et al., <b>\u201cOpen Problems in Cooperative AI\u201d</b> \u00b7 2020",
@@ -863,7 +872,7 @@
   }
   /* Only the required text per group counts: the second is a recommendation. */
   function requiredReadings(){
-    var out = [];
+    var out = [COMMON];
     chosen().forEach(function(id){
       T(id).readings.forEach(function(r){ if(r.req) out.push(r); });
     });
@@ -892,6 +901,11 @@
   }
   function readingText(){
     var L = ["EVOLVING AI — PRE-READ · " + S.n, ""];
+    L.push("EVERYONE READS THIS");
+    L.push("   [required]    " + COMMON.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&")
+      + "  (" + COMMON.len + ")");
+    L.push("                 " + COMMON.url);
+    L.push("");
     chosen().forEach(function(id, i){
       var t = T(id);
       L.push((i+1) + ". " + t.title);
@@ -1124,32 +1138,39 @@
     + '</div>';
   }
 
+  function readCard(r, done){
+    var tick = !!(S.read && S.read[r.url]);
+    return '<div class="read'+(r.req?" req":"")+(tick?" ticked":"")+'">'
+      + '<div class="rmeta">'
+      +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
+      +   '<span class="rkind">'
+      +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
+      +     (r.len?' \u00b7 '+r.len:'') + ' \u00b7 PDF</span>'
+      + '</div>'
+      + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
+      +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
+      + '<div class="rnote">'+esc(r.note)+'</div>'
+      + (done
+          ? '<button class="readtick' + (tick ? ' on' : '') + '" type="button" '
+            + 'data-read="'+esc(r.url)+'">'
+            + '<span class="tickbox">' + (tick ? '\u2713' : '') + '</span>'
+            + (tick ? 'Read' : 'Mark as read')
+            + '</button>'
+          : '')
+      + '</div>';
+  }
+
   function renderReading(){
     var ids = chosen(), done = saved && !editing;
+    var commonBlock = '<div class="topicblock common">'
+      + '<div class="eyebrow">Everyone reads this</div>'
+      + '<div class="reads solo">' + readCard(COMMON, done) + '</div>'
+      + '</div>';
     var blocks = ids.map(function(id){
       var t = T(id);
       return '<div class="topicblock">'
         + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
-        + '<div class="reads">' + t.readings.map(function(r, i){
-            return '<div class="read'+(r.req?" req":"")+((S.read && S.read[r.url])?" ticked":"")+'">'
-              + '<div class="rmeta">'
-              +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
-              +   '<span class="rkind">'
-              +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
-              +     (r.len?' · '+r.len:'') + ' · PDF</span>'
-              + '</div>'
-              + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
-              +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
-              + '<div class="rnote">'+esc(r.note)+'</div>'
-              + (done
-                  ? '<button class="readtick' + ((S.read && S.read[r.url]) ? ' on' : '') + '" type="button" '
-                    + 'data-read="'+esc(r.url)+'">'
-                    + '<span class="tickbox">' + ((S.read && S.read[r.url]) ? '\u2713' : '') + '</span>'
-                    + ((S.read && S.read[r.url]) ? 'Read' : 'Mark as read')
-                    + '</button>'
-                  : '')
-              + '</div>';
-          }).join("") + '</div>'
+        + '<div class="reads">' + t.readings.map(function(r){ return readCard(r, done); }).join("") + '</div>'
         + (done && String(S.q[id]||"").trim()
             ? '<div class="card flat yourq">'
               + '<div class="kvk">Your question</div>'
@@ -1177,6 +1198,7 @@
               + '</p>')
     + '  </div>'
     +      (done ? renderProgress() : '')
+    + commonBlock
     + blocks
     + (done ? ''
     + '  <div class="topicblock">'
