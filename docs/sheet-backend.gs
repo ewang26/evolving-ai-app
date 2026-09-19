@@ -41,6 +41,11 @@ var DEBRIEF_HEADERS= ["Timestamp", "Round", "Group", "Topic", "Name", "Email",
                       "Claim", "Disagreement", "What would settle it"];
 var INVITEES_SHEET = "Invitees";
 var INVITEE_HEADERS= ["Name", "Email", "Reminders sent", "Last reminder"];
+/* Only addresses on the Invitees tab may create a submission. Reads are
+   already gated on having one, so this is what keeps the discussion private.
+   Turning it off reopens sign-ups to anyone who finds the endpoint. */
+var INVITE_GATE    = true;
+
 var MAX_BODY       = 4000;
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
@@ -135,6 +140,17 @@ function verify_(email, code) {
   return {name: row[1], email: row[2], affiliation: row[3]};
 }
 
+/** Is this address on the Invitees tab? Matching is case- and space-insensitive. */
+function invited_(email) {
+  var key = String(email || "").trim().toLowerCase();
+  if (!key) return false;
+  var rows = rowsOf_(tab_(INVITEES_SHEET, INVITEE_HEADERS), INVITEE_HEADERS);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1] || "").trim().toLowerCase() === key) return true;
+  }
+  return false;
+}
+
 function rowsOf_(sh, headers) {
   var last = sh.getLastRow();
   if (last < 2) return [];
@@ -222,6 +238,12 @@ function doPost(e) {
     var existing = findRow_(sh, sub.e);
     var mine = hash_(sub.e, code);
 
+    // A NEW submission must come from an invited address. An existing row is
+    // left alone: it is already guarded by the key that created it.
+    if (existing < 0 && INVITE_GATE && !invited_(sub.e)) {
+      return out_({ok: false, error: "not_invited"});
+    }
+
     // An existing entry may only be overwritten by whoever set its passcode.
     if (existing > 0) {
       var onFile = sh.getRange(existing, PASS_COL).getValue();
@@ -287,6 +309,15 @@ function doGet(e) {
 
     // Posts in one thread, oldest first. A thread key is "general" or
     // "<topicId>#<reading index>", e.g. "T3#0".
+    // Asked before a first submission so the app can say so on screen. It
+    // reveals only whether one address you already know is on the list.
+    if (p.action === "invited") {
+      var em = String(p.email || "").trim();
+      if (!em) return out_({ok: true, invited: false}, cb);
+      if (findRow_(sh, em) > 0) return out_({ok: true, invited: true}, cb);
+      return out_({ok: true, invited: !INVITE_GATE || invited_(em)}, cb);
+    }
+
     if (p.action === "posts") {
       var who = verify_(p.email, p.pin);
       if (who === "reset") return out_({ok: false, error: "key_reset"}, cb);

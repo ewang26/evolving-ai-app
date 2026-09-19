@@ -623,6 +623,12 @@
     .then(function(){ return cloudLookup(sub.e, code); })
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
   }
+  function cloudInvited(email){
+    if(!API) return Promise.resolve(true);
+    return jsonp({action:"invited", email:email}, 12000).then(function(res){
+      return !(res && res.ok) || res.invited !== false;   // never block on a failed check
+    }, function(){ return true; });
+  }
   function cloudPosts(key){
     return withKey(function(k){ return postsWith(k, key); });
   }
@@ -1797,6 +1803,12 @@
       syncState = {state:"local", msg:"Saved on this device. Submit again to repair your key."};
       render(); return;
     }
+    if(code === "not_invited"){
+      step = 0;
+      errs.e = "This address is not on the attendee list. Use the address your invitation went to, or email the organizers.";
+      syncState = {state:"idle", msg:""}; render();
+      return;
+    }
     if(code === "bad_pin" || code === "locked"){
       step = 0;
       errs.pin = code === "locked"
@@ -1870,6 +1882,22 @@
         if(bad) bad.scrollIntoView({block:"center", behavior:"auto"}); return; }
       errs = {};
       needsPin = false;
+      if(step === 0 && !saved){
+        var el = document.getElementById("next");
+        if(el){ el.disabled = true; el.textContent = "Checking\u2026"; }
+        cloudInvited(S.e).then(function(ok){
+          if(el){ el.disabled = false; el.textContent = "Continue"; }
+          if(!ok){
+            errs.e = "This address is not on the attendee list. Use the address your invitation went to, or email the organizers.";
+            render();
+            var bad = view.querySelector(".bad, .err");
+            if(bad) bad.scrollIntoView({block:"center", behavior:"auto"});
+            return;
+          }
+          step++; render();
+        });
+        return;
+      }
       if(step === QUESTIONS){ submit(); return; }
       if(step === WORK){ S.c = tidyLink(S.c); saveLocal(); }
       if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
