@@ -41,6 +41,12 @@ var DEBRIEF_HEADERS= ["Timestamp", "Round", "Group", "Topic", "Name", "Email",
                       "Claim", "Disagreement", "What would settle it"];
 var INVITEES_SHEET = "Invitees";
 var INVITEE_HEADERS= ["Name", "Email", "Reminders sent", "Last reminder"];
+/* The shared code from the invitation email. A new submission must carry it;
+   reads are already gated on having a submission, so this is what keeps the
+   discussion private once the app is linked publicly. Set the real value HERE
+   and nowhere else — the front-end repo is public. Empty string = no gate. */
+var GATE_CODE      = "CHANGE-ME-to-the-shared-attendee-passcode";
+
 var MAX_BODY       = 4000;
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
@@ -135,6 +141,16 @@ function verify_(email, code) {
   return {name: row[1], email: row[2], affiliation: row[3]};
 }
 
+/** Forgiving on purpose: "Harvard26", "harvard 26" and "HARVARD-26" all pass,
+    so nobody is turned away by capitals, a space or a hyphen. */
+function gateNorm_(v) {
+  return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+function gateOpen_(v) {
+  if (!GATE_CODE) return true;                       // no gate configured
+  return gateNorm_(v) === gateNorm_(GATE_CODE);
+}
+
 function rowsOf_(sh, headers) {
   var last = sh.getLastRow();
   if (last < 2) return [];
@@ -222,6 +238,13 @@ function doPost(e) {
     var existing = findRow_(sh, sub.e);
     var mine = hash_(sub.e, code);
 
+    // A NEW submission must carry the shared code. An existing row is left
+    // alone: it is already guarded by the key that created it, which is why
+    // nobody has to type the code a second time.
+    if (existing < 0 && !gateOpen_(body.gate)) {
+      return out_({ok: false, error: "bad_gate"});
+    }
+
     // An existing entry may only be overwritten by whoever set its passcode.
     if (existing > 0) {
       var onFile = sh.getRange(existing, PASS_COL).getValue();
@@ -287,6 +310,17 @@ function doGet(e) {
 
     // Posts in one thread, oldest first. A thread key is "general" or
     // "<topicId>#<reading index>", e.g. "T3#0".
+    // Checked before the form is filled in, so a wrong code is caught on the
+    // first screen. doPost enforces it regardless, so this is only courtesy —
+    // and after enough wrong guesses it stops answering, to blunt a script.
+    if (p.action === "gate") {
+      if (!GATE_CODE) return out_({ok: true, valid: true}, cb);
+      if (gateOpen_(p.code)) { clearFails_("#gate"); return out_({ok: true, valid: true}, cb); }
+      if (locked_("#gate")) return out_({ok: true, valid: true}, cb);   // fail open: doPost still refuses
+      noteFail_("#gate");
+      return out_({ok: true, valid: false}, cb);
+    }
+
     if (p.action === "posts") {
       var who = verify_(p.email, p.pin);
       if (who === "reset") return out_({ok: false, error: "key_reset"}, cb);

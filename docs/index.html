@@ -296,7 +296,7 @@
     .head{padding-bottom:1.5rem}
     .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;align-items:start}
     .fields.one{display:flex;flex-direction:column;gap:1.4rem;align-items:stretch}
-    .resume,.intro{grid-column:1 / -1}
+    .resume,.intro,.f.wide{grid-column:1 / -1}
     .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
     .read{height:100%}
     .topicblock{padding-top:1.8rem;gap:1rem}
@@ -556,6 +556,7 @@
        3. the shared sheet    an Apps Script endpoint, when one is configured
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
+  var LS_GATE = "eai.gate.v1";   // the shared code, entered once per device
 
   function lsGet(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
   function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
@@ -615,13 +616,19 @@
     return fetch(API, {
       method:"POST", mode:"no-cors", cache:"no-store",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({action:"put", sub:sub, pin:String(code||"")})
+      body:JSON.stringify({action:"put", sub:sub, pin:String(code||""), gate:gate})
     })
     .then(function(){ return wait(1400); })
     // the POST response is unreadable by design, so the read-back IS the result:
     // a wrong passcode surfaces here as bad_pin instead of a false success
     .then(function(){ return cloudLookup(sub.e, code); })
     .then(function(row){ if(!row) throw {code:"unconfirmed"}; return row; });
+  }
+  function cloudGate(code){
+    if(!API) return Promise.resolve(true);
+    return jsonp({action:"gate", code:code}, 12000).then(function(res){
+      return !(res && res.ok) || res.valid !== false;   // never block on a failed check
+    }, function(){ return true; });
   }
   function cloudPosts(key){
     return withKey(function(k){ return postsWith(k, key); });
@@ -682,6 +689,27 @@
      ================================================================== */
   var blank = { n:"", e:"", a:"", w:"", c:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
+  /* The shared code from the invitation, as a salted hash so it is not sitting
+     in the page in plain text. This check runs in the browser, so it stops
+     someone who follows the link — not someone who calls the endpoint directly.
+     The Apps Script holds the real gate; see GATE_CODE in sheet-backend.gs. */
+  var GATE_SALT = "eai-gate-v1|";
+  var GATE_HASH = "1335789f41f0c599a51ee6176095cf63605e0fd5e435073ef45d79ffb3904a7e";
+
+  function gateNorm(v){ return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+  function gateMatches(v){
+    var c = (window.crypto && window.crypto.subtle);
+    if(!c || !GATE_HASH) return Promise.resolve(true);    // no check possible here
+    return c.digest("SHA-256", new TextEncoder().encode(GATE_SALT + gateNorm(v)))
+      .then(function(buf){
+        var hex = Array.prototype.map.call(new Uint8Array(buf), function(b){
+          return ("0" + b.toString(16)).slice(-2); }).join("");
+        return hex === GATE_HASH;
+      }, function(){ return true; });
+  }
+
+  var gate   = lsGet(LS_GATE, "") || "";   // the shared code from the invitation
+  var gateOk = !!gate;                     // entered once, then never asked again
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
   var saved = false;                 // this submission is stored somewhere durable
@@ -894,6 +922,13 @@
     return ''
     + '<section class="step">'
     + '  <div class="fields">'
+    +      (gateOk || saved ? '' :
+           '    <div class="f wide' + (errs.gate?" bad":"") + '">'
+         + '      <label for="fgate">Attendee passcode</label>'
+         + '      <input id="fgate" type="text" autocomplete="off" spellcheck="false" '
+         +          'placeholder="From your invitation email" value="'+esc(gate)+'" />'
+         +        (errs.gate?'<div class="err">'+errs.gate+'</div>':'')
+         + '    </div>')
     + fld("n","Name","text","Charles Darwin", S.n)
     + fld("e","Email","email","darwin@cam.ac.uk", S.e)
     +      (emailTypo(S.e) ? '<div class="err">Did you mean .' + emailTypo(S.e) + '?</div>' : '')
@@ -1350,6 +1385,7 @@
   function validate(n){
     errs = {};
     if(n===0){
+      if(!gateOk && !saved && !String(gate).trim()) errs.gate = "Enter the passcode from your invitation.";
       if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
       if(!S.a.trim()) errs.a = "Where are you coming from?";
@@ -1797,6 +1833,13 @@
       syncState = {state:"local", msg:"Saved on this device. Submit again to repair your key."};
       render(); return;
     }
+    if(code === "bad_gate"){
+      gate = ""; gateOk = false; lsSet(LS_GATE, false);
+      step = 0;
+      errs.gate = "That is not the passcode from your invitation.";
+      syncState = {state:"idle", msg:""}; render();
+      return;
+    }
     if(code === "bad_pin" || code === "locked"){
       step = 0;
       errs.pin = code === "locked"
@@ -1861,6 +1904,9 @@
       ta.addEventListener("input", function(){ S.q[ta.getAttribute("data-q")] = ta.value; saveLocal(); });
     });
 
+    var gateEl = document.getElementById("fgate");
+    if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; });
+
     var pinEl = document.getElementById("fpin");
     if(pinEl) pinEl.addEventListener("input", function(){ pin = pinEl.value; saveLocal(); });
 
@@ -1870,6 +1916,25 @@
         if(bad) bad.scrollIntoView({block:"center", behavior:"auto"}); return; }
       errs = {};
       needsPin = false;
+      if(step === 0 && !saved && !gateOk){
+        var el = document.getElementById("next");
+        if(el){ el.disabled = true; el.textContent = "Checking\u2026"; }
+        gateMatches(gate).then(function(here){
+          return here ? cloudGate(gate) : false;    // wrong here, no need to ask
+        }).then(function(ok){
+          if(el){ el.disabled = false; el.textContent = "Continue"; }
+          if(!ok){
+            errs.gate = "That is not the passcode from your invitation.";
+            render();
+            var bad = view.querySelector(".bad, .err");
+            if(bad) bad.scrollIntoView({block:"center", behavior:"auto"});
+            return;
+          }
+          gateOk = true; lsSet(LS_GATE, gate);
+          step++; render();
+        });
+        return;
+      }
       if(step === QUESTIONS){ submit(); return; }
       if(step === WORK){ S.c = tidyLink(S.c); saveLocal(); }
       if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
