@@ -688,6 +688,25 @@
      ================================================================== */
   var blank = { n:"", e:"", a:"", w:"", c:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
+  /* The shared code from the invitation, as a salted hash so it is not sitting
+     in the page in plain text. This check runs in the browser, so it stops
+     someone who follows the link — not someone who calls the endpoint directly.
+     The Apps Script holds the real gate; see GATE_CODE in sheet-backend.gs. */
+  var GATE_SALT = "eai-gate-v1|";
+  var GATE_HASH = "1335789f41f0c599a51ee6176095cf63605e0fd5e435073ef45d79ffb3904a7e";
+
+  function gateNorm(v){ return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+  function gateMatches(v){
+    var c = (window.crypto && window.crypto.subtle);
+    if(!c || !GATE_HASH) return Promise.resolve(true);    // no check possible here
+    return c.digest("SHA-256", new TextEncoder().encode(GATE_SALT + gateNorm(v)))
+      .then(function(buf){
+        var hex = Array.prototype.map.call(new Uint8Array(buf), function(b){
+          return ("0" + b.toString(16)).slice(-2); }).join("");
+        return hex === GATE_HASH;
+      }, function(){ return true; });
+  }
+
   var gate   = lsGet(LS_GATE, "") || "";   // the shared code from the invitation
   var gateOk = !!gate;                     // entered once, then never asked again
   var pin = "";                      // deliberately NOT part of S, so the
@@ -1899,7 +1918,9 @@
       if(step === 0 && !saved && !gateOk){
         var el = document.getElementById("next");
         if(el){ el.disabled = true; el.textContent = "Checking\u2026"; }
-        cloudGate(gate).then(function(ok){
+        gateMatches(gate).then(function(here){
+          return here ? cloudGate(gate) : false;    // wrong here, no need to ask
+        }).then(function(ok){
           if(el){ el.disabled = false; el.textContent = "Continue"; }
           if(!ok){
             errs.gate = "That is not the passcode from your invitation.";
