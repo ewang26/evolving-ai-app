@@ -856,7 +856,7 @@
         return fetch(API, {
           method:"POST", mode:"no-cors", cache:"no-store",
           headers:{"Content-Type":"text/plain;charset=utf-8"},
-          body:JSON.stringify({action:"put", sub:S, pin:k})
+          body:JSON.stringify({action:"put", sub:S, pin:k, gate:gate})
         }).then(function(){ return true; });
       }).then(function(){}, function(){});
     }, 1800);
