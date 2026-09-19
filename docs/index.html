@@ -1900,6 +1900,14 @@
     }, syncFailed);
   }
 
+  /* render() rebuilds view.innerHTML, which throws away the scroll position.
+     Fine when the step changes; jarring for a toggle in the middle of a list. */
+  function renderInPlace(){
+    var y = window.pageYOffset;
+    render();
+    if(window.pageYOffset !== y) window.scrollTo(0, y);
+  }
+
   function wireForm(){
     Array.prototype.forEach.call(view.querySelectorAll("[data-k]"), function(inp){
       inp.addEventListener("input", function(){
@@ -1999,7 +2007,7 @@
         var u = b.getAttribute("data-read");
         if(!S.read) S.read = {};
         if(S.read[u]) delete S.read[u]; else S.read[u] = 1;
-        saveLocal(); queueReadSave(); render();
+        saveLocal(); queueReadSave(); renderInPlace();
       });
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
