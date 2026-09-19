@@ -113,6 +113,8 @@
   .fields{display:flex;flex-direction:column;gap:1.1rem}
   .f{display:flex;flex-direction:column;gap:.42rem}
   .fields.one textarea{min-height:4.4rem}
+  /* sits directly under a serif textarea: match it rather than the sans inputs */
+  .fields.one input{font-family:var(--serif);font-size:1.0625rem}
   .sixth{margin-top:.4rem;padding-top:1.4rem;border-top:1px solid var(--line)}
   .sixth textarea{min-height:4.4rem}
   .f > label{
@@ -1361,7 +1363,7 @@
     }, function(err){
       postErr = (err && err.code === "key_reset") ? RESET_MSG
         : (err && err.code === "bad_pin")
-          ? "That is not the model on file for this email."
+          ? keyErrMsg()
           : "Could not load the discussion. Try again.";
       render();
     });
@@ -1376,7 +1378,7 @@
     }, function(err){
       postErr = (err && err.code === "key_reset") ? RESET_MSG
         : (err && err.code === "bad_pin")
-          ? "That is not the model on file for this email."
+          ? keyErrMsg()
           : "Could not load the discussion. Try Refresh.";
       posts = []; render();
     });
@@ -1858,6 +1860,24 @@
   /* Writes the record as soon as the topics are picked. Nothing forces anybody
      into the questions: they can close the tab, read over a few days, and come
      back to the same reading with email + model. */
+  /* The endpoint answers bad_pin both for a wrong key AND for an email it has
+     never seen, so blaming the model is wrong when nothing is on file yet. */
+  function keyErrMsg(){
+    return saved
+      ? "That is not the model on file for this email."
+      : "Your answers have not reached the sheet yet. Give it a moment, then try again.";
+  }
+
+  function holdWork(){
+    step++;
+    if(!API){ saveLocal(); render(); return; }
+    syncState = {state:"saving", msg:""}; render();
+    // claims the row and the key early, so the topics save is an update
+    withKey(function(k){ return cloudPush(S, k); }).then(function(){
+      syncState = {state:"ok", msg:""}; saveLocal(); render();
+    }, syncFailed);
+  }
+
   function holdPlace(){
     step = READING;
     try { history.replaceState(null, "", myLink(S)); } catch(e){}
@@ -1936,8 +1956,11 @@
         return;
       }
       if(step === QUESTIONS){ submit(); return; }
-      if(step === WORK){ S.c = tidyLink(S.c); saveLocal(); }
       if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
+      if(step === WORK){                                 // and save here too
+        S.c = tidyLink(S.c); saveLocal();
+        if(!saved){ holdWork(); return; }
+      }
       step++; render();
     });
     var back = document.getElementById("back");
@@ -2028,7 +2051,7 @@
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
           code === "key_reset" ? RESET_MSG
-          : code === "bad_pin" ? "That is not the model on file for this email."
+          : code === "bad_pin" ? keyErrMsg()
           : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
@@ -2069,7 +2092,7 @@
           send.disabled = false;
           msg.innerHTML = '<span class="warnt">' + (
               (err && err.code === "key_reset") ? RESET_MSG
-            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
+            : (err && err.code === "bad_pin") ? keyErrMsg()
             : "Could not post. Try again.") + '</span>';
         });
     });
@@ -2111,7 +2134,7 @@
         }, function(err){
           debriefState = {state:"warn", msg:
               (err && err.code === "key_reset") ? RESET_MSG
-            : (err && err.code === "bad_pin") ? "That is not the model on file for this email."
+            : (err && err.code === "bad_pin") ? keyErrMsg()
             : "Could not send. Try again."};
           render();
         });
@@ -2200,7 +2223,7 @@
         var clean = [];
         rows.forEach(function(o){
           var d = normalize(o);
-          if(d.n && d.r.filter(function(x){return x;}).length) clean.push(d);
+          if(d.n && d.r.filter(function(x){return x;}).length === 3) clean.push(d);
         });
         roster = clean; lsSet(LS_ROSTER, roster);
         render();
