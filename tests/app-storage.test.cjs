@@ -47,7 +47,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes };
 }
@@ -260,8 +260,8 @@ test('HTML-only mirrors include the sheet connection without a config.js request
 });
 
 
-test('early form steps save locally without consuming authentication attempts', () => {
-  const a = app(); a.t.set({ S: sample(), pin: 'TestModel', step: 1 });
+test('incomplete credentials remain local without consuming authentication attempts', () => {
+  const a = app(); a.t.set({ S: sample(), pin: '', step: 1 });
   a.t.holdWork();
   assert.equal(a.t.state().step, 2);
   assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 2);
@@ -316,7 +316,7 @@ test('reading progress saves and confirms before any questions are submitted', a
   const a = app({ post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
     reply: () => ({ ok: true, row: stored }) });
   a.t.set({ S: sub, pin: 'TestModel', saved: true });
-  a.t.queueReadSave(); await a.t.flushReadSave();
+  await a.t.saveDraftNow();
   assert.equal(a.t.state().syncState.state, 'ok');
   assert.equal(Object.keys(stored.q).length, 0);
   assert.equal(stored.read['https://example.invalid/paper'], 1);
@@ -327,7 +327,7 @@ test('an unconfirmed background reading save never claims success', async () => 
   const a = app({ reply: () => ({ ok: true, row: { ...sub, read: {} } }) });
   sub.read = { 'https://example.invalid/paper': 1 };
   a.t.set({ S: sub, pin: 'TestModel', saved: true });
-  a.t.queueReadSave(); await a.t.flushReadSave();
+  await a.t.saveDraftNow();
   assert.equal(a.t.state().syncState.state, 'local');
   assert.match(a.t.state().syncState.msg, /Could not confirm/);
 });
@@ -340,12 +340,57 @@ test('rapid reading changes serialize saves and confirm the newest state', async
   }, reply: () => ({ ok: true, row: stored }) });
   const sub = sample(); sub.q = {};
   a.t.set({ S: sub, pin: 'TestModel', saved: true });
-  a.t.queueReadSave(); const first = a.t.flushReadSave();
+  const first = a.t.saveDraftNow();
+  for(let i=0;i<30 && !release;i++) await Promise.resolve();
   sub.read['https://example.invalid/paper'] = 1;
-  a.t.queueReadSave(); release();
+  a.t.saveDraftNow(); release();
   for(let i = 0; i < 30 && a.requests.length < 2; i++) await Promise.resolve();
   assert.equal(a.requests.length, 2); release(); await first;
   assert.equal(peak, 1);
   assert.equal(stored.read['https://example.invalid/paper'], 1);
   assert.equal(a.t.state().syncState.state, 'ok');
+});
+
+
+test('personal information saves before topics and questions exist', async () => {
+  const sub = sample(); sub.r = ['', '', '']; sub.q = {}; sub.w = '';
+  let stored;
+  const a = app({ storage: { 'eai.gate.v1': JSON.stringify('synthetic-gate') },
+    post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
+    reply: () => ({ok:true, row:stored}) });
+  a.t.set({ S: sub, pin: 'TestModel' });
+  a.t.queueDraftSave();
+  for(let i=0;i<40 && a.t.state().syncState.state !== 'ok';i++) await Promise.resolve();
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(stored.e, sub.e);
+  assert.deepEqual(stored.r, ['', '', '']);
+  assert.equal(a.t.state().saved, false);
+  sub.a = 'Updated affiliation';
+  a.t.queueDraftSave();
+  for(let i=0;i<40 && stored.a !== sub.a;i++) await Promise.resolve();
+  assert.equal(stored.a, 'Updated affiliation');
+});
+
+test('rejected credentials do not create an automatic save retry loop', async () => {
+  const a = app(); a.t.set({S:sample(),pin:'TestModel'});
+  await a.t.saveDraftNow();
+  const attempts = a.requests.length;
+  await a.t.saveDraftNow();
+  assert.equal(a.requests.length, attempts);
+  assert.equal(a.t.state().syncState.state, 'local');
+  assert.match(a.t.state().syncState.msg, /sheet rejected/);
+});
+
+
+test('first autosave preserves an existing attendee’s topics and questions', async () => {
+  const existing = sample(); existing.read.paper = 1;
+  let stored = existing;
+  const a = app({ post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
+    reply: () => ({ok:true,row:stored}) });
+  a.t.set({S:{...sample(),r:['','',''],q:{},read:{},w:''},pin:'TestModel'});
+  await a.t.saveDraftNow();
+  assert.deepEqual(stored.r, existing.r);
+  assert.equal(stored.q.T1, existing.q.T1);
+  assert.equal(stored.read.paper, 1);
+  assert.equal(a.t.state().syncState.state,'ok');
 });

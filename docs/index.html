@@ -728,6 +728,7 @@ window.EAI_CONFIG = {
   var qcounts = {};      // topic id -> how many questions have been submitted
   var readTimer = null;
   var readSaveInFlight = null, readSavePending = false;
+  var autoSaveBlocked = "", identityEditing = false, preparedIdentity = "", localDraftIdentity = "";
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -801,7 +802,7 @@ window.EAI_CONFIG = {
       step = 0; needsPin = true;
     }
     if(fromHash) clearPersonalLink();
-    if(mine || fromHash) saveLocal();
+    if(mine || fromHash){ localDraftIdentity = draftIdentity(); saveLocal(); }
   })();
 
 
@@ -870,33 +871,77 @@ window.EAI_CONFIG = {
       }catch(e){ return false; }
     }
   }
-  /* Save reading progress independently of questions, and confirm the row
-     before telling the participant it reached the sheet. */
-  function queueReadSave(){
-    if(!API || !saved) return;
-    readSavePending = true;
+  /* Save drafts from personal details onward, and confirm each row before
+     telling the participant it reached the sheet. */
+  function draftIdentity(){ return String(S.e || "").trim().toLowerCase() + "|" + pin; }
+  function queueDraftSave(){
     clearTimeout(readTimer);
-    readTimer = setTimeout(flushReadSave, 1800);
+    if(!API || identityEditing || !S.n.trim() || !emailOk(S.e) || normKey(pin).length < 2) return;
+    if(autoSaveBlocked === draftIdentity()) return;
+    var identity = draftIdentity(), code = gate;
+    readTimer = setTimeout(function(){
+      if(identityEditing || identity !== draftIdentity()) return;
+      var ready = gateOk || confirmedSub ? Promise.resolve(true) : gateMatches(code);
+      ready.then(function(ok){
+        if(!ok || !code && !confirmedSub || identityEditing || identity !== draftIdentity() || code !== gate) return;
+        gateOk = true; lsSet(LS_GATE, gate);
+        readSavePending = true; flushReadSave();
+      });
+    }, 1800);
+  }
+  function queueReadSave(){ queueDraftSave(); }
+  function saveDraftNow(){
+    clearTimeout(readTimer);
+    if(!API){ syncState = {state:"local", msg:""}; updateReadControls(); return Promise.resolve(); }
+    readSavePending = true;
+    return flushReadSave();
   }
   function flushReadSave(){
     if(readSaveInFlight) return readSaveInFlight;
     if(!readSavePending) return Promise.resolve();
     readSavePending = false;
-    var sent = normalize(S), sentPin = pin;
+    if(identityEditing) return Promise.resolve();
+    var sent, identity = draftIdentity();
+    if(autoSaveBlocked === identity) return Promise.resolve();
     syncState = {state:"saving", msg:""}; updateReadControls();
     var succeeded = false;
-    readSaveInFlight = withKey(function(k){ return cloudPush(sent, k); }).then(function(row){
+    // Authenticate before the first write. A returning attendee entering their
+    // details must not overwrite existing topics/questions with a blank form.
+    var prepare = preparedIdentity === identity ? Promise.resolve() : withKey(function(k){
+      return cloudLookup(S.e, k);
+    }).then(function(row){
+      if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
+      if(row && localDraftIdentity !== identity && (!confirmedSub || confirmedSub.e !== S.e)){
+        var remote = normalize(row);
+        ["n", "a", "w", "c", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
+        if(!chosen().length) S.r = remote.r;
+        S.q = Object.assign({}, remote.q, S.q);
+        S.read = Object.assign({}, remote.read, S.read);
+        saveLocal();
+      }
+      localDraftIdentity = identity;
+      preparedIdentity = identity;
+    });
+    readSaveInFlight = prepare.then(function(){
+      if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
+      sent = normalize(S);
+      return withKey(function(k){ return cloudPush(sent, k); });
+    }).then(function(row){
       succeeded = true;
-      if(S.e !== sent.e || pin !== sentPin) return;
+      if(identity !== draftIdentity()) return;
+      autoSaveBlocked = "";
       confirmedSub = normalize(row);
       syncState = sameSubmission(row, S)
         ? {state:"ok", msg:""}
         : {state:"local", msg:"Your latest changes have not reached the sheet yet."};
       saveLocal(); updateReadControls();
     }, function(err){
-      if(S.e !== sent.e || pin !== sentPin) return;
+      if(identity !== draftIdentity()) return;
+      if(err && err.code === "identity_changed") return;
+      if(err && (err.code === "bad_pin" || err.code === "locked")) autoSaveBlocked = draftIdentity();
       syncState = {state:"local", msg:err && err.code === "locked" ? ""
-        : "Could not confirm the reading update. Try the sheet again."};
+        : err && err.code === "bad_pin" ? "The sheet rejected this email and personal code. Your draft is preserved; an organizer may need to restore access."
+        : "Could not confirm this save. Try the sheet again."};
       saveLocal(); updateReadControls();
     }).then(function(){
       readSaveInFlight = null;
@@ -1819,29 +1864,17 @@ window.EAI_CONFIG = {
   }
 
   function holdWork(){
-    // Keep early steps local; save to the sheet once the topics are chosen.
-    step++; saveLocal(); render();
+    step++; saveLocal(); render(); queueDraftSave();
   }
 
   function holdPlace(){
-    step = READING;
-    saved = true; saveLocal();
-    if(!API){ syncState = {state:"local", msg:""}; render(); return; }
-    syncState = {state:"saving", msg:""}; render();
-    withKey(function(k){ return cloudPush(S, k); }).then(function(row){
-      saved = true; editing = false; confirmCurrentSave(row);
-      refreshCounts();
-    }, syncFailed);
+    step = READING; saved = true; editing = false; saveLocal(); render();
+    return saveDraftNow().then(function(){ if(syncState.state === "ok") refreshCounts(); });
   }
 
   function submit(){
-    saved = true; editing = false; step = READING; saveLocal();
-    if(!API){ syncState = {state:"local", msg:""}; render(); return; }
-    syncState = {state:"saving", msg:""}; render();
-    withKey(function(k){ return cloudPush(S, k); }).then(function(row){
-      confirmCurrentSave(row);
-      refreshCounts();
-    }, syncFailed);
+    saved = true; editing = false; step = READING; saveLocal(); render();
+    return saveDraftNow().then(function(){ if(syncState.state === "ok") refreshCounts(); });
   }
 
   function updateReadControls(){
@@ -1902,8 +1935,13 @@ window.EAI_CONFIG = {
         var k = inp.getAttribute("data-k");
         S[k] = inp.value;
         saveLocal();
+        if(k === "e"){ identityEditing = true; clearTimeout(readTimer); }
+        else queueDraftSave();
       });
-      if(inp.tagName === "SELECT") inp.addEventListener("change", function(){ saveLocal(); });
+      inp.addEventListener("change", function(){
+        if(inp.getAttribute("data-k") === "e") identityEditing = false;
+        saveLocal(); queueDraftSave();
+      });
     });
 
     Array.prototype.forEach.call(view.querySelectorAll("[data-rank]"), function(sel){
@@ -1912,25 +1950,29 @@ window.EAI_CONFIG = {
         S.r.forEach(function(x, j){ if(j !== i && x === v) S.r[j] = ""; });
         S.r[i] = v;
         Object.keys(S.q).forEach(function(id){ if(S.r.indexOf(id) < 0) delete S.q[id]; });
-        errs = {}; saveLocal(); render();
+        errs = {}; saveLocal(); render(); queueDraftSave();
       });
     });
 
     Array.prototype.forEach.call(view.querySelectorAll("[data-q]"), function(ta){
-      ta.addEventListener("input", function(){ S.q[ta.getAttribute("data-q")] = ta.value; saveLocal(); });
+      ta.addEventListener("input", function(){ S.q[ta.getAttribute("data-q")] = ta.value; saveLocal(); queueDraftSave(); });
     });
 
     var gateEl = document.getElementById("fgate");
-    if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; gateOk = false; });
+    if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; gateOk = false; queueDraftSave(); });
 
     var pinEl = document.getElementById("fpin");
-    if(pinEl) pinEl.addEventListener("input", function(){ pin = pinEl.value; saveLocal(); });
+    if(pinEl){
+      pinEl.addEventListener("input", function(){ pin = pinEl.value; identityEditing = true; clearTimeout(readTimer); saveLocal(); });
+      pinEl.addEventListener("change", function(){ identityEditing = false; queueDraftSave(); });
+    }
 
     var next = document.getElementById("next");
     if(next) next.addEventListener("click", function(){
       if(!validate(step)){ render(); var bad = view.querySelector(".bad, .err");
         if(bad) bad.scrollIntoView({block:"center", behavior:"auto"}); return; }
       errs = {};
+      identityEditing = false;
       needsPin = false;
       if(step === 0 && !saved && !gateOk){
         var el = document.getElementById("next");
@@ -1947,7 +1989,7 @@ window.EAI_CONFIG = {
             return;
           }
           gateOk = true; lsSet(LS_GATE, gate);
-          step++; render();
+          step++; render(); queueDraftSave();
         });
         return;
       }
@@ -1957,7 +1999,7 @@ window.EAI_CONFIG = {
         S.c = tidyLink(S.c); saveLocal();
         if(!saved){ holdWork(); return; }
       }
-      step++; render();
+      step++; render(); queueDraftSave();
     });
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
@@ -1997,9 +2039,7 @@ window.EAI_CONFIG = {
     });
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
-      syncState = {state:"saving", msg:""}; render();
-      withKey(function(k){ return cloudPush(S, k); }).then(confirmCurrentSave,
-        syncFailed);
+      autoSaveBlocked = ""; saveDraftNow();
     });
 
     var lm = document.getElementById("loadMine");
@@ -2010,7 +2050,8 @@ window.EAI_CONFIG = {
       msg.textContent = "Looking…";
       withKey(function(k){ return cloudLookup(S.e, k); }).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
-        S = normalize(row); saved = true; editing = false; step = READING;
+        S = normalize(row); saved = chosen().length === 3; editing = false;
+        step = saved ? READING : S.w ? STEP_TOPICS : WORK;
         confirmedSub = normalize(row);
         syncState = {state:"ok", msg:""}; saveLocal();
         render();
