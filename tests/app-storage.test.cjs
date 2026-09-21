@@ -241,3 +241,20 @@ test('authentication rejection never claims answers are pending based on local s
     assert.doesNotMatch(a.t.keyErrMsg(), /Give it a moment|not reached the sheet yet/);
   }
 });
+
+
+test('HTML-only mirrors include the sheet connection without a config.js request', async () => {
+  assert.doesNotMatch(html, /<script[^>]+src=["'](?:\.\/)?config\.js["']/);
+  const inlineConfig = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(m => m[1]).find(s => s.includes('window.EAI_CONFIG ='));
+  assert.ok(inlineConfig, 'The published page must carry its own configuration');
+  const deployment = { window: {} };
+  vm.runInNewContext(inlineConfig, deployment);
+  const endpoint = deployment.window.EAI_CONFIG.apiUrl;
+  assert.equal(new URL(endpoint).origin, 'https://script.google.com');
+  const a = app({ api: endpoint, search: '?api=https://untrusted.example.invalid/exec' });
+  assert.match(a.nodes.view.innerHTML, /id="loadMine"/);
+  assert.doesNotMatch(a.nodes.view.innerHTML, /Open the link you saved/);
+  await assert.rejects(a.t.cloudAll('synthetic-admin'));
+  assert.equal(a.scripts[0].split('?')[0], endpoint);
+});

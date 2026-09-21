@@ -438,7 +438,13 @@
   <div class="bar-in" id="barIn"></div>
 </div>
 
-<script src="config.js"></script>
+<!-- Keep the sheet connection in this page so HTML-only mirrors work. -->
+<script>
+window.EAI_CONFIG = {
+  apiUrl: "https://script.google.com/macros/s/AKfycbxPqMTtvA8nZnTPS4J3bl7yekPPWafkvvuJTliI0eJx9vvxTCSBr2feWLnGyD726eGN/exec",
+  deadline: "Monday, October 5"
+};
+</script>
 <script>
 (function(){
   "use strict";
