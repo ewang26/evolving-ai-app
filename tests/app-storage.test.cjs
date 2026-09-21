@@ -46,8 +46,8 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   };
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
-    set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg };`;
+    set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes };
 }
@@ -257,4 +257,42 @@ test('HTML-only mirrors include the sheet connection without a config.js request
   assert.doesNotMatch(a.nodes.view.innerHTML, /Open the link you saved/);
   await assert.rejects(a.t.cloudAll('synthetic-admin'));
   assert.equal(a.scripts[0].split('?')[0], endpoint);
+});
+
+
+test('early form steps save locally without consuming authentication attempts', () => {
+  const a = app(); a.t.set({ S: sample(), pin: 'TestModel', step: 1 });
+  a.t.holdWork();
+  assert.equal(a.t.state().step, 2);
+  assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 2);
+  assert.equal(a.requests.length, 0);
+  assert.equal(a.scripts.length, 0);
+});
+
+test('save authentication failures preserve the current step and display an explanation', () => {
+  for (const code of ['locked', 'bad_pin']) {
+    const a = app(); a.t.set({ S: sample(), pin: 'TestModel', step: 4 });
+    a.t.syncFailed({ code });
+    assert.equal(a.t.state().step, 4);
+    assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 4);
+    assert.equal(a.t.state().S.q.T1, 'Question one?');
+    assert.match(a.nodes.view.innerHTML, /favorite AI model/);
+    if (code === 'locked') assert.match(a.nodes.view.innerHTML, /invitation passcode/);
+  }
+});
+
+test('lockout pauses requests for the same email across reloads without blocking other emails', async () => {
+  const a = app(); a.t.set({ S: sample(), pin: 'TestModel' });
+  let calls = 0;
+  const locked = () => { calls++; return Promise.reject({ code: 'locked' }); };
+  await assert.rejects(a.t.withKey(locked), e => e.code === 'locked');
+  await assert.rejects(a.t.withKey(locked), e => e.code === 'locked');
+  assert.equal(calls, 1);
+  const b = app({ storage: a.storage }); b.t.set({ S: sample(), pin: 'TestModel' });
+  await assert.rejects(b.t.withKey(locked), e => e.code === 'locked');
+  assert.equal(calls, 1);
+  b.t.set({ S: { ...sample(), e: 'another@example.invalid' } });
+  assert.equal(await b.t.withKey(() => Promise.resolve('allowed')), 'allowed');
+  a.storage['eai.lock.v1:test@example.invalid'] = JSON.stringify(Date.now() - 1);
+  assert.equal(await a.t.withKey(() => Promise.resolve('expired')), 'expired');
 });

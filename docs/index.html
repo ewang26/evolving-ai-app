@@ -827,10 +827,15 @@ window.EAI_CONFIG = {
     var a = keyFor(pin), b = String(pin || "").trim();
     return (b && b !== a) ? [a, b] : [a];
   }
+  var LOCK_MSG = "Sheet access is temporarily locked for this email. Wait 15 minutes before trying again. Your draft is still on this device; you can keep filling it out. The personal code is your favorite AI model, not the invitation passcode.";
   function withKey(fn){
+    var email = String(S.e || "").trim().toLowerCase();
+    var lockKey = "eai.lock.v1:" + email;
+    if(Number(lsGet(lockKey, 0)) > Date.now()) return Promise.reject({code:"locked"});
     var ks = keyCandidates(), i = 0;
     function attempt(){
       return fn(ks[i]).then(null, function(err){
+        if(err && err.code === "locked") lsSet(lockKey, Date.now() + 15 * 60 * 1000);
         if(err && err.code === "bad_pin" && ++i < ks.length) return attempt();
         throw err;
       });
@@ -1733,7 +1738,8 @@ window.EAI_CONFIG = {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
+      view.innerHTML = (step !== READING || editing ? syncLine() : "")
+        + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
       if(step === READING && saved && !editing && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
       } else {
@@ -1763,11 +1769,9 @@ window.EAI_CONFIG = {
       return;
     }
     if(code === "bad_pin" || code === "locked"){
-      step = 0;
-      errs.pin = code === "locked"
-        ? "Too many tries. Wait a few minutes, then try again."
-        : "This email already has a submission under a different model. Use that one to change it.";
-      syncState = {state:"idle", msg:""}; render();
+      syncState = {state:"local", msg:code === "locked" ? LOCK_MSG
+        : "Could not verify your email and favorite AI model. Your draft is preserved. Use Back or Your details to check the personal code you originally used."};
+      saveLocal(); render();
       return;
     }
     syncState = {state:"local",
@@ -1795,11 +1799,8 @@ window.EAI_CONFIG = {
   }
 
   function holdWork(){
-    step++;
-    if(!API){ saveLocal(); render(); return; }
-    syncState = {state:"saving", msg:""}; render();
-    // claims the row and the key early, so the topics save is an update
-    withKey(function(k){ return cloudPush(S, k); }).then(confirmCurrentSave, syncFailed);
+    // Keep early steps local; save to the sheet once the topics are chosen.
+    step++; saveLocal(); render();
   }
 
   function holdPlace(){
@@ -1999,7 +2000,7 @@ window.EAI_CONFIG = {
         msg.innerHTML = '<span class="warnt">' + (
           code === "key_reset" ? RESET_MSG
           : code === "bad_pin" ? keyErrMsg()
-          : code === "locked" ? "Too many tries. Wait a few minutes, then try again."
+          : code === "locked" ? LOCK_MSG
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
     });
