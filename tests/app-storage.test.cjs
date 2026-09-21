@@ -47,9 +47,9 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
-  return { t: context.test, context, storage, requests, scripts };
+  return { t: context.test, context, storage, requests, scripts, nodes };
 }
 
 test('query-string API overrides cannot redirect credentials', async () => {
@@ -189,4 +189,44 @@ test('submitting and saving topics do not leave stale snapshots in the address b
   assert.equal(JSON.parse(a.storage['eai.me.v3']).saved, true);
   assert.equal(app({ api: '', storage: a.storage }).t.state().step, 3);
   assert.match(a.t.myLink(sample()), /#s=/); // Explicit sharing remains available.
+});
+
+
+test('reading and organizer screens omit article commentary, manual fallback and debriefs', () => {
+  const a = app({ api: '', storage: localRecord(sample()) });
+  const reading = a.t.renderReading();
+  assert.doesNotMatch(reading, /rnote|co-author|Send it to the organizers manually|No sheet is connected|debrief/i);
+  assert.match(reading, /role="checkbox" aria-checked="false"/);
+  assert.doesNotMatch(reading, /data-opened/);
+  assert.doesNotMatch(a.t.renderOrg(), /debrief/i);
+});
+
+test('each Read click toggles once and leaves the article controls in place', () => {
+  const a = app({ api: '', storage: localRecord(sample()) });
+  const tick = { textContent: '' }, attrs = {}, listeners = {};
+  const button = { classList: { toggle() {} },
+    getAttribute: () => 'https://example.invalid/paper',
+    setAttribute: (k,v) => attrs[k] = v,
+    querySelector: () => tick, closest: () => ({ classList: { toggle() {} } }),
+    addEventListener: (name,fn) => listeners[name] = fn };
+  const view = a.nodes.view;
+  const original = view.innerHTML;
+  view.querySelectorAll = selector => selector === '[data-read]' ? [button] : [];
+  a.t.wireForm();
+  listeners.click();
+  assert.equal(attrs['aria-checked'], 'true');
+  assert.equal(tick.textContent, '✓');
+  assert.equal(view.innerHTML, original);
+  listeners.click();
+  assert.equal(attrs['aria-checked'], 'false');
+  assert.equal(tick.textContent, '');
+  assert.equal(view.innerHTML, original);
+  assert.equal(Object.keys(JSON.parse(a.storage['eai.me.v3']).sub.read).length, 0);
+});
+
+test('background counts refresh never replaces the current page', async () => {
+  const a = app({ reply: () => ({ ok: true, counts: { general: 2 }, questions: {} }) });
+  a.nodes.view.innerHTML = 'Current controls and unfinished input';
+  await a.t.refreshCounts();
+  assert.equal(a.nodes.view.innerHTML, 'Current controls and unfinished input');
 });

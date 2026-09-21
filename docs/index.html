@@ -376,7 +376,7 @@
     align-self:flex-start;display:flex;align-items:center;gap:.45rem;
     background:none;border:0;padding:.35rem 0 0;cursor:pointer;
     font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--faint);
+    color:var(--faint);min-height:44px;min-width:80px;touch-action:manipulation;
   }
   .readtick:hover{color:var(--accent)}
   .readtick.on{color:var(--accent)}
@@ -452,8 +452,7 @@
   var COMMON = {
     kind:"bridge", req:true, len:"10 pp",
     url:"https://www.pnas.org/doi/pdf/10.1073/pnas.2527700123",
-    cite:"V. M\u00fcller, L. Steels & E. Szathm\u00e1ry, <b>\u201cEvolvable AI: Threats of a new major transition in evolution\u201d</b> \u00b7 PNAS, 2026",
-    note:"Separates \u201cbreeder\u201d AI, where people still control reproduction, from \u201cecosystem\u201d AI, where selection escapes it. The frame the whole weekend argues with."
+    cite:"V. M\u00fcller, L. Steels & E. Szathm\u00e1ry, <b>\u201cEvolvable AI: Threats of a new major transition in evolution\u201d</b> \u00b7 PNAS, 2026"
   };
 
   var TOPICS = [
@@ -464,8 +463,7 @@
       readings:[
         {kind:"ai", req:true, len:"44 pp",
          url:"https://arxiv.org/pdf/2303.16200",
-         cite:"D. Hendrycks, <b>\u201cNatural Selection Favors AIs over Humans\u201d</b> \u00b7 2023",
-         note:"Selection pressure applied directly to AI development. Read it as the argument this group has to either sharpen or dismantle. M\u00fcller et al. cite it as highly relevant and undercited."}
+         cite:"D. Hendrycks, <b>\u201cNatural Selection Favors AIs over Humans\u201d</b> \u00b7 2023"}
       ]
     },
     {
@@ -475,12 +473,10 @@
       readings:[
         {kind:"evo", req:true, len:"8 pp",
          url:"https://drive.google.com/file/d/1nPa1bEsDt1EIMiLBWwuDoXmixPSHJeAQ/view?usp=sharing",
-         cite:"D. S. Wilson, <b>\u201cFunctional Organization at Multiple Scales\u201d</b> \u00b7 Encyclopedia of Ecology, 3rd ed., 2026",
-         note:"Functional organization can evolve at any level of a nested hierarchy, but only where variation, selection and replication act at that level."},
+         cite:"D. S. Wilson, <b>\u201cFunctional Organization at Multiple Scales\u201d</b> \u00b7 Encyclopedia of Ecology, 3rd ed., 2026"},
         {kind:"evo", len:"", fmt:"Web",
          url:"https://plato.stanford.edu/entries/selection-units/",
-         cite:"E. A. Lloyd, <b>\u201cUnits and Levels of Selection\u201d</b> \u00b7 Stanford Encyclopedia of Philosophy, rev. 2024",
-         note:"Sorts out what people mean when they argue about what selection acts on."}
+         cite:"E. A. Lloyd, <b>\u201cUnits and Levels of Selection\u201d</b> \u00b7 Stanford Encyclopedia of Philosophy, rev. 2024"}
       ]
     },
     {
@@ -490,12 +486,10 @@
       readings:[
         {kind:"evo", req:true, len:"",
          url:"https://royalsocietypublishing.org/doi/pdf/10.1098/rstb.2014.0219",
-         cite:"A. Aktipis et al., <b>\u201cCancer across the tree of life: cooperation and cheating in multicellularity\u201d</b> \u00b7 Phil. Trans. R. Soc. B, 2015",
-         note:"How multicellular lineages detect and suppress parts that defect from the whole, and what that policing costs them."},
+         cite:"A. Aktipis et al., <b>\u201cCancer across the tree of life: cooperation and cheating in multicellularity\u201d</b> \u00b7 Phil. Trans. R. Soc. B, 2015"},
         {kind:"ai", len:"19 pp",
          url:"https://arxiv.org/pdf/2201.03544",
-         cite:"J. Pan, K. Bhatia & J. Steinhardt, <b>\u201cThe Effects of Reward Misspecification\u201d</b> \u00b7 ICLR 2022",
-         note:"Reward hacking as measurement rather than anecdote: what happens to misalignment as capability rises."}
+         cite:"J. Pan, K. Bhatia & J. Steinhardt, <b>\u201cThe Effects of Reward Misspecification\u201d</b> \u00b7 ICLR 2022"}
       ]
     },
     {
@@ -505,12 +499,10 @@
       readings:[
         {kind:"bridge", req:true, len:"38 pp",
          url:"https://arxiv.org/pdf/2311.11388",
-         cite:"L. Brinkmann et al., <b>\u201cMachine Culture\u201d</b> \u00b7 Nature Human Behaviour, 2023",
-         note:"The clearest statement of AI as a participant in cultural evolution rather than a tool used by it."},
+         cite:"L. Brinkmann et al., <b>\u201cMachine Culture\u201d</b> \u00b7 Nature Human Behaviour, 2023"},
         {kind:"ai", len:"22 pp",
          url:"https://arxiv.org/pdf/2306.13723",
-         cite:"D. Pedreschi et al., <b>\u201cHuman\u2013AI Coevolution\u201d</b> \u00b7 2023",
-         note:"The feedback loops already running in deployed recommender and assistant systems \u2014 the empirical side of the argument."}
+         cite:"D. Pedreschi et al., <b>\u201cHuman\u2013AI Coevolution\u201d</b> \u00b7 2023"}
       ]
     },
     {
@@ -520,12 +512,10 @@
       readings:[
         {kind:"ai", req:true, len:"20 pp",
          url:"https://arxiv.org/pdf/2406.04268",
-         cite:"E. Hughes et al., <b>\u201cOpen-Endedness is Essential for Artificial Superhuman Intelligence\u201d</b> \u00b7 ICML 2024",
-         note:"Open-endedness as the objective rather than a side effect, and what measuring it would actually require."},
+         cite:"E. Hughes et al., <b>\u201cOpen-Endedness is Essential for Artificial Superhuman Intelligence\u201d</b> \u00b7 ICML 2024"},
         {kind:"ai", len:"34 pp",
          url:"https://arxiv.org/pdf/1905.10985",
-         cite:"J. Clune, <b>\u201cAI-GAs: AI-Generating Algorithms\u201d</b> \u00b7 2019",
-         note:"Designing the search that designs the agents \u2014 the practical face of steering rather than specifying."}
+         cite:"J. Clune, <b>\u201cAI-GAs: AI-Generating Algorithms\u201d</b> \u00b7 2019"}
       ]
     },
     {
@@ -535,12 +525,10 @@
       readings:[
         {kind:"evo", req:true, len:"21 pp",
          url:"https://onlinelibrary.wiley.com/doi/epdf/10.1111/tops.12656",
-         cite:"J. Henrich & M. Muthukrishna, <b>\u201cWhat Makes Us Smart?\u201d</b> \u00b7 Topics in Cognitive Science, 2024",
-         note:"Human intelligence comes from groups sharing what they know, not from single brains."},
+         cite:"J. Henrich & M. Muthukrishna, <b>\u201cWhat Makes Us Smart?\u201d</b> \u00b7 Topics in Cognitive Science, 2024"},
         {kind:"ai", len:"15 pp",
          url:"https://arxiv.org/abs/2505.19167",
-         cite:"T. P. Kehler, S. E. Page, A. Pentland, M. Reeves & J. Seely Brown, <b>\u201cAmplifying Human Creativity and Problem Solving with AI Through Generative Collective Intelligence\u201d</b> \u00b7 2025",
-         note:"How AI could help groups solve problems better. Sandy Pentland is a co-author."}
+         cite:"T. P. Kehler, S. E. Page, A. Pentland, M. Reeves & J. Seely Brown, <b>\u201cAmplifying Human Creativity and Problem Solving with AI Through Generative Collective Intelligence\u201d</b> \u00b7 2025"}
       ]
     }
   ];
@@ -685,17 +673,6 @@
     .then(function(){ return wait(1400); })
     .then(confirm);           // the POST response is unreadable, so confirm by reading back
   }
-  function cloudDebriefs(){
-    return withKey(function(k){ return debriefsWith(k); });
-  }
-  function debriefsWith(k){
-    return jsonp({action:"mydebriefs", email:S.e, pin:k}, 20000)
-      .then(function(res){
-        if(res && res.ok) return res.debriefs || [];
-        throw {code:(res && res.error) || "refused"};
-      });
-  }
-
   function cloudAll(key){
     return jsonp({action:"all", key:key}, 25000).then(function(res){
       if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
@@ -744,8 +721,6 @@
   var counts = {};       // thread key -> post count, for the badges
   var qcounts = {};      // topic id -> how many questions have been submitted
   var readTimer = null;
-  var debrief = {round:"", group:"", topic:"", claim:"", disagreement:"", settle:""};
-  var debriefState = {state:"idle", msg:""};
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -883,11 +858,6 @@
       }catch(e){ return false; }
     }
   }
-  function markOpened(url){
-    if(!S.read) S.read = {};
-    S.read[url] = 1; saveLocal(); queueReadSave();
-  }
-
   /* A tick is a small thing; save it quietly in the background rather than
      making anyone wait, and never claim it saved. */
   function queueReadSave(){
@@ -921,17 +891,6 @@
     setTimeout(function(){ btn.textContent = old; }, 1800);
   }
 
-  function plainSubmission(d){
-    var L = ["EVOLVING AI — SEMINAR PREP", "", d.n, d.e, (d.a||"—"), ""];
-    d.r.filter(function(x){return x;}).forEach(function(id, i){
-      var t = T(id);
-      L.push((i+1) + ". " + t.title);
-      L.push("   " + String(d.q[id]||"").replace(/\s+/g," ").trim());
-      L.push("");
-    });
-    L.push("--EAI1--" + encodeSub(d) + "--END--");
-    return L.join("\n");
-  }
   function readingText(){
     var L = ["EVOLVING AI — PRE-READ · " + S.n, ""];
     L.push("0. Evolutionary Transitions \u2014 reading for everyone");
@@ -1101,7 +1060,7 @@
     if(s.state === "ok")      return '<div class="sync ok">Saved to the organizers’ sheet.</div>';
     if(s.state === "local")   return '<div class="sync warn">'
       + (API ? 'Saved on this device only. ' + esc(s.msg||"")
-             : 'Saved on this device and in your link \u2014 send it to the organizers below.')
+             : 'Saved on this device only. Online saving is unavailable.')
       + '</div>';
     if(s.state === "error")   return '<div class="sync warn">'+esc(s.msg||"Could not reach the sheet.")+'</div>';
     return "";
@@ -1173,14 +1132,12 @@
       +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
       +     (r.len?' \u00b7 '+r.len:'') + ' \u00b7 ' + (r.fmt||"PDF") + '</span>'
       + '</div>'
-      + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
-      +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
-      + '<div class="rnote">'+esc(r.note)+'</div>'
+      + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+r.cite+'</a></div>'
       + (done
           ? '<button class="readtick' + (tick ? ' on' : '') + '" type="button" '
-            + 'data-read="'+esc(r.url)+'">'
+            + 'role="checkbox" aria-checked="'+tick+'" data-read="'+esc(r.url)+'">'
             + '<span class="tickbox">' + (tick ? '\u2713' : '') + '</span>'
-            + (tick ? 'Read' : 'Mark as read')
+            + 'Read'
             + '</button>'
           : '')
       + '</div>';
@@ -1220,11 +1177,11 @@
     + '<section class="step">'
     + '  <div class="head thin">'
     + '    <h2>Your reading</h2>'
-    +      (done ? syncLine()
+    +      (done ? '<div id="readingSync">' + syncLine() + '</div>'
             : '<p class="intro">Read these before you write your questions. One required text per group.'
               + '</p>')
     + '  </div>'
-    +      (done ? renderProgress() : '')
+    +      (done ? '<div id="readingProgress">' + renderProgress() + '</div>' : '')
     + commonBlock
     + blocks
     + (done ? ''
@@ -1234,61 +1191,15 @@
     + '      <span class="gsub">For the whole group, not one topic</span>'
     + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
     + '    </button>'
-    + '    <button class="quietlink" id="openDebrief" type="button">'
-    + '      Group debrief \u2014 fill this in after your group meets'
-    + '    </button>'
     + '    <p class="note">Save this link to get your reading back on any device.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
     + '    </div>'
-    +      (saved && syncState.state !== "ok" && API
-            ? '<div class="btnrow"><button class="btn btn-out" id="retrySync" type="button">Try the sheet again</button></div>' : '')
-    +      (!API
-            ? '<details><summary>Send it to the organizers manually</summary><div class="body">'
-              + '<p class="note">No sheet is connected to this copy of the app, so nothing was uploaded. Copy the block below into an email to the organizers.</p>'
-              + '<div class="payload" id="payload">'+esc(plainSubmission(S))+'</div>'
-              + '<div class="btnrow"><button class="btn btn-out" id="copySub" type="button">Copy submission</button></div>'
-              + '</div></details>'
-            : '')
+    +      (saved && API
+            ? '<div class="btnrow" id="retrySyncRow"' + (syncState.state === "ok" ? ' hidden' : '') + '><button class="btn btn-out" id="retrySync" type="button">Try the sheet again</button></div>' : '')
     + '  </div>' : '')
-    + '</section>';
-  }
-
-  function renderDebrief(){
-    var ids = chosen();
-    var sent = debriefState.state === "ok";
-    return ''
-    + '<section class="step">'
-    + '  <div class="head thin">'
-    + '    <h2>Group debrief</h2>'
-    + '    <p class="intro">One per group, from whoever is reporting back.</p>'
-    +      (debriefState.msg ? '<div class="sync ' + (sent ? "ok" : "warn") + '">' + esc(debriefState.msg) + '</div>' : '')
-    + '  </div>'
-    + '  <div class="fields">'
-    + '    <div class="f"><label for="dround">Round</label>'
-    + '      <select id="dround" data-d="round">'
-    +          ['', '1', '2', '3'].map(function(v){
-                 return '<option value="'+v+'"'+(debrief.round===v?" selected":"")+'>'+(v||"Choose\u2026")+'</option>';
-               }).join("")
-    + '      </select></div>'
-    + '    <div class="f"><label for="dtopic">Topic</label>'
-    + '      <select id="dtopic" data-d="topic">'
-    + '        <option value="">Choose\u2026</option>'
-    +          TOPICS.map(function(t){
-                 return '<option value="'+t.id+'"'+(debrief.topic===t.id?" selected":"")+'>'+t.rn.toUpperCase()+' \u2014 '+esc(t.title)+'</option>';
-               }).join("")
-    + '      </select></div>'
-    + '    <div class="f"><label for="dgroup">Group</label>'
-    + '      <input id="dgroup" data-d="group" type="text" placeholder="R1 \u00b7 B" value="'+esc(debrief.group)+'" /></div>'
-    + '    <div class="f"><label for="dclaim">What did the group land on?</label>'
-    + '      <textarea id="dclaim" data-d="claim" placeholder="The claim you would defend to the room\u2026">'+esc(debrief.claim)+'</textarea></div>'
-    + '    <div class="f"><label for="ddis">Where did you disagree?</label>'
-    + '      <textarea id="ddis" data-d="disagreement" placeholder="The live disagreement, not a summary\u2026">'+esc(debrief.disagreement)+'</textarea></div>'
-    + '    <div class="f"><label for="dsettle">What would settle it?</label>'
-    + '      <textarea id="dsettle" data-d="settle" placeholder="An experiment, a dataset, a proof, a paper\u2026">'+esc(debrief.settle)+'</textarea></div>'
-    + '  </div>'
     + '</section>';
   }
 
@@ -1605,7 +1516,7 @@
       + '  <p class="lede">Pull from the sheet, or paste submissions in. Everything below is computed from the roster held in this browser.</p>'
       + '</div>'
       + '<div class="tabs noprint">'
-      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets','debriefs:Debriefs'].map(function(x){
+      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets'].map(function(x){
             var k = x.split(":")[0], l = x.split(":")[1];
             return '<button class="tab'+(orgTab===k?" on":"")+'" data-tab="'+k+'" type="button">'+l+'</button>';
           }).join("")
@@ -1616,7 +1527,6 @@
     if(orgTab === "demand")  h += orgDemand();
     if(orgTab === "groups")  h += orgGroups(false);
     if(orgTab === "sheets")  h += orgGroups(true);
-    if(orgTab === "debriefs") h += orgDebriefs();
     return h + '</section>';
   }
 
@@ -1668,46 +1578,6 @@
     if(missing) h += '<p class="note" style="color:var(--warn)">'+missing+' participant'+(missing===1?" is":"s are")+' missing at least one question. Their group sheet will show the gap.</p>';
 
     return h;
-  }
-
-  var debriefs = null, debriefsErr = "";
-
-  function orgDebriefs(){
-    if(!API) return '<div class="empty">No sheet endpoint configured.</div>';
-    if(debriefsErr) return '<div class="empty">' + esc(debriefsErr) + '</div>';
-    if(debriefs === null){
-      return '<div class="f noprint">'
-        + '  <div class="btnrow"><button class="btn btn-accent btn-sm" id="pullDebriefs" type="button" style="flex:0 1 auto">Load debriefs</button></div>'
-        + '  <div class="hint">Uses the admin key from the \u201cFrom the sheet\u201d tab.</div>'
-        + '</div>';
-    }
-    if(!debriefs.length) return '<div class="empty">No debriefs yet.</div>';
-
-    var byRound = {};
-    debriefs.forEach(function(d){
-      var k = String(d.round || "\u2014");
-      (byRound[k] = byRound[k] || []).push(d);
-    });
-    return Object.keys(byRound).sort().map(function(k){
-      return '<div class="topicblock">'
-        + '<div class="eyebrow">Round ' + esc(k) + ' \u00b7 ' + byRound[k].length + '</div>'
-        + '<div class="stack">' + byRound[k].map(function(d){
-            var t = T(d.topic);
-            return '<div class="grp">'
-              + '<div class="grph">'
-              +   '<span class="grpname">' + esc(d.group || "\u2014") + (t ? ' \u00b7 ' + t.rn : '') + '</span>'
-              +   '<span class="grpsize">' + esc(d.name || "") + '</span>'
-              +   (t ? '<span class="grptitle">' + esc(t.title) + '</span>' : '')
-              + '</div>'
-              + '<div class="mem">'
-              +   '<div class="m"><div class="kvk">Landed on</div><div class="mq">' + esc(d.claim || "") + '</div></div>'
-              +   (d.disagreement ? '<div class="m"><div class="kvk">Disagreement</div><div class="mq">' + esc(d.disagreement) + '</div></div>' : '')
-              +   (d.settle ? '<div class="m"><div class="kvk">Would settle it</div><div class="mq">' + esc(d.settle) + '</div></div>' : '')
-              + '</div>'
-              + '</div>';
-          }).join("") + '</div>'
-        + '</div>';
-    }).join("");
   }
 
   function orgDemand(){
@@ -1836,15 +1706,11 @@
   var homeBtn = document.getElementById("homeBtn");
 
   function render(){
-    if(mode === "thread" || mode === "debrief" || mode === "topic"){
+    if(mode === "thread" || mode === "topic"){
       rail.innerHTML = "";
-      view.innerHTML = (mode === "thread") ? renderThread()
-                     : (mode === "topic")  ? renderTopic()
-                     : renderDebrief();
+      view.innerHTML = (mode === "thread") ? renderThread() : renderTopic();
       barIn.innerHTML = '<button class="btn btn-out" id="leaveSub" type="button">Back</button>'
-        + (mode === "debrief"
-            ? '<button class="btn btn-accent" id="sendDebrief" type="button">Send debrief</button>'
-            : '<div class="top-sp"></div>');
+        + '<div class="top-sp"></div>';
       bar.hidden = false;
       document.body.classList.remove("nobar");
       wireSub();
@@ -1857,7 +1723,6 @@
       barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
       wireOrg();
       wireSheet();
-      wireDebriefs();
     } else {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
@@ -1940,7 +1805,7 @@
     syncState = {state:"saving", msg:""}; render();
     withKey(function(k){ return cloudPush(S, k); }).then(function(row){
       saved = true; editing = false; confirmCurrentSave(row);
-      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+      refreshCounts();
     }, syncFailed);
   }
 
@@ -1950,16 +1815,60 @@
     syncState = {state:"saving", msg:""}; render();
     withKey(function(k){ return cloudPush(S, k); }).then(function(row){
       confirmCurrentSave(row);
-      cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+      refreshCounts();
     }, syncFailed);
   }
 
-  /* render() rebuilds view.innerHTML, which throws away the scroll position.
-     Fine when the step changes; jarring for a toggle in the middle of a list. */
-  function renderInPlace(){
-    var y = window.pageYOffset;
-    render();
-    if(window.pageYOffset !== y) window.scrollTo(0, y);
+  function updateReadControls(){
+    Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
+      var tick = !!S.read[b.getAttribute("data-read")];
+      b.classList.toggle("on", tick);
+      b.setAttribute("aria-checked", String(tick));
+      b.querySelector(".tickbox").textContent = tick ? "\u2713" : "";
+      b.closest(".read").classList.toggle("ticked", tick);
+    });
+    var progress = document.getElementById("readingProgress");
+    if(progress){ progress.innerHTML = renderProgress(); wireProgress(); }
+    var sync = document.getElementById("readingSync");
+    if(sync) sync.innerHTML = syncLine();
+    var retryRow = document.getElementById("retrySyncRow");
+    if(retryRow) retryRow.hidden = syncState.state === "ok";
+  }
+
+  function refreshCounts(){
+    return cloudCounts().then(function(c){
+      counts = c.counts; qcounts = c.questions;
+      Array.prototype.forEach.call(view.querySelectorAll("[data-topic]"), function(b){
+        var id = b.getAttribute("data-topic"), n = qcounts[id] || 0, replies = counts["topic:" + id] || 0;
+        b.querySelector(".dcount").textContent = (n ? n + " question" + (n === 1 ? "" : "s") : "no questions yet")
+          + (replies ? " \u00b7 " + replies + " post" + (replies === 1 ? "" : "s") : "");
+      });
+      var badge = view.querySelector(".gbadge");
+      if(badge) badge.textContent = counts.general || 0;
+    }, function(){});
+  }
+
+  function wireProgress(){
+    Array.prototype.forEach.call(view.querySelectorAll("[data-go]"), function(b){
+      b.addEventListener("click", function(){
+        var to = b.getAttribute("data-go");
+        if(to === "reads"){
+          var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
+          if(first){
+            // an explicit offset, because scrollIntoView is unreliable from here
+            var box = first.getBoundingClientRect();
+            var y = box.top + window.pageYOffset - Math.max(0, (window.innerHeight - box.height) / 2);
+            window.scrollTo(0, Math.max(0, Math.round(y)));
+          }
+          return;
+        }
+        editing = true; errs = {};
+        step = to === "0" ? 0 : to === "topics" ? STEP_TOPICS : QUESTIONS;
+        render();
+        window.scrollTo({top:0, behavior:"auto"});
+      });
+    });
+
   }
 
   function wireForm(){
@@ -2028,40 +1937,19 @@
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
 
-    Array.prototype.forEach.call(view.querySelectorAll("[data-go]"), function(b){
-      b.addEventListener("click", function(){
-        var to = b.getAttribute("data-go");
-        if(to === "reads"){
-          var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
-          if(first){
-            // an explicit offset, because scrollIntoView is unreliable from here
-            var box = first.getBoundingClientRect();
-            var y = box.top + window.pageYOffset - Math.max(0, (window.innerHeight - box.height) / 2);
-            window.scrollTo(0, Math.max(0, Math.round(y)));
-          }
-          return;
-        }
-        editing = true; errs = {};
-        step = to === "0" ? 0 : to === "topics" ? STEP_TOPICS : QUESTIONS;
-        render();
-        window.scrollTo({top:0, behavior:"auto"});
-      });
-    });
+    wireProgress();
 
     var edit = document.getElementById("editMine");
     if(edit) edit.addEventListener("click", function(){
       editing = true; step = QUESTIONS; errs = {}; render();
     });
 
-    Array.prototype.forEach.call(view.querySelectorAll("[data-opened]"), function(a){
-      a.addEventListener("click", function(){ markOpened(a.getAttribute("data-opened")); });
-    });
     Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
       b.addEventListener("click", function(){
         var u = b.getAttribute("data-read");
         if(!S.read) S.read = {};
         if(S.read[u]) delete S.read[u]; else S.read[u] = 1;
-        saveLocal(); queueReadSave(); renderInPlace();
+        saveLocal(); queueReadSave(); updateReadControls();
       });
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-thread]"), function(b){
@@ -2074,9 +1962,6 @@
     });
     var og = document.getElementById("openGeneral");
     if(og) og.addEventListener("click", function(){ openThread("general", ""); });
-    var od = document.getElementById("openDebrief");
-    if(od) od.addEventListener("click", function(){ mode = "debrief"; render(); });
-
     var cl = document.getElementById("copyLink");
     if(cl) cl.addEventListener("click", function(){
       copyText(myLink(S)).then(function(ok){ flash(cl, ok ? "Link copied" : "Copy failed"); });
@@ -2084,10 +1969,6 @@
     var cr = document.getElementById("copyRead");
     if(cr) cr.addEventListener("click", function(){
       copyText(readingText()).then(function(ok){ flash(cr, ok ? "Copied" : "Copy failed"); });
-    });
-    var csub = document.getElementById("copySub");
-    if(csub) csub.addEventListener("click", function(){
-      copyText(plainSubmission(S)).then(function(ok){ flash(csub, ok ? "Copied" : "Select it above"); });
     });
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
@@ -2108,7 +1989,7 @@
         confirmedSub = normalize(row);
         syncState = {state:"ok", msg:""}; saveLocal();
         render();
-        cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+        refreshCounts();
       }, function(err){
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
@@ -2123,7 +2004,7 @@
     var back = document.getElementById("leaveSub");
     if(back) back.addEventListener("click", function(){
       mode = "form"; thread = null; posts = null; topicData = null; postErr = "";
-      debriefState = {state:"idle", msg:""};
+
       render();
     });
 
@@ -2169,38 +2050,6 @@
         function(){ postErr = "Could not load the discussion."; posts = []; render(); });
     });
 
-    Array.prototype.forEach.call(view.querySelectorAll("[data-d]"), function(el){
-      el.addEventListener("input", function(){ debrief[el.getAttribute("data-d")] = el.value; });
-      if(el.tagName === "SELECT") el.addEventListener("change", function(){
-        debrief[el.getAttribute("data-d")] = el.value;
-      });
-    });
-
-    var sd = document.getElementById("sendDebrief");
-    if(sd) sd.addEventListener("click", function(){
-      if(!String(debrief.claim || "").trim()){
-        debriefState = {state:"warn", msg:"Say what the group landed on first."}; render(); return;
-      }
-      sd.disabled = true;
-      debriefState = {state:"warn", msg:"Sending\u2026"}; render();
-      withKey(function(k){
-        return cloudWrite({action:"debrief", email:S.e, pin:k, debrief:debrief},
-                          function(){ return debriefsWith(k); });
-      })
-        .then(function(list){
-          var landed = list.some(function(d){ return String(d.claim||"").slice(0,40) === String(debrief.claim).slice(0,40); });
-          debriefState = landed
-            ? {state:"ok", msg:"Debrief recorded."}
-            : {state:"warn", msg:"It did not come back \u2014 send it again."};
-          render();
-        }, function(err){
-          debriefState = {state:"warn", msg:
-              (err && err.code === "key_reset") ? RESET_MSG
-            : (err && err.code === "bad_pin") ? keyErrMsg()
-            : "Could not send. Try again."};
-          render();
-        });
-    });
   }
 
   function wireOrg(){
@@ -2258,21 +2107,6 @@
   }
 
 
-  function wireDebriefs(){
-    var b = document.getElementById("pullDebriefs");
-    if(!b) return;
-    b.addEventListener("click", function(){
-      var key = lsGet(LS_KEY, "");
-      if(!key){ debriefsErr = "Enter the admin key on the \u201cFrom the sheet\u201d tab first."; render(); return; }
-      b.disabled = true; b.textContent = "Loading\u2026";
-      jsonp({action:"debriefs", key:key}, 25000).then(function(res){
-        if(res && res.ok){ debriefs = res.debriefs || []; debriefsErr = ""; }
-        else { debriefsErr = (res && res.error === "bad_key") ? "That admin key was refused." : "Could not load debriefs."; }
-        render();
-      }, function(){ debriefsErr = "Could not reach the sheet."; render(); });
-    });
-  }
-
   function wireSheet(){
     var pull = document.getElementById("pull");
     if(!pull) return;
@@ -2299,13 +2133,13 @@
   }
 
   if(homeBtn) homeBtn.addEventListener("click", function(){
-    // home from anywhere: a thread, the debrief, the console
-    if(/organizer|debrief/.test(String(location.hash || ""))){
+    // Home from a discussion or the organizer console.
+    if(/organizer/.test(String(location.hash || ""))){
       try { history.replaceState(null, "", location.pathname); } catch(e){}
     }
     mode = "form";
     thread = null; topicData = null; posts = null; postErr = "";
-    debriefState = {state:"idle", msg:""};
+
     editing = false; errs = {}; needsPin = false;
     step = saved ? READING : 0;
     render();
@@ -2316,17 +2150,15 @@
   function checkMode(){
     var h = String(location.hash || "");
     var want = /(^|[#&])organizer\b/.test(h) ? "org"
-             : /(^|[#&])debrief\b/.test(h)   ? "debrief"
              : "form";
     if(want !== mode){ mode = want; render(); }
   }
   window.addEventListener("hashchange", checkMode);
   if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
-  else if(/(^|[#&])debrief\b/.test(String(location.hash || ""))) mode = "debrief";
 
   render();
   if(API && saved && !editing && normKey(pin).length >= 2){
-    cloudCounts().then(function(c){ counts = c.counts; qcounts = c.questions; render(); }, function(){});
+    refreshCounts();
   }
 
   /* offline support — only meaningful on a hosted copy */
