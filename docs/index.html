@@ -463,7 +463,7 @@
 
   var TOPICS = [
     {
-      id:"T1", rn:"i", short:"Major Evolutionary Transition",
+      id:"T1", rn:"1", short:"Major Evolutionary Transition",
       title:"AI as a Major Evolutionary Transition",
       q:"What can previous major evolutionary transitions teach us about AI, and what evidence would show that a genuinely new system of inheritance or individuality is emerging?",
       readings:[
@@ -474,7 +474,7 @@
       ]
     },
     {
-      id:"T2", rn:"ii", short:"Adaptive Agents to Adaptive Wholes",
+      id:"T2", rn:"2", short:"Adaptive Agents to Adaptive Wholes",
       title:"From Adaptive Agents to Adaptive Wholes",
       q:"What evolutionary mechanisms can transform independently optimizing AI agents into coherent, cooperative systems, and keep their collective goals compatible with human flourishing?",
       readings:[
@@ -489,7 +489,7 @@
       ]
     },
     {
-      id:"T3", rn:"iii", short:"Regulation, Cheating, Breakdown",
+      id:"T3", rn:"3", short:"Regulation, Cheating, Breakdown",
       title:"Regulation, Cheating, and Systemic Breakdown",
       q:"How do adaptive systems detect and suppress components that benefit at the expense of the whole, and what can cancer, immunity, development, and conflict suppression teach us about agentic AI?",
       readings:[
@@ -504,7 +504,7 @@
       ]
     },
     {
-      id:"T4", rn:"iv", short:"Human\u2013AI Coevolution",
+      id:"T4", rn:"4", short:"Human\u2013AI Coevolution",
       title:"Human\u2013AI Coevolution",
       q:"How will humans and AI systems reshape one another's cognition, culture, values, capabilities, and environments through repeated feedback and cultural transmission?",
       readings:[
@@ -519,7 +519,7 @@
       ]
     },
     {
-      id:"T5", rn:"v", short:"Steering Open-Ended Ecosystems",
+      id:"T5", rn:"5", short:"Steering Open-Ended Ecosystems",
       title:"Steering Open-Ended AI Ecosystems",
       q:"What practical strategies can achieve goals of diversity, innovation, and evolvability while shaping the selection pressures acting on agents, companies, markets, and states toward socially beneficial outcomes?",
       readings:[
@@ -534,7 +534,7 @@
       ]
     },
     {
-      id:"T6", rn:"vi", short:"Collective Intelligence",
+      id:"T6", rn:"6", short:"Collective Intelligence",
       title:"Collective Intelligence",
       q:"What makes a group smarter than the people in it, and what does that mean for AI?",
       readings:[
@@ -896,14 +896,14 @@
   }
   function readingText(){
     var L = ["EVOLVING AI — PRE-READ · " + S.n, ""];
-    L.push("EVERYONE READS THIS");
+    L.push("0. Evolutionary Transitions \u2014 reading for everyone");
     L.push("   [required]    " + COMMON.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&")
       + "  (" + COMMON.len + ")");
     L.push("                 " + COMMON.url);
     L.push("");
-    chosen().forEach(function(id, i){
+    chosen().forEach(function(id){
       var t = T(id);
-      L.push((i+1) + ". " + t.title);
+      L.push(t.rn + ". " + t.title);
       t.readings.forEach(function(r){
         L.push("   " + (r.req ? "[required]    " : "[recommended] ")
           + r.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&")
@@ -1151,7 +1151,8 @@
   function renderReading(){
     var ids = chosen(), done = saved && !editing;
     var commonBlock = '<div class="topicblock common">'
-      + '<div class="eyebrow">Everyone reads this</div>'
+      + '<div class="qtop"><span class="rn">0</span><span class="qtitle">Evolutionary Transitions</span></div>'
+      + '<div class="eyebrow">Reading for everyone</div>'
       + '<div class="reads solo">' + readCard(COMMON, done) + '</div>'
       + '</div>';
     var blocks = ids.map(function(id){
