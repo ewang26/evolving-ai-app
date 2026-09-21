@@ -727,6 +727,7 @@ window.EAI_CONFIG = {
   var counts = {};       // thread key -> post count, for the badges
   var qcounts = {};      // topic id -> how many questions have been submitted
   var readTimer = null;
+  var readSaveInFlight = null, readSavePending = false;
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
 
@@ -869,20 +870,40 @@ window.EAI_CONFIG = {
       }catch(e){ return false; }
     }
   }
-  /* A tick is a small thing; save it quietly in the background rather than
-     making anyone wait, and never claim it saved. */
+  /* Save reading progress independently of questions, and confirm the row
+     before telling the participant it reached the sheet. */
   function queueReadSave(){
     if(!API || !saved) return;
+    readSavePending = true;
     clearTimeout(readTimer);
-    readTimer = setTimeout(function(){
-      withKey(function(k){
-        return fetch(API, {
-          method:"POST", mode:"no-cors", cache:"no-store",
-          headers:{"Content-Type":"text/plain;charset=utf-8"},
-          body:JSON.stringify({action:"put", sub:S, pin:k, gate:gate})
-        }).then(function(){ return true; });
-      }).then(function(){}, function(){});
-    }, 1800);
+    readTimer = setTimeout(flushReadSave, 1800);
+  }
+  function flushReadSave(){
+    if(readSaveInFlight) return readSaveInFlight;
+    if(!readSavePending) return Promise.resolve();
+    readSavePending = false;
+    var sent = normalize(S), sentPin = pin;
+    syncState = {state:"saving", msg:""}; updateReadControls();
+    var succeeded = false;
+    readSaveInFlight = withKey(function(k){ return cloudPush(sent, k); }).then(function(row){
+      succeeded = true;
+      if(S.e !== sent.e || pin !== sentPin) return;
+      confirmedSub = normalize(row);
+      syncState = sameSubmission(row, S)
+        ? {state:"ok", msg:""}
+        : {state:"local", msg:"Your latest changes have not reached the sheet yet."};
+      saveLocal(); updateReadControls();
+    }, function(err){
+      if(S.e !== sent.e || pin !== sentPin) return;
+      syncState = {state:"local", msg:err && err.code === "locked" ? ""
+        : "Could not confirm the reading update. Try the sheet again."};
+      saveLocal(); updateReadControls();
+    }).then(function(){
+      readSaveInFlight = null;
+      if(succeeded && readSavePending) return flushReadSave();
+      readSavePending = false;
+    });
+    return readSaveInFlight;
   }
   /* Only the required text per group counts: the second is a recommendation. */
   function requiredReadings(){
@@ -1737,7 +1758,7 @@ window.EAI_CONFIG = {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = (step !== READING || editing ? syncLine() : "")
+      view.innerHTML = (step !== READING || editing ? '<div id="formSync">' + syncLine() + '</div>' : "")
         + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
       if(step === READING && saved && !editing && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
@@ -1833,7 +1854,7 @@ window.EAI_CONFIG = {
     });
     var progress = document.getElementById("readingProgress");
     if(progress){ progress.innerHTML = renderProgress(); wireProgress(); }
-    var sync = document.getElementById("readingSync");
+    var sync = document.getElementById("readingSync") || document.getElementById("formSync");
     if(sync) sync.innerHTML = syncLine();
     var retryRow = document.getElementById("retrySyncRow");
     if(retryRow) retryRow.hidden = syncState.state === "ok";

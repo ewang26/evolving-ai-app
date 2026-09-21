@@ -47,7 +47,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0 };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes };
 }
@@ -307,4 +307,45 @@ test('invitation passcode remains visible for new and returning attendees', () =
     assert.match(a.t.renderStep0(), /id="fgate"/);
     assert.match(a.t.renderStep0(), /Invitation passcode/);
   }
+});
+
+
+test('reading progress saves and confirms before any questions are submitted', async () => {
+  const sub = sample(); sub.q = {}; sub.read = { 'https://example.invalid/paper': 1 };
+  let stored;
+  const a = app({ post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
+    reply: () => ({ ok: true, row: stored }) });
+  a.t.set({ S: sub, pin: 'TestModel', saved: true });
+  a.t.queueReadSave(); await a.t.flushReadSave();
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(Object.keys(stored.q).length, 0);
+  assert.equal(stored.read['https://example.invalid/paper'], 1);
+});
+
+test('an unconfirmed background reading save never claims success', async () => {
+  const sub = sample(); sub.q = {};
+  const a = app({ reply: () => ({ ok: true, row: { ...sub, read: {} } }) });
+  sub.read = { 'https://example.invalid/paper': 1 };
+  a.t.set({ S: sub, pin: 'TestModel', saved: true });
+  a.t.queueReadSave(); await a.t.flushReadSave();
+  assert.equal(a.t.state().syncState.state, 'local');
+  assert.match(a.t.state().syncState.msg, /Could not confirm/);
+});
+
+test('rapid reading changes serialize saves and confirm the newest state', async () => {
+  let release, stored, active = 0, peak = 0;
+  const a = app({ post: (url, opts) => {
+    stored = JSON.parse(opts.body).sub; active++; peak = Math.max(peak, active);
+    return new Promise(resolve => { release = () => { active--; resolve({type:'opaque'}); }; });
+  }, reply: () => ({ ok: true, row: stored }) });
+  const sub = sample(); sub.q = {};
+  a.t.set({ S: sub, pin: 'TestModel', saved: true });
+  a.t.queueReadSave(); const first = a.t.flushReadSave();
+  sub.read['https://example.invalid/paper'] = 1;
+  a.t.queueReadSave(); release();
+  for(let i = 0; i < 30 && a.requests.length < 2; i++) await Promise.resolve();
+  assert.equal(a.requests.length, 2); release(); await first;
+  assert.equal(peak, 1);
+  assert.equal(stored.read['https://example.invalid/paper'], 1);
+  assert.equal(a.t.state().syncState.state, 'ok');
 });
