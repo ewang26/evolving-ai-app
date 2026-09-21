@@ -487,13 +487,13 @@
       q:"What evolutionary mechanisms can transform independently optimizing AI agents into coherent, cooperative systems, and keep their collective goals compatible with human flourishing?",
       readings:[
         {kind:"evo", req:true, len:"8 pp",
-         url:"https://doi.org/10.1016/B978-0-443-21964-1.00204-4",
+         url:"https://drive.google.com/file/d/1nPa1bEsDt1EIMiLBWwuDoXmixPSHJeAQ/view?usp=sharing",
          cite:"D. S. Wilson, <b>\u201cFunctional Organization at Multiple Scales\u201d</b> \u00b7 Encyclopedia of Ecology, 3rd ed., 2026",
          note:"Functional organization can evolve at any level of a nested hierarchy, but only where variation, selection and replication act at that level."},
-        {kind:"ai", len:"68 pp",
-         url:"https://arxiv.org/pdf/2012.08630",
-         cite:"A. Dafoe et al., <b>\u201cOpen Problems in Cooperative AI\u201d</b> \u00b7 2020",
-         note:"The AI community's own agenda for this question. Skim the taxonomy \u2014 the baseline this group should push past."}
+        {kind:"evo", len:"", fmt:"Web",
+         url:"https://plato.stanford.edu/entries/selection-units/",
+         cite:"E. A. Lloyd, <b>\u201cUnits and Levels of Selection\u201d</b> \u00b7 Stanford Encyclopedia of Philosophy, rev. 2024",
+         note:"Sorts out what people mean when they argue about what selection acts on."}
       ]
     },
     {
@@ -540,12 +540,27 @@
          cite:"J. Clune, <b>\u201cAI-GAs: AI-Generating Algorithms\u201d</b> \u00b7 2019",
          note:"Designing the search that designs the agents \u2014 the practical face of steering rather than specifying."}
       ]
+    },
+    {
+      id:"T6", rn:"vi", short:"Collective Intelligence",
+      title:"Collective Intelligence",
+      q:"What makes a group smarter than the people in it, and what does that mean for AI?",
+      readings:[
+        {kind:"evo", req:true, len:"21 pp",
+         url:"https://onlinelibrary.wiley.com/doi/epdf/10.1111/tops.12656",
+         cite:"J. Henrich & M. Muthukrishna, <b>\u201cWhat Makes Us Smart?\u201d</b> \u00b7 Topics in Cognitive Science, 2024",
+         note:"Human intelligence comes from groups sharing what they know, not from single brains."},
+        {kind:"ai", len:"15 pp",
+         url:"https://arxiv.org/abs/2505.19167",
+         cite:"T. P. Kehler, S. E. Page, A. Pentland, M. Reeves & J. Seely Brown, <b>\u201cAmplifying Human Creativity and Problem Solving with AI Through Generative Collective Intelligence\u201d</b> \u00b7 2025",
+         note:"How AI could help groups solve problems better. Sandy Pentland is a co-author."}
+      ]
     }
   ];
 
   var AGENDA = [
     {t:"8:30–9:00",   h:"Breakfast", s:""},
-    {t:"9:00–9:10",   h:"Opening remarks", s:"Peter Fenton and David Sloan Wilson — the five focus areas and the goals for the workshop."},
+    {t:"9:00–9:10",   h:"Opening remarks", s:"Peter Fenton and David Sloan Wilson — the six focus areas and the goals for the workshop."},
     {t:"9:10–9:35",   h:"Plenary 1 · Joe Henrich", s:"Evolutionary crash course: cultural learning, social norms, cumulative cultural evolution."},
     {t:"9:35–10:00",  h:"Plenary 2 · Jonathan Frankle & James Tamplin", s:"AI crash course: what is actually happening inside the labs — scaling compute, RL, RSI."},
     {t:"10:00–10:25", h:"Plenary 3 · Sandy Pentland & Athena Aktipis", s:"Social and emergent behaviour in AI and biological systems."},
@@ -1038,7 +1053,7 @@
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
     + '  <div class="f sixth">'
-    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current five that you\u2019re most interested in discussing</label>'
+    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current six that you\u2019re most interested in discussing</label>'
     + '    <textarea id="fnewtopic" data-k="t" rows="2">'+esc(S.t||"")+'</textarea>'
     + '  </div>'
     + '</section>';
@@ -1141,7 +1156,7 @@
       +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
       +   '<span class="rkind">'
       +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
-      +     (r.len?' \u00b7 '+r.len:'') + ' \u00b7 PDF</span>'
+      +     (r.len?' \u00b7 '+r.len:'') + ' \u00b7 ' + (r.fmt||"PDF") + '</span>'
       + '</div>'
       + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener" '
       +   'data-opened="'+esc(r.url)+'">'+r.cite+'</a></div>'
