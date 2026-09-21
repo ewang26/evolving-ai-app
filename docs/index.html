@@ -1774,12 +1774,10 @@
   /* Writes the record as soon as the topics are picked. Nothing forces anybody
      into the questions: they can close the tab, read over a few days, and come
      back to the same reading with email + model. */
-  /* The endpoint answers bad_pin both for a wrong key AND for an email it has
-     never seen, so blaming the model is wrong when nothing is on file yet. */
+  /* Authentication failures do not establish whether a submission exists.
+     Local saved state cannot distinguish a missing row from a wrong code. */
   function keyErrMsg(){
-    return saved
-      ? "That is not the model on file for this email."
-      : "Your answers have not reached the sheet yet. Give it a moment, then try again.";
+    return "Could not verify this email and favorite AI model. Use the same email and model you originally submitted. This error does not tell us whether your answers were saved.";
   }
 
   function confirmCurrentSave(row){

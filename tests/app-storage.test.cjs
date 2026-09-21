@@ -47,7 +47,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes };
 }
@@ -229,4 +229,15 @@ test('background counts refresh never replaces the current page', async () => {
   a.nodes.view.innerHTML = 'Current controls and unfinished input';
   await a.t.refreshCounts();
   assert.equal(a.nodes.view.innerHTML, 'Current controls and unfinished input');
+});
+
+
+test('authentication rejection never claims answers are pending based on local saved state', () => {
+  for (const saved of [false, true]) {
+    const a = app({ api: '' });
+    a.t.set({ saved });
+    assert.match(a.t.keyErrMsg(), /Could not verify this email and favorite AI model/);
+    assert.match(a.t.keyErrMsg(), /does not tell us whether your answers were saved/);
+    assert.doesNotMatch(a.t.keyErrMsg(), /Give it a moment|not reached the sheet yet/);
+  }
 });
