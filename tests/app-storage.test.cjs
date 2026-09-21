@@ -47,7 +47,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0 };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes };
 }
@@ -276,8 +276,10 @@ test('save authentication failures preserve the current step and display an expl
     assert.equal(a.t.state().step, 4);
     assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 4);
     assert.equal(a.t.state().S.q.T1, 'Question one?');
-    assert.match(a.nodes.view.innerHTML, /favorite AI model/);
-    if (code === 'locked') assert.match(a.nodes.view.innerHTML, /invitation passcode/);
+    if (code === 'locked') {
+      assert.match(a.nodes.view.innerHTML, /Saved on this device only/);
+      assert.doesNotMatch(a.nodes.view.innerHTML, /Wait 15 minutes|temporarily locked|personal code is/);
+    } else assert.match(a.nodes.view.innerHTML, /favorite AI model/);
   }
 });
 
@@ -295,4 +297,14 @@ test('lockout pauses requests for the same email across reloads without blocking
   assert.equal(await b.t.withKey(() => Promise.resolve('allowed')), 'allowed');
   a.storage['eai.lock.v1:test@example.invalid'] = JSON.stringify(Date.now() - 1);
   assert.equal(await a.t.withKey(() => Promise.resolve('expired')), 'expired');
+});
+
+
+test('invitation passcode remains visible for new and returning attendees', () => {
+  for (const saved of [false, true]) {
+    const a = app({ api: '', storage: { 'eai.gate.v1': JSON.stringify('accepted-test-code') } });
+    a.t.set({ saved });
+    assert.match(a.t.renderStep0(), /id="fgate"/);
+    assert.match(a.t.renderStep0(), /Invitation passcode/);
+  }
 });

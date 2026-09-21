@@ -827,7 +827,7 @@ window.EAI_CONFIG = {
     var a = keyFor(pin), b = String(pin || "").trim();
     return (b && b !== a) ? [a, b] : [a];
   }
-  var LOCK_MSG = "Sheet access is temporarily locked for this email. Wait 15 minutes before trying again. Your draft is still on this device; you can keep filling it out. The personal code is your favorite AI model, not the invitation passcode.";
+  var LOCK_MSG = "Could not load your reading right now. Please try again later.";
   function withKey(fn){
     var email = String(S.e || "").trim().toLowerCase();
     var lockKey = "eai.lock.v1:" + email;
@@ -941,13 +941,12 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="fields">'
-    +      (gateOk || saved ? '' :
-           '    <div class="f wide' + (errs.gate?" bad":"") + '">'
-         + '      <label for="fgate">Attendee passcode</label>'
+    +      '    <div class="f wide' + (errs.gate?" bad":"") + '">'
+         + '      <label for="fgate">Invitation passcode</label>'
          + '      <input id="fgate" type="text" autocomplete="off" spellcheck="false" '
          +          'placeholder="From your invitation email" value="'+esc(gate)+'" />'
          +        (errs.gate?'<div class="err">'+errs.gate+'</div>':'')
-         + '    </div>')
+         + '    </div>'
     + fld("n","Name","text","Charles Darwin", S.n)
     + fld("e","Email","email","darwin@cam.ac.uk", S.e)
     +      (emailTypo(S.e) ? '<div class="err">Did you mean .' + emailTypo(S.e) + '?</div>' : '')
@@ -1769,7 +1768,7 @@ window.EAI_CONFIG = {
       return;
     }
     if(code === "bad_pin" || code === "locked"){
-      syncState = {state:"local", msg:code === "locked" ? LOCK_MSG
+      syncState = {state:"local", msg:code === "locked" ? ""
         : "Could not verify your email and favorite AI model. Your draft is preserved. Use Back or Your details to check the personal code you originally used."};
       saveLocal(); render();
       return;
@@ -1901,7 +1900,7 @@ window.EAI_CONFIG = {
     });
 
     var gateEl = document.getElementById("fgate");
-    if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; });
+    if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; gateOk = false; });
 
     var pinEl = document.getElementById("fpin");
     if(pinEl) pinEl.addEventListener("input", function(){ pin = pinEl.value; saveLocal(); });
