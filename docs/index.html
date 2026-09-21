@@ -191,14 +191,6 @@
   .kvk{font-family:var(--mono);font-size:.62rem;letter-spacing:.11em;text-transform:uppercase;
     color:var(--faint);white-space:nowrap}
   .kvv{font-size:1rem;text-align:right}
-  .agenda{display:flex;flex-direction:column;gap:.7rem}
-  .ag{display:grid;grid-template-columns:5.3rem 1fr;gap:.8rem;align-items:start}
-  .agt{font-family:var(--mono);font-size:.68rem;color:var(--accent);
-    font-variant-numeric:tabular-nums;padding-top:.22rem;letter-spacing:.01em}
-  .agb strong{font-weight:500;font-size:1rem;display:block}
-  .agb span{font-family:var(--sans);font-size:.82rem;color:var(--faint);line-height:1.45;display:block;margin-top:.15rem}
-  .ag.mine{background:rgba(236,193,135,.06);border-left:1px solid var(--accent);
-    margin-left:-.75rem;padding:.35rem 0 .35rem .75rem;border-radius:0 2px 2px 0}
   details{border-top:1px solid var(--line-soft);padding-top:1rem}
   summary{
     font-family:var(--mono);font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;
@@ -558,15 +550,7 @@
     }
   ];
 
-  var AGENDA = [
-    {t:"8:30–9:00",   h:"Breakfast", s:""},
-    {t:"9:00–9:10",   h:"Opening remarks", s:"Peter Fenton and David Sloan Wilson — the six focus areas and the goals for the workshop."},
-    {t:"9:10–9:35",   h:"Plenary 1 · Joe Henrich", s:"Evolutionary crash course: cultural learning, social norms, cumulative cultural evolution."},
-    {t:"9:35–10:00",  h:"Plenary 2 · Jonathan Frankle & James Tamplin", s:"AI crash course: what is actually happening inside the labs — scaling compute, RL, RSI."},
-    {t:"10:00–10:25", h:"Plenary 3 · Sandy Pentland & Athena Aktipis", s:"Social and emergent behaviour in AI and biological systems."},
-    {t:"10:30–12:00", h:"Breakout round 1", s:"Your first-choice topic. Roughly five people per group.", mine:1},
-    {t:"Afternoon",   h:"Breakout rounds 2 and 3", s:"Your second- and third-choice topics, same format.", mine:1}
-  ];
+
 
 
 
@@ -977,13 +961,6 @@
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
-    + '  <details>'
-    + '    <summary>The day</summary>'
-    + '    <div class="body"><div class="agenda">' + AGENDA.map(function(a){
-            return '<div class="ag'+(a.mine?" mine":"")+'"><div class="agt">'+a.t+'</div>'
-                 + '<div class="agb"><strong>'+esc(a.h)+'</strong>'+(a.s?'<span>'+esc(a.s)+'</span>':'')+'</div></div>';
-          }).join("") + '</div></div>'
-    + '  </details>'
     + '</section>';
   }
 
