@@ -15,7 +15,7 @@
 
 ## Version information
 
-**Subtitle:** Seminar readings and discussion
+**Subtitle:** Seminar prep and discussion
 
 **Description:**
 
