@@ -11,7 +11,7 @@ Everything lives in `docs/` and is a static site — no build step, no server.
 
 ```
 docs/index.html          the whole app (participant flow + organizer console)
-docs/config.js           the one file you edit per deployment
+docs/config.js           compatibility config for older app pages
 docs/manifest.webmanifest, docs/sw.js, docs/icons/   installable/offline support
 docs/sheet-backend.gs    the Google Apps Script that writes to the shared Sheet
 ```
@@ -58,8 +58,9 @@ Deploy → Manage deployments → edit → Version: **New version**. Editing wit
 re-deploying changes nothing, because the web app serves the deployed version.
 
 **To move the endpoint** (new Google account, or a fresh deployment): paste
-`docs/sheet-backend.gs` into a new Apps Script project, set `SHEET_ID` and `ADMIN_KEY`,
-deploy as a web app with access **Anyone**, and put the `/exec` URL in `docs/config.js`.
+`docs/sheet-backend.gs` into a new Apps Script project, set its production settings,
+deploy as a web app with access **Anyone**, and update `apiUrl` in `docs/index.html`.
+Keep `docs/config.js` aligned for older app pages.
 
 **The key is a question, not a password.** Participants name a favorite AI model, which
 gates both directions: you cannot read somebody's submission back, and you cannot overwrite
@@ -68,12 +69,13 @@ spaces stripped, a trailing "s" dropped) and prefixed `org:`, so "GPT-4", "gpt 4
 "gpt4" are one key and nobody is locked out by capitals or a hyphen. Only a salted
 SHA-256 of `email + key` reaches the sheet, so it cannot be used to recover anyone's answer
 and a hash copied between rows is useless. Eight wrong attempts per email triggers a
-15-minute cool-off. To reset someone, clear their **Passcode** cell and they can claim the
-row again.
+15-minute cool-off. A damaged or missing stored key requires organizer-assisted recovery
+after checking the attendee's identity; the app will not let someone claim that row.
 
 A one-word answer carries less entropy than a password — that is a deliberate trade for a
-group of people who would (rightly) find a password prompt insulting. The lockout is what
-makes it workable, and the worst case is someone reading another attendee's three questions.
+group of people who would (rightly) find a password prompt insulting. The lockout limits
+guessing, but this code does not provide strong account security: a guessed code can expose
+an attendee's full submission and discussion access.
 
 One known limitation: the lookup is a JSONP `GET`, so the passcode travels as a query
 parameter. It is HTTPS end to end, but it will appear in the participant's browser history
@@ -82,7 +84,7 @@ Apps Script cannot give a static page.
 
 **Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
 a submission. The endpoint only appends or updates rows and never returns the roster
-without the key, so the worst case is junk rows to delete.
+without the key. It can still receive junk rows and consume Apps Script capacity.
 
 ## 2. Deploy the site
 
@@ -102,31 +104,65 @@ Android Chrome: it offers "Install app"). It then runs full-screen with its own 
 works offline after the first load. This is how participants use it before the native
 builds exist, and for most of them it is all they will ever need.
 
-## 4. Ship to the App Store and Google Play
+## 4. The iOS app
 
-The app is wrapped with [Capacitor](https://capacitorjs.com), which loads `docs/` inside a
-native shell. The scaffold is committed; the native projects are generated locally
-because they need Xcode and Android Studio:
+`ios/` is a real Xcode project — no CocoaPods, no npm, no third-party dependencies. It
+is a WKWebView host that runs the same `docs/` the website runs, so the two cannot drift:
+a build phase re-copies `docs/` into the bundle every time, and editing
+`ios/EvolvingAI/web` by hand is pointless because it is overwritten.
 
 ```bash
-npm install
-npx cap add ios
-npx cap add android
-npm run cap:sync
-npm run cap:ios        # opens Xcode
-npm run cap:android    # opens Android Studio
+open ios/EvolvingAI.xcodeproj
 ```
 
-Then, in Xcode and Android Studio respectively: set the signing team, bump the version,
-archive, and upload.
+Pick a simulator and hit Run. Nothing else to install.
 
-**What still requires you, and cannot be automated from here:** an Apple Developer
-account ($99/yr) and a Google Play developer account ($25 once), the signing
-certificates, the store listings and screenshots, a privacy policy URL, and review —
-Apple's review is the slow part, and a form-style app with no native functionality is
-sometimes rejected under guideline 4.2 ("minimum functionality"). If the stores are a
-must-have rather than a nice-to-have, the honest sequence is: ship the installable web
-app now, and submit to the stores in parallel.
+**Why a web view rather than a Swift rewrite.** The app's value is in three places that
+are hard to reproduce and easy to get subtly wrong: the subgroup algorithm, the salted
+passcode handling, and the JSONP / `no-cors` transport that Apps Script forces. Rewriting
+those in Swift would mean maintaining two implementations of the same rules against one
+Sheet, and every divergence would show up as a participant whose questions land in the
+wrong room. One codebase, one behaviour.
+
+**What the native layer actually does.** The shell is not a bare web view; these are the
+things a web view does not get for free, and each one is a thing you would notice if it
+were missing:
+
+| | |
+| --- | --- |
+| `BundleSchemeHandler` | Serves the bundle over `seminar://app`. A `file://` page gets an opaque origin and `localStorage` throws — which is where a half-finished submission lives |
+| Outside links | The reading PDFs open in `SFSafariViewController`, so nobody is stranded in a chrome-less page with no way back |
+| Launch | A flat brand-coloured launch screen and a matching cover that lifts only once the first screen has painted. No white flash, no blank web view |
+| Status bar | An opaque band the height of the top safe area. WebKit does not re-pin a sticky header while the keyboard resizes the viewport, so without it body text runs under the Dynamic Island while you type |
+| Scroll | `history.scrollRestoration = "manual"`. WebKit otherwise reopens the app part-way down the page |
+| Haptics | A light tap on every control, through a small message handler |
+| Chrome | No tap-highlight flash, no long-press callout on controls, no link preview, no double-tap zoom on buttons. Prose stays selectable; pinch zoom still works |
+| Keyboard | Dark, matching the palette, and dismissable by swiping down the page |
+
+**Reaching the organizer console.** On the website it is `#organizer`, deliberately
+unlinked. An app has no address bar, so it is a **long press on the wordmark**, top
+left, for about a second — you will feel a haptic tick. Long press again to leave, or
+tap the wordmark. Same bargain: available to anyone who knows, invisible to everyone
+who does not.
+
+**Safe areas.** Three rules in `docs/index.html` are keyed on `env(safe-area-inset-*)`.
+They are no-ops in any browser where the insets are zero, so the website is unchanged,
+and they are what keeps the header off the first field and the last line clear of the
+bottom bar on a notched phone — in the app and equally on the site in iOS Safari. A
+branch switch reverts `docs/index.html`; `scripts/ios-safe-area.py` puts them back and
+is safe to re-run.
+
+**For TestFlight and App Store release:** sign in to Xcode with the Apple Developer account,
+select the signing team, and create the signing certificate and provisioning profile. The
+store listing, screenshots, privacy policy URL, and review are also required. Be aware
+of guideline 4.2 ("minimum functionality"): a form-style app is sometimes rejected, and
+the native work above is part of the answer to it, not decoration. If the stores are a
+must-have rather than a nice-to-have, the honest sequence is still: ship the installable
+web app now, and submit in parallel.
+
+**Android.** Not built. `capacitor.config.json` and the Capacitor dependencies in
+`package.json` are left over from the earlier plan and are not what builds the iOS app;
+delete them, or keep them if Android is still wanted.
 
 ---
 

@@ -1,7 +1,14 @@
 node_modules/
-ios/
 android/
 build/
 .DS_Store
 *.docx
 hero.png
+
+# The iOS app is hand-written source and is tracked, but two things under it
+# are not: the web assets, which scripts/sync-web.sh copies out of docs/ on
+# every build, and Xcode's per-user state.
+ios/EvolvingAI/web/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/DerivedData/

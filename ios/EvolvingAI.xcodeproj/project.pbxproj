@@ -1,0 +1,304 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1A2B3C00000000000000D001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C001 /* AppDelegate.swift */; };
+		1A2B3C00000000000000D002 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C002 /* SceneDelegate.swift */; };
+		1A2B3C00000000000000D003 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C003 /* Brand.swift */; };
+		1A2B3C00000000000000D004 /* BundleSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C004 /* BundleSchemeHandler.swift */; };
+		1A2B3C00000000000000D005 /* NativeChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C005 /* NativeChrome.swift */; };
+		1A2B3C00000000000000D006 /* WebAppController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C006 /* WebAppController.swift */; };
+		1A2B3C00000000000000D007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C007 /* Assets.xcassets */; };
+		1A2B3C00000000000000D008 /* web in Resources */ = {isa = PBXBuildFile; fileRef = 1A2B3C00000000000000C008 /* web */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1A2B3C00000000000000C000 /* Evolving AI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Evolving AI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A2B3C00000000000000C001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C002 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C003 /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C004 /* BundleSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleSchemeHandler.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C005 /* NativeChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeChrome.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C006 /* WebAppController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAppController.swift; sourceTree = "<group>"; };
+		1A2B3C00000000000000C007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A2B3C00000000000000C008 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = web; sourceTree = "<group>"; };
+		1A2B3C00000000000000C009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1A2B3C00000000000000A009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1A2B3C00000000000000A002 = {
+			isa = PBXGroup;
+			children = (
+				1A2B3C00000000000000A004 /* EvolvingAI */,
+				1A2B3C00000000000000A003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1A2B3C00000000000000A003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1A2B3C00000000000000C000 /* Evolving AI.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1A2B3C00000000000000A004 /* EvolvingAI */ = {
+			isa = PBXGroup;
+			children = (
+				1A2B3C00000000000000C001 /* AppDelegate.swift */,
+				1A2B3C00000000000000C002 /* SceneDelegate.swift */,
+				1A2B3C00000000000000C006 /* WebAppController.swift */,
+				1A2B3C00000000000000C004 /* BundleSchemeHandler.swift */,
+				1A2B3C00000000000000C005 /* NativeChrome.swift */,
+				1A2B3C00000000000000C003 /* Brand.swift */,
+				1A2B3C00000000000000C007 /* Assets.xcassets */,
+				1A2B3C00000000000000C008 /* web */,
+				1A2B3C00000000000000C009 /* Info.plist */,
+			);
+			path = EvolvingAI;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1A2B3C00000000000000A005 /* EvolvingAI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A2B3C00000000000000B002 /* Build configuration list for PBXNativeTarget "EvolvingAI" */;
+			buildPhases = (
+				1A2B3C00000000000000A010 /* Sync web app from docs */,
+				1A2B3C00000000000000A007 /* Sources */,
+				1A2B3C00000000000000A009 /* Frameworks */,
+				1A2B3C00000000000000A008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EvolvingAI;
+			productName = EvolvingAI;
+			productReference = 1A2B3C00000000000000C000 /* Evolving AI.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1A2B3C00000000000000A001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					1A2B3C00000000000000A005 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 1A2B3C00000000000000B001 /* Build configuration list for PBXProject "EvolvingAI" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1A2B3C00000000000000A002;
+			productRefGroup = 1A2B3C00000000000000A003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1A2B3C00000000000000A005 /* EvolvingAI */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1A2B3C00000000000000A008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A2B3C00000000000000D008 /* web in Resources */,
+				1A2B3C00000000000000D007 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1A2B3C00000000000000A010 /* Sync web app from docs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Sync web app from docs";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# docs/ is the single source of truth for both the website and this app.\n# Re-copying on every build is what stops the two drifting apart.\n\"$SRCROOT/../scripts/sync-web.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1A2B3C00000000000000A007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A2B3C00000000000000D001 /* AppDelegate.swift in Sources */,
+				1A2B3C00000000000000D002 /* SceneDelegate.swift in Sources */,
+				1A2B3C00000000000000D006 /* WebAppController.swift in Sources */,
+				1A2B3C00000000000000D004 /* BundleSchemeHandler.swift in Sources */,
+				1A2B3C00000000000000D005 /* NativeChrome.swift in Sources */,
+				1A2B3C00000000000000D003 /* Brand.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1A2B3C00000000000000B003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		1A2B3C00000000000000B004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1A2B3C00000000000000B005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EvolvingAI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.benchmark.evolvingai;
+				PRODUCT_NAME = "Evolving AI";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1A2B3C00000000000000B006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EvolvingAI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.benchmark.evolvingai;
+				PRODUCT_NAME = "Evolving AI";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1A2B3C00000000000000B001 /* Build configuration list for PBXProject "EvolvingAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A2B3C00000000000000B003 /* Debug */,
+				1A2B3C00000000000000B004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1A2B3C00000000000000B002 /* Build configuration list for PBXNativeTarget "EvolvingAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A2B3C00000000000000B005 /* Debug */,
+				1A2B3C00000000000000B006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1A2B3C00000000000000A001 /* Project object */;
+}
