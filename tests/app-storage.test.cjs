@@ -470,7 +470,7 @@ test('work validation requires gathering goals but leaves further details option
   assert.match(a.t.renderWork(), /Briefly describe your hopes/);
   sub.hopes = 'Learn from others and contribute my research.';
   assert.equal(a.t.validate(1), true);
-  assert.match(a.t.renderWork(), /Optional: More detail describing your work/);
+  assert.match(a.t.renderWork().replace(/<[^>]*>/g, ''), /Optional: More detail describing your work/);
   const old = a.t.normalize(sample());
   assert.equal(old.hopes, ''); assert.equal(old.moreWork, '');
 });
