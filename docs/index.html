@@ -1314,9 +1314,9 @@ window.EAI_CONFIG = {
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
-    + '    </div>'
     +      (saved && API
-            ? '<div id="retrySyncRow"' + (syncState.state === "ok" ? ' hidden' : '') + '><div class="btnrow"><button class="btn btn-out" id="retrySync" type="button">Save my progress</button></div><p class="note">Saves your answers and reading status online.</p></div>' : '')
+            ? '<button class="btn btn-out" id="retrySync" type="button"' + (syncState.state === "ok" ? ' hidden' : '') + (syncState.state === "saving" ? ' disabled>Saving…' : '>Save my progress') + '</button>' : '')
+    + '    </div>'
     + '  </div>' : '')
     + '</section>';
   }
@@ -1932,10 +1932,9 @@ window.EAI_CONFIG = {
     if(progress){ progress.innerHTML = renderProgress(); wireProgress(); }
     var sync = document.getElementById("readingSync") || document.getElementById("formSync");
     if(sync) sync.innerHTML = syncLine();
-    var retryRow = document.getElementById("retrySyncRow");
-    if(retryRow) retryRow.hidden = syncState.state === "ok";
     var retry = document.getElementById("retrySync");
     if(retry){
+      retry.hidden = syncState.state === "ok";
       retry.disabled = syncState.state === "saving";
       retry.textContent = retry.disabled ? "Saving\u2026" : "Save my progress";
     }

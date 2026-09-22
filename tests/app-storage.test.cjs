@@ -505,6 +505,6 @@ test('an older editing session still shows all reading controls and clear save w
     assert.ok(reading.includes(control), `Missing ${control}`);
   }
   assert.match(reading, />Save my progress<\/button>/);
-  assert.match(reading, /Saves your answers and reading status online/);
+  assert.doesNotMatch(reading, /Saves your answers and reading status online/);
   assert.doesNotMatch(reading, /Try the sheet again/);
 });
