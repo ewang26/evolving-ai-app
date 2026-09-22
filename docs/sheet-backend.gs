@@ -48,6 +48,7 @@ var INVITEE_HEADERS= ["Name", "Email", "Reminders sent", "Last reminder"];
 var GATE_CODE      = "CHANGE-ME-to-the-shared-attendee-passcode";
 
 var MAX_BODY       = 4000;
+var MAX_PAYLOAD    = 48000; // Sheets caps one cell at 50,000 characters.
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
 
@@ -120,6 +121,50 @@ function same_(a, b) {
   return diff === 0;
 }
 
+// SpreadsheetApp interprets strings beginning with = as formulas. Keep every
+// attendee-authored display cell literal; the Payload column remains base64.
+function literal_(value) {
+  var text = String(value == null ? "" : value);
+  return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
+}
+function plain_(value) {
+  var text = String(value == null ? "" : value);
+  return /^'[=+\-@\t\r]/.test(text) ? text.slice(1) : text;
+}
+function iso_(value) {
+  if (!value) return "";
+  var date = new Date(value);
+  return isNaN(date.getTime()) ? "" : date.toISOString();
+}
+function validSubmission_(sub) {
+  if (!sub || typeof sub !== "object" || Array.isArray(sub)) return false;
+  if (typeof sub.n !== "string" || !sub.n.trim() || sub.n.length > 200) return false;
+  if (typeof sub.e !== "string" || sub.e.length > 254 || /^=/.test(sub.e.trim()) ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(sub.e.trim())) return false;
+  if (!Array.isArray(sub.r) || sub.r.length !== 3) return false;
+  var used = {};
+  for (var i = 0; i < sub.r.length; i++) {
+    var id = sub.r[i];
+    if (typeof id !== "string" || id && !/^T[1-6]$/.test(id) || used[id] && id) return false;
+    if (id) used[id] = true;
+  }
+  var fields = {a:250, w:4000, c:1000, hopes:4000, moreWork:4000, t:1000};
+  for (var field in fields) {
+    if (sub[field] != null && (typeof sub[field] !== "string" || sub[field].length > fields[field])) return false;
+  }
+  if (sub.q != null && (typeof sub.q !== "object" || Array.isArray(sub.q))) return false;
+  for (var topic in sub.q || {}) {
+    if (!/^T[1-6]$/.test(topic) || typeof sub.q[topic] !== "string" || sub.q[topic].length > MAX_BODY) return false;
+  }
+  if (sub.read != null && (typeof sub.read !== "object" || Array.isArray(sub.read) ||
+      Object.keys(sub.read).length > 100)) return false;
+  return true;
+}
+function validThread_(thread) {
+  // Older app releases anchored discussion to a reading rather than a topic.
+  return thread === "general" || /^topic:T[1-6]$/.test(thread) || /^T[1-6]#[0-9]{1,2}$/.test(thread);
+}
+
 function tries_(email) { return "pin:" + String(email || "").trim().toLowerCase(); }
 
 function locked_(email) {
@@ -173,16 +218,16 @@ function tab_(name, headers) {
  */
 function verify_(email, code) {
   if (String(code || "").trim().length < 4) return null;
-  if (locked_(email)) return null;
+  if (locked_(email)) return "locked";
   var sh = sheet_();
   var at = findRow_(sh, email);
   if (at < 0) return null;
   var onFile = sh.getRange(at, PASS_COL).getValue();
-  if (!onFile || corrupt_(onFile)) return "reset";      // needs re-submitting, not a wrong key
+  if (!onFile || corrupt_(onFile)) return "reset";      // organizer-assisted recovery
   if (!keyMatches_(onFile, hash_(email, code))) { noteFail_(email); return null; }
   clearFails_(email);
   var row = sh.getRange(at, 1, 1, HEADERS.length).getValues()[0];
-  return {name: row[1], email: row[2], affiliation: row[3]};
+  return {name: plain_(row[1]), email: row[2], affiliation: plain_(row[3])};
 }
 
 /** Forgiving on purpose: "Harvard26", "harvard 26" and "HARVARD-26" all pass,
@@ -204,6 +249,9 @@ function rowsOf_(sh, headers) {
 function out_(obj, callback) {
   var body = JSON.stringify(obj);
   if (callback) {
+    if (!/^[A-Za-z_$][\w$]*$/.test(callback))
+      return ContentService.createTextOutput(JSON.stringify({ok: false, error: "invalid_callback"}))
+        .setMimeType(ContentService.MimeType.JSON);
     return ContentService
       .createTextOutput(callback + "(" + body + ");")
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -220,6 +268,11 @@ function rowToSub_(row) {
     return null;
   }
 }
+function revision_(payload) {
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(payload || ""), Utilities.Charset.UTF_8))
+    .replace(/=+$/, "");
+}
 
 function findRow_(sh, email) {
   var key = String(email || "").trim().toLowerCase();
@@ -235,46 +288,66 @@ function findRow_(sh, email) {
 
 /** Participant submits (or re-submits) — called with a simple no-cors POST. */
 function doPost(e) {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  var lock, held = false;
   try {
+    if (!e || !e.postData || !e.postData.contents) return out_({ok: false, error: "bad_request"});
     var body = JSON.parse(e.postData.contents);
+    lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    held = true;
 
     // A discussion post.
     if (body.action === "post") {
       var poster = verify_(body.email, body.pin);
+      if (poster === "locked") return out_({ok: false, error: "locked"});
       if (poster === "reset") return out_({ok: false, error: "key_reset"});
       if (!poster) return out_({ok: false, error: "bad_pin"});
       var text = String(body.body || "").trim();
       if (!text) return out_({ok: false, error: "empty"});
-      if (text.length > MAX_BODY) text = text.slice(0, MAX_BODY);
-      tab_(POSTS_SHEET, POST_HEADERS).appendRow([
-        Utilities.getUuid().slice(0, 8), new Date(), String(body.thread || "general"),
-        poster.name, poster.email, poster.affiliation, text
+      if (text.length > MAX_BODY) return out_({ok: false, error: "too_long"});
+      var thread = String(body.thread || "general");
+      if (!validThread_(thread)) return out_({ok: false, error: "invalid_thread"});
+      var id = body.id == null ? Utilities.getUuid().slice(0, 8) : String(body.id);
+      if (body.id != null && !/^[A-Za-z0-9_-]{12,80}$/.test(id))
+        return out_({ok: false, error: "invalid_post_id"});
+      var postSheet = tab_(POSTS_SHEET, POST_HEADERS);
+      if (body.id != null) {
+        var earlier = rowsOf_(postSheet, POST_HEADERS).filter(function(row) { return String(row[0]) === id; })[0];
+        if (earlier) {
+          var samePost = String(earlier[4]).trim().toLowerCase() === String(poster.email).trim().toLowerCase() &&
+            String(earlier[2]) === thread && plain_(earlier[6]) === text;
+          return out_({ok: samePost, error: samePost ? undefined : "post_id_conflict", id: id});
+        }
+      }
+      postSheet.appendRow([
+        id, new Date(), thread,
+        literal_(poster.name), poster.email, literal_(poster.affiliation), literal_(text)
       ]);
-      return out_({ok: true});
+      return out_({ok: true, id: id});
     }
 
     // An end-of-day group debrief.
     if (body.action === "debrief") {
       var rap = verify_(body.email, body.pin);
+      if (rap === "locked") return out_({ok: false, error: "locked"});
       if (rap === "reset") return out_({ok: false, error: "key_reset"});
       if (!rap) return out_({ok: false, error: "bad_pin"});
       var d = body.debrief || {};
       if (!String(d.claim || "").trim()) return out_({ok: false, error: "empty"});
       tab_(DEBRIEF_SHEET, DEBRIEF_HEADERS).appendRow([
-        new Date(), d.round || "", d.group || "", d.topic || "",
-        rap.name, rap.email,
-        String(d.claim || "").slice(0, MAX_BODY),
-        String(d.disagreement || "").slice(0, MAX_BODY),
-        String(d.settle || "").slice(0, MAX_BODY)
+        new Date(), literal_(d.round || ""), literal_(d.group || ""), literal_(d.topic || ""),
+        literal_(rap.name), rap.email,
+        literal_(String(d.claim || "").slice(0, MAX_BODY)),
+        literal_(String(d.disagreement || "").slice(0, MAX_BODY)),
+        literal_(String(d.settle || "").slice(0, MAX_BODY))
       ]);
       return out_({ok: true});
     }
 
+    if (body.action && body.action !== "put") return out_({ok: false, error: "unknown_action"});
     var sub  = body.sub || {};
     var code = String(body.pin || "");
-    if (!sub.n || !sub.e || !sub.r || !sub.r.length) return out_({ok: false, error: "incomplete"});
+    if (!validSubmission_(sub)) return out_({ok: false, error: "invalid_submission"});
     if (code.trim().length < 4) return out_({ok: false, error: "bad_pin"});
     if (locked_(sub.e)) return out_({ok: false, error: "locked"});
 
@@ -289,13 +362,22 @@ function doPost(e) {
       return out_({ok: false, error: "bad_gate"});
     }
 
+    // A revision also protects the moment between a new user's lookup and
+    // first write, when another device could create the same email row.
+    if (existing < 0 && body.ifMatch && body.ifMatch !== "absent")
+      return out_({ok: false, error: "conflict"});
+
     // An existing entry may only be overwritten by whoever set its passcode.
     if (existing > 0) {
       var onFile = sh.getRange(existing, PASS_COL).getValue();
-      if (onFile && !corrupt_(onFile) && !keyMatches_(onFile, mine)) {
+      if (!onFile || corrupt_(onFile)) return out_({ok: false, error: "key_reset"});
+      if (!keyMatches_(onFile, mine)) {
         noteFail_(sub.e);
         return out_({ok: false, error: "bad_pin"});
       }
+      var currentPayload = sh.getRange(existing, HEADERS.indexOf("Payload") + 1).getValue();
+      if (body.ifMatch && body.ifMatch !== revision_(currentPayload))
+        return out_({ok: false, error: "conflict"});
       // A still-open older form must not erase fields it does not know about.
       var previous = rowToSub_(sh.getRange(existing, 1, 1, HEADERS.length).getValues()[0]);
       ["hopes", "moreWork"].forEach(function(key) {
@@ -305,17 +387,18 @@ function doPost(e) {
     clearFails_(sub.e);
     var qs = sub.r.map(function (id) { return String((sub.q || {})[id] || ""); });
     var payload = Utilities.base64EncodeWebSafe(JSON.stringify(sub), Utilities.Charset.UTF_8).replace(/=+$/, "");
+    if (payload.length > MAX_PAYLOAD) return out_({ok: false, error: "too_large"});
     var row = [
-      new Date(), sub.n, String(sub.e).trim(), sub.a || "",
+      new Date(), literal_(sub.n), String(sub.e).trim(), literal_(sub.a || ""),
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
-      qs[0] || "", qs[1] || "", qs[2] || "",
+      literal_(qs[0] || ""), literal_(qs[1] || ""), literal_(qs[2] || ""),
       stored_(mine),
       payload,
-      sub.t || "",
-      sub.w || "",
-      sub.c || "",
-      sub.hopes || "",
-      sub.moreWork || ""
+      literal_(sub.t || ""),
+      literal_(sub.w || ""),
+      literal_(sub.c || ""),
+      literal_(sub.hopes || ""),
+      literal_(sub.moreWork || "")
     ];
 
     if (existing > 0) sh.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
@@ -323,9 +406,10 @@ function doPost(e) {
 
     return out_({ok: true});
   } catch (err) {
-    return out_({ok: false, error: String(err)});
+    console.error(err);
+    return out_({ok: false, error: "backend_error"});
   } finally {
-    lock.releaseLock();
+    if (held) lock.releaseLock();
   }
 }
 
@@ -334,6 +418,15 @@ function doGet(e) {
   var p  = e.parameter || {};
   var cb = p.callback;
   try {
+    // Invitation checks must work even if the spreadsheet is temporarily
+    // unavailable; registration still enforces the gate during doPost.
+    if (p.action === "gate") {
+      if (!GATE_CODE) return out_({ok: true, valid: true}, cb);
+      if (gateOpen_(p.code)) { clearFails_("#gate"); return out_({ok: true, valid: true}, cb); }
+      if (locked_("#gate")) return out_({ok: true, valid: false}, cb);
+      noteFail_("#gate");
+      return out_({ok: true, valid: false}, cb);
+    }
     var sh = sheet_();
 
     if (p.action === "get") {
@@ -346,8 +439,8 @@ function doGet(e) {
 
       var onFile = sh.getRange(at, PASS_COL).getValue();
       // No key on file (a pre-key row): nobody may read it back.
-      if (!onFile) return out_({ok: false, error: "bad_pin"}, cb);
-      // A key Sheets ate as a formula: repairable by re-submitting, not a wrong key.
+      if (!onFile) return out_({ok: false, error: "key_reset"}, cb);
+      // A damaged stored key needs organizer-assisted recovery.
       if (corrupt_(onFile)) return out_({ok: false, error: "key_reset"}, cb);
       if (!keyMatches_(onFile, hash_(p.email, code))) {
         noteFail_(p.email);
@@ -356,32 +449,25 @@ function doGet(e) {
       clearFails_(p.email);
 
       var vals = sh.getRange(at, 1, 1, HEADERS.length).getValues()[0];
-      return out_({ok: true, row: rowToSub_(vals)}, cb);
+      var restored = rowToSub_(vals);
+      return restored
+        ? out_({ok: true, row: restored, rev: revision_(vals[HEADERS.indexOf("Payload")])}, cb)
+        : out_({ok: false, error: "corrupt_payload"}, cb);
     }
 
-    // Posts in one thread, oldest first. A thread key is "general" or
-    // "<topicId>#<reading index>", e.g. "T3#0".
-    // Checked before the form is filled in, so a wrong code is caught on the
-    // first screen. doPost enforces it regardless, so this is only courtesy —
-    // and after enough wrong guesses it stops answering, to blunt a script.
-    if (p.action === "gate") {
-      if (!GATE_CODE) return out_({ok: true, valid: true}, cb);
-      if (gateOpen_(p.code)) { clearFails_("#gate"); return out_({ok: true, valid: true}, cb); }
-      if (locked_("#gate")) return out_({ok: true, valid: true}, cb);   // fail open: doPost still refuses
-      noteFail_("#gate");
-      return out_({ok: true, valid: false}, cb);
-    }
-
+    // Posts in one thread, oldest first.
     if (p.action === "posts") {
       var who = verify_(p.email, p.pin);
+      if (who === "locked") return out_({ok: false, error: "locked"}, cb);
       if (who === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who) return out_({ok: false, error: "bad_pin"}, cb);
       var want = String(p.thread || "general");
+      if (!validThread_(want)) return out_({ok: false, error: "invalid_thread"}, cb);
       var posts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
         .filter(function (r) { return String(r[2]) === want; })
         .map(function (r) {
-          return {id: r[0], at: r[1] ? new Date(r[1]).toISOString() : "",
-                  name: r[3], affiliation: r[5], body: r[6],
+          return {id: r[0], at: iso_(r[1]),
+                  name: plain_(r[3]), affiliation: plain_(r[5]), body: plain_(r[6]),
                   mine: String(r[4]).trim().toLowerCase() === String(who.email).trim().toLowerCase()};
         });
       return out_({ok: true, posts: posts, me: who.name}, cb);
@@ -391,15 +477,17 @@ function doGet(e) {
     // then the thread. One call so the view opens in a single round trip.
     if (p.action === "topic") {
       var whoT = verify_(p.email, p.pin);
+      if (whoT === "locked") return out_({ok: false, error: "locked"}, cb);
       if (whoT === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!whoT) return out_({ok: false, error: "bad_pin"}, cb);
       var tid = String(p.topic || "");
+      if (!/^T[1-6]$/.test(tid)) return out_({ok: false, error: "invalid_topic"}, cb);
       var qs = [];
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
           if (String(picks[i]) === tid && discussionQuestionVisible_(r[2], picks[i], answers[i])) {
-            qs.push({name: r[1], affiliation: r[3], q: answers[i],
+            qs.push({name: plain_(r[1]), affiliation: plain_(r[3]), q: plain_(answers[i]),
                      mine: String(r[2]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()});
           }
         }
@@ -408,8 +496,8 @@ function doGet(e) {
       var tposts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
         .filter(function (r) { return String(r[2]) === tkey; })
         .map(function (r) {
-          return {id: r[0], at: r[1] ? new Date(r[1]).toISOString() : "",
-                  name: r[3], affiliation: r[5], body: r[6],
+          return {id: r[0], at: iso_(r[1]),
+                  name: plain_(r[3]), affiliation: plain_(r[5]), body: plain_(r[6]),
                   mine: String(r[4]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()};
         });
       return out_({ok: true, questions: qs, posts: tposts}, cb);
@@ -418,6 +506,7 @@ function doGet(e) {
     // One call for every badge on the reading page.
     if (p.action === "counts") {
       var who2 = verify_(p.email, p.pin);
+      if (who2 === "locked") return out_({ok: false, error: "locked"}, cb);
       if (who2 === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who2) return out_({ok: false, error: "bad_pin"}, cb);
       var tally = {};
@@ -438,20 +527,22 @@ function doGet(e) {
     // A rapporteur confirming their own debrief landed.
     if (p.action === "mydebriefs") {
       var who3 = verify_(p.email, p.pin);
+      if (who3 === "locked") return out_({ok: false, error: "locked"}, cb);
       if (who3 === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who3) return out_({ok: false, error: "bad_pin"}, cb);
       var key = String(who3.email).trim().toLowerCase();
       var mine = rowsOf_(tab_(DEBRIEF_SHEET, DEBRIEF_HEADERS), DEBRIEF_HEADERS)
         .filter(function (r) { return String(r[5]).trim().toLowerCase() === key; })
-        .map(function (r) { return {round: r[1], group: r[2], claim: r[6]}; });
+        .map(function (r) { return {round: plain_(r[1]), group: plain_(r[2]), claim: plain_(r[6])}; });
       return out_({ok: true, debriefs: mine}, cb);
     }
 
     if (p.action === "debriefs") {
       if (String(p.key || "") !== ADMIN_KEY) return out_({ok: false, error: "bad_key"}, cb);
       var ds = rowsOf_(tab_(DEBRIEF_SHEET, DEBRIEF_HEADERS), DEBRIEF_HEADERS).map(function (r) {
-        return {at: r[0] ? new Date(r[0]).toISOString() : "", round: r[1], group: r[2],
-                topic: r[3], name: r[4], claim: r[6], disagreement: r[7], settle: r[8]};
+        return {at: iso_(r[0]), round: plain_(r[1]), group: plain_(r[2]),
+                topic: plain_(r[3]), name: plain_(r[4]), claim: plain_(r[6]),
+                disagreement: plain_(r[7]), settle: plain_(r[8])};
       });
       return out_({ok: true, debriefs: ds}, cb);
     }
@@ -467,7 +558,8 @@ function doGet(e) {
 
     return out_({ok: false, error: "unknown_action"}, cb);
   } catch (err) {
-    return out_({ok: false, error: String(err)}, cb);
+    console.error(err);
+    return out_({ok: false, error: "backend_error"}, cb);
   }
 }
 

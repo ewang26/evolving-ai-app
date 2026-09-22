@@ -15,7 +15,7 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, api = 'https://script.google.com/macros/s/test/exec',
+function app({ hash = '', search = '', storage = {}, publicURL, api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [];
   let nextTimer = 0;
@@ -33,7 +33,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
     history: { replaceState(a, b, url) { const u = new URL(url, context.location.origin);
       context.location.hash = u.hash; context.location.search = u.search; } },
     localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => storage[k] = v, removeItem: k => delete storage[k] },
-    navigator: {}, EAI_CONFIG: { apiUrl: api }, addEventListener() {}, scrollTo() {},
+    navigator: {}, EAI_CONFIG: { apiUrl: api }, EAI_PUBLIC_URL: publicURL, addEventListener() {}, scrollTo() {},
     setTimeout(fn, delay) { const id = ++nextTimer; pending.set(id, { fn, delay });
       if (delay < 2000) queueMicrotask(() => { if (pending.delete(id)) fn(); }); return id; },
     clearTimeout(id) { pending.delete(id); },
@@ -45,9 +45,9 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
       body: { classList: { add() {}, remove() {}, toggle() {} } } }
   };
   context.window = context;
-  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
+  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,setRoster:r=>{roster=r} };`;
+    cloudPush,cloudLookup,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -146,9 +146,55 @@ test('save rejects a stale row despite an opaque successful POST', async () => {
   await assert.rejects(a.t.cloudPush(sample(), 'test-key'), e => e.code === 'unconfirmed');
 });
 
+test('a loaded row revision accompanies saves and detects another device change', async () => {
+  const initial = sample(), changed = sample();
+  changed.q.T1 = 'Newer answer from another device';
+  let reads = 0;
+  const a = app({ reply: () => ++reads === 1
+    ? { ok: true, row: initial, rev: 'first-revision' }
+    : { ok: true, row: changed, rev: 'newer-revision' } });
+  assert.equal((await a.t.cloudLookup(initial.e, 'test-key')).q.T1, initial.q.T1);
+  const stale = sample(); stale.q.T1 = 'Stale local edit';
+  await assert.rejects(a.t.cloudPush(stale, 'test-key'), e => e.code === 'conflict');
+  assert.equal(JSON.parse(a.requests[0].options.body).ifMatch, 'first-revision');
+  await assert.rejects(a.t.cloudPush(stale, 'test-key'), e => e.code === 'conflict');
+  assert.equal(JSON.parse(a.requests[1].options.body).ifMatch, 'first-revision');
+});
+
+test('a reloaded local draft cannot borrow a newer Sheet revision and overwrite it', async () => {
+  const local = sample(), remote = sample();
+  local.q.T1 = 'Older local answer';
+  remote.q.T1 = 'New answer from another device';
+  const a = app({ storage: localRecord(local, { rev: 'old-revision' }),
+    reply: () => ({ ok: true, row: remote, rev: 'new-revision' }) });
+  await a.t.saveDraftNow();
+  assert.equal(a.requests.length, 0);
+  assert.equal(a.t.state().S.q.T1, 'Older local answer');
+  assert.match(a.t.state().syncState.msg, /changed on another device/);
+  assert.match(a.t.state().syncState.msg, /loading the latest reading, which replaces this draft/);
+  assert.equal(JSON.parse(a.storage['eai.me.v3']).rev, 'old-revision');
+});
+
+test('an offline local edit saves when the Sheet still has its original revision', async () => {
+  const local = sample(), remote = sample();
+  local.q.T1 = 'Offline local edit';
+  let reads = 0;
+  const a = app({ storage: localRecord(local, { rev: 'same-revision' }),
+    reply: params => params.get('action') === 'get'
+      ? (++reads === 1
+        ? { ok: true, row: remote, rev: 'same-revision' }
+        : { ok: true, row: local, rev: 'saved-revision' })
+      : { ok: true, counts: {}, questions: {} } });
+  await a.t.saveDraftNow();
+  assert.equal(JSON.parse(a.requests[0].options.body).ifMatch, 'same-revision');
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(JSON.parse(a.storage['eai.me.v3']).rev, 'saved-revision');
+});
+
 test('save rejects a missing row and preserves authentication errors', async () => {
   const missing = app({ reply: () => ({ ok: true, row: null }) });
   await assert.rejects(missing.t.cloudPush(sample(), 'test-key'), e => e.code === 'unconfirmed');
+  assert.equal(JSON.parse(missing.requests[0].options.body).ifMatch, 'absent');
   const refused = app();
   await assert.rejects(refused.t.cloudPush(sample(), 'test-key'), e => e.code === 'bad_pin');
 });
@@ -193,6 +239,14 @@ test('submitting and saving topics do not leave stale snapshots in the address b
   assert.equal(JSON.parse(a.storage['eai.me.v3']).saved, true);
   assert.equal(app({ api: '', storage: a.storage }).t.state().step, 3);
   assert.match(a.t.myLink(sample()), /#s=/); // Explicit sharing remains available.
+});
+
+test('native personal links open the public Benchmark app with the same submission', () => {
+  const a = app({ publicURL: 'https://www.benchmark.com/evolving-ai/app/' });
+  const url = new URL(a.t.myLink(sample()));
+  assert.equal(url.origin + url.pathname, 'https://www.benchmark.com/evolving-ai/app/');
+  assert.deepEqual(JSON.parse(Buffer.from(url.hash.slice(3), 'base64url').toString()), sample());
+  assert.equal(app().t.myLink(sample()).startsWith('https://app.example.invalid/app/#s='), true);
 });
 
 
@@ -507,4 +561,87 @@ test('an older editing session still shows all reading controls and clear save w
   assert.match(reading, />Save my progress<\/button>/);
   assert.doesNotMatch(reading, /Saves your answers and reading status online/);
   assert.doesNotMatch(reading, /Try the sheet again/);
+});
+
+test('an unconfirmed discussion post keeps its text and reuses the same ID on retry', async () => {
+  const a = app({ storage: localRecord(sample()),
+    reply: params => params.get('action') === 'posts' ? { ok: true, posts: [] }
+      : { ok: true, counts: {}, questions: {} } });
+  a.t.openThread('general', '');
+  await new Promise(setImmediate);
+  a.context.document.getElementById('fpost').value = 'A synthetic comment';
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  const first = JSON.parse(a.requests.find(r => JSON.parse(r.options.body).action === 'post').options.body);
+  assert.match(first.id, /^p[0-9a-f]{32}$/);
+  assert.equal(a.nodes.fpost.value, first.body);
+  assert.equal(a.nodes.sendPost.disabled, false);
+  assert.equal(JSON.parse(a.storage['eai.post.pending.v1'])[0].id, first.id);
+  const reloaded = app({ storage: a.storage,
+    reply: params => params.get('action') === 'posts' ? { ok: true, posts: [] }
+      : { ok: true, counts: {}, questions: {} } });
+  reloaded.t.openThread('general', '');
+  await new Promise(setImmediate);
+  assert.equal(reloaded.nodes.fpost.value, first.body);
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  const writes = a.requests.filter(r => JSON.parse(r.options.body).action === 'post');
+  assert.equal(JSON.parse(writes[1].options.body).id, first.id);
+});
+
+test('uncertain posts in two threads keep separate retry IDs', async () => {
+  const a = app({ storage: localRecord(sample()),
+    reply: params => params.get('action') === 'posts' ? { ok: true, posts: [] }
+      : { ok: true, counts: {}, questions: {} } });
+  a.t.openThread('general', '');
+  await new Promise(setImmediate);
+  a.nodes.fpost.value = 'First uncertain comment';
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  const firstId = JSON.parse(a.requests[0].options.body).id;
+  a.t.openThread('topic:T1', '');
+  await new Promise(setImmediate);
+  a.nodes.fpost.value = 'Second uncertain comment';
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  const secondId = JSON.parse(a.requests[1].options.body).id;
+  assert.notEqual(firstId, secondId);
+  // The mock reuses one textarea object; real render() creates a fresh node.
+  a.nodes.fpost.value = '';
+  a.t.openThread('general', '');
+  await new Promise(setImmediate);
+  assert.equal(a.nodes.fpost.value, 'First uncertain comment');
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(JSON.parse(a.requests[2].options.body).id, firstId);
+  assert.equal(JSON.parse(a.storage['eai.post.pending.v1']).length, 2);
+});
+
+test('a matching post ID confirms the discussion write and clears its pending retry', async () => {
+  let posted;
+  const a = app({ storage: localRecord(sample()),
+    post: (url, options) => { posted = JSON.parse(options.body); return Promise.resolve({ type: 'opaque' }); },
+    reply: params => params.get('action') === 'posts'
+      ? { ok: true, posts: posted ? [{ id: posted.id, mine: true, body: posted.body }] : [] }
+      : { ok: true, counts: {}, questions: {} } });
+  a.t.openThread('general', '');
+  await new Promise(setImmediate);
+  a.context.document.getElementById('fpost').value = 'A synthetic comment';
+  a.nodes.sendPost.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().pendingPosts.length, 0);
+  assert.equal(a.storage['eai.post.pending.v1'], undefined);
+});
+
+test('a late topic response cannot update a different discussion page', async () => {
+  const a = app({ storage: localRecord(sample()), reply: params => {
+    if (params.get('action') === 'topic') return { ok: true, questions: [], posts: [{ id: 'old' }] };
+    if (params.get('action') === 'posts') return { ok: true, posts: [] };
+    return { ok: true, counts: {}, questions: {} };
+  } });
+  a.t.openTopic('T1');
+  a.t.openThread('general', '');
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().mode, 'thread');
+  assert.equal(a.t.state().counts.general || 0, 0);
 });

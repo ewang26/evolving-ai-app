@@ -566,6 +566,7 @@ window.EAI_CONFIG = {
        3. the shared sheet    an Apps Script endpoint, when one is configured
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
+  var LS_POST_PENDING = "eai.post.pending.v1";
   var LS_GATE = "eai.gate.v1";   // the shared code, entered once per device
 
   function lsGet(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
@@ -587,7 +588,8 @@ window.EAI_CONFIG = {
     return o;
   }
   function myLink(d){
-    var base = location.origin + location.pathname;
+    // A native build shares a public URL, never its private seminar:// origin.
+    var base = window.EAI_PUBLIC_URL || (location.origin + location.pathname);
     return base + "#s=" + encodeSub(d);
   }
   function decodeAll(text){
@@ -647,26 +649,40 @@ window.EAI_CONFIG = {
     });
   }
 
-  function cloudLookup(email, code){
+  var revisionByEmail = {};
+  function cloudLookupRecord(email, code){
     return jsonp({action:"get", email:String(email||"").trim().toLowerCase(), pin:String(code||"")})
       .then(function(res){
-        if(res && res.ok) return res.row || null;
+        if(res && res.ok) return res;
         throw {code:(res && res.error) || "refused"};
       });
+  }
+  function cloudLookup(email, code){
+    return cloudLookupRecord(email, code).then(function(res){
+      revisionByEmail[String(email||"").trim().toLowerCase()] = res.rev || "";
+      return res.row || null;
+    });
   }
   function cloudPush(sub, code){
     if(!API) return Promise.reject({code:"no_api"});
     // Freeze the submitted version: the participant may keep editing while
     // the network request is in flight.
     var sent = normalize(sub);
-    return uploadSubmission(JSON.stringify({action:"put", sub:sent, pin:String(code||""), gate:gate}))
+    var email = String(sent.e || "").trim().toLowerCase();
+    var baseRev = revisionByEmail[email] || "absent";
+    return uploadSubmission(JSON.stringify({action:"put", sub:sent, pin:String(code||""), gate:gate,
+      ifMatch:baseRev}))
     .then(function(){ return wait(1400); })
     // the POST response is unreadable by design, so the read-back IS the result:
     // a wrong passcode surfaces here as bad_pin instead of a false success
-    .then(function(){ return cloudLookup(sent.e, code); })
-    .then(function(row){
-      if(!row || !sameSubmission(row, sent)) throw {code:"unconfirmed"};
-      return row;
+    .then(function(){ return cloudLookupRecord(sent.e, code); })
+    .then(function(res){
+      if(res.row && sameSubmission(res.row, sent)){
+        revisionByEmail[email] = res.rev || "";
+        return res.row;
+      }
+      if(baseRev && res.rev && baseRev !== res.rev) throw {code:"conflict"};
+      throw {code:"unconfirmed"};
     });
   }
   function cloudGate(code){
@@ -703,11 +719,7 @@ window.EAI_CONFIG = {
   }
   function cloudWrite(payload, confirm){
     if(!API) return Promise.reject({code:"no_api"});
-    return fetch(API, {
-      method:"POST", mode:"no-cors", cache:"no-store",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify(payload)
-    })
+    return uploadSubmission(JSON.stringify(payload))
     .then(function(){ return wait(1400); })
     .then(confirm);           // the POST response is unreadable, so confirm by reading back
   }
@@ -762,6 +774,30 @@ window.EAI_CONFIG = {
   var autoSaveBlocked = "", identityEditing = false, preparedIdentity = "", localDraftIdentity = "";
   var roster = lsGet(LS_ROSTER, []);
   if(!Array.isArray(roster)) roster = [];
+  var pendingPosts = lsGet(LS_POST_PENDING, []);
+  if(!Array.isArray(pendingPosts)) pendingPosts = pendingPosts && pendingPosts.id ? [pendingPosts] : [];
+
+  function pendingFor(email, key, body){
+    return pendingPosts.filter(function(p){
+      return p && p.email === email && p.thread === key &&
+        (body === undefined || p.body === body);
+    });
+  }
+  function forgetConfirmedPosts(list){
+    if(!Array.isArray(list) || !pendingPosts.length) return;
+    var ids = list.filter(function(p){ return p && p.mine; }).map(function(p){ return p.id; });
+    var remaining = pendingPosts.filter(function(p){ return ids.indexOf(p.id) < 0; });
+    if(remaining.length === pendingPosts.length) return;
+    pendingPosts = remaining;
+    if(remaining.length) lsSet(LS_POST_PENDING, remaining); else lsDel(LS_POST_PENDING);
+  }
+
+  function newPostId(){
+    var bytes = new Uint8Array(16);
+    if(window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for(var i=0;i<bytes.length;i++) bytes[i] = Math.floor(Math.random()*256);
+    return "p" + Array.prototype.map.call(bytes, function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
+  }
 
   var STEPS = ["You", "Work", "Topics", "Reading", "Questions"];
   var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4;   // TOPICS is the focus-area data
@@ -797,7 +833,8 @@ window.EAI_CONFIG = {
     if(syncState.state === "ok" && (!confirmedSub || !sameSubmission(confirmedSub, S))){
       syncState = {state:"local", msg:"Your latest changes have not reached the sheet yet. Try again below."};
     }
-    lsSet(LS_ME, {sub:S, pin:pin, saved:saved, step:step, editing:editing});
+    lsSet(LS_ME, {sub:S, pin:pin, saved:saved, step:step, editing:editing,
+      rev:revisionByEmail[String(S.e || "").trim().toLowerCase()] || ""});
   }
 
   function clearPersonalLink(){
@@ -822,6 +859,7 @@ window.EAI_CONFIG = {
       String(fromHash.e).trim().toLowerCase() === String(mine.sub.e || "").trim().toLowerCase();
     if(mine && mine.sub && (!fromHash || samePerson)){
       S = normalize(mine.sub);
+      if(mine.rev) revisionByEmail[String(S.e || "").trim().toLowerCase()] = mine.rev;
       pin = mine.pin || "";
       saved = !!mine.saved && chosen().length === 3;
       editing = !!mine.editing;
@@ -940,9 +978,18 @@ window.EAI_CONFIG = {
     // Authenticate before the first write. A returning attendee entering their
     // details must not overwrite existing topics/questions with a blank form.
     var prepare = preparedIdentity === identity ? Promise.resolve() : withKey(function(k){
-      return cloudLookup(S.e, k);
-    }).then(function(row){
+      return cloudLookupRecord(S.e, k);
+    }).then(function(res){
       if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
+      var row = res.row || null;
+      var email = String(S.e || "").trim().toLowerCase();
+      var localRev = revisionByEmail[email] || "";
+      var remoteRev = res.rev || "";
+      if(localDraftIdentity === identity && row &&
+         (localRev && remoteRev ? localRev !== remoteRev : !sameSubmission(row, S)))
+        throw {code:"conflict"};
+      if(localRev && !row) throw {code:"conflict"};
+      revisionByEmail[email] = remoteRev;
       if(row && localDraftIdentity !== identity && (!confirmedSub || confirmedSub.e !== S.e)){
         var remote = normalize(row);
         ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
@@ -970,9 +1017,12 @@ window.EAI_CONFIG = {
     }, function(err){
       if(identity !== draftIdentity()) return;
       if(err && err.code === "identity_changed") return;
-      if(err && (err.code === "bad_pin" || err.code === "locked")) autoSaveBlocked = draftIdentity();
+      if(err && (err.code === "bad_pin" || err.code === "locked" || err.code === "conflict")) autoSaveBlocked = draftIdentity();
       syncState = {state:"local", msg:err && err.code === "locked" ? ""
         : err && err.code === "bad_pin" ? "The sheet rejected this email and personal code. Your draft is preserved; an organizer may need to restore access."
+        : err && err.code === "conflict" ? "The sheet changed on another device. Your edits remain here. Copy them before loading the latest reading, which replaces this draft."
+        : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
+        : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
         : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
         : "Could not confirm this save. Select Save my progress to retry."};
       saveLocal(); updateReadControls();
@@ -1351,7 +1401,7 @@ window.EAI_CONFIG = {
     + '  <div class="posts">' + body + '</div>'
     + '  <div class="f">'
     + '    <label for="fpost">Add to the discussion</label>'
-    + '    <textarea id="fpost" placeholder="What do you make of it?"></textarea>'
+    + '    <textarea id="fpost" maxlength="4000" placeholder="What do you make of it?"></textarea>'
     + '    <div class="btnrow" style="margin-top:.55rem">'
     + '      <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
     + '      <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
@@ -1418,7 +1468,7 @@ window.EAI_CONFIG = {
     + '    <div class="posts">' + body + '</div>'
     + '    <div class="f">'
     + '      <label for="fpost">Add to the discussion</label>'
-    + '      <textarea id="fpost" placeholder="Answer a question above, or ask your own\u2026"></textarea>'
+    + '      <textarea id="fpost" maxlength="4000" placeholder="Answer a question above, or ask your own\u2026"></textarea>'
     + '      <div class="btnrow" style="margin-top:.55rem">'
     + '        <button class="btn btn-accent btn-sm" id="sendPost" type="button" style="flex:0 1 auto">Post</button>'
     + '        <button class="btn btn-out btn-sm" id="refreshPosts" type="button">Refresh</button>'
@@ -1429,17 +1479,22 @@ window.EAI_CONFIG = {
     + '</section>';
   }
 
-  var RESET_MSG = "Your key did not store correctly. Submit your answers again and it will be fixed.";
+  var RESET_MSG = "This account needs an organizer to restore access. Your draft is preserved on this device.";
 
   function openTopic(tid){
     thread = {key:"topic:" + tid, topic:tid, title:(T(tid) || {}).title || ""};
+    var key = thread.key;
     topicData = null; postErr = ""; mode = "topic"; render();
     cloudTopic(tid).then(function(res){
+      if(mode !== "topic" || !thread || thread.key !== key) return;
       topicData = {questions:res.questions || [], posts:res.posts || []};
+      forgetConfirmedPosts(topicData.posts);
       counts[thread.key] = topicData.posts.length;
       render();
     }, function(err){
+      if(mode !== "topic" || !thread || thread.key !== key) return;
       postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "locked") ? LOCK_MSG
         : (err && err.code === "bad_pin")
           ? keyErrMsg()
           : "Could not load the discussion. Try again.";
@@ -1452,9 +1507,13 @@ window.EAI_CONFIG = {
     posts = null; postErr = "";
     mode = "thread"; render();
     cloudPosts(key).then(function(list){
+      if(mode !== "thread" || !thread || thread.key !== key) return;
+      forgetConfirmedPosts(list);
       posts = list; render();
     }, function(err){
+      if(mode !== "thread" || !thread || thread.key !== key) return;
       postErr = (err && err.code === "key_reset") ? RESET_MSG
+        : (err && err.code === "locked") ? LOCK_MSG
         : (err && err.code === "bad_pin")
           ? keyErrMsg()
           : "Could not load the discussion. Try Refresh.";
@@ -1866,7 +1925,7 @@ window.EAI_CONFIG = {
   function syncFailed(err){
     var code = err && err.code;
     if(code === "key_reset"){
-      syncState = {state:"local", msg:"Saved on this device. Submit again to repair your key."};
+      syncState = {state:"local", msg:"This account needs an organizer to restore access. Your draft is preserved on this device."};
       render(); return;
     }
     if(code === "bad_gate"){
@@ -1883,7 +1942,9 @@ window.EAI_CONFIG = {
       return;
     }
     syncState = {state:"local",
-      msg: code === "unconfirmed"
+      msg: code === "conflict"
+        ? "The sheet changed on another device. Your edits remain here. Copy them before loading the latest reading, which replaces this draft."
+        : code === "unconfirmed"
         ? "The sheet did not confirm your row — try again below."
         : "The sheet could not be reached — try again below."};
     render();
@@ -2112,6 +2173,7 @@ window.EAI_CONFIG = {
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
           code === "key_reset" ? RESET_MSG
+          : code === "corrupt_payload" ? "The saved answers could not be read. Contact an organizer to restore them."
           : code === "bad_pin" ? keyErrMsg()
           : code === "locked" ? LOCK_MSG
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
@@ -2132,14 +2194,25 @@ window.EAI_CONFIG = {
       var msg = document.getElementById("postMsg");
       var text = String(ta.value || "").trim();
       if(!text){ msg.innerHTML = '<span class="warnt">Write something first.</span>'; return; }
+      if(text.length > 4000){ msg.innerHTML = '<span class="warnt">Keep your post under 4,000 characters.</span>'; return; }
       send.disabled = true; msg.textContent = "Posting\u2026";
       var key = thread.key;
+      var email = String(S.e || "").trim().toLowerCase();
+      var pending = pendingFor(email, key, text)[0];
+      if(!pending){
+        pending = {email:email, thread:key, body:text, id:newPostId()};
+        pendingPosts.push(pending);
+        lsSet(LS_POST_PENDING, pendingPosts);
+      }
+      var id = pending.id;
       withKey(function(k){
-        return cloudWrite({action:"post", email:S.e, pin:k, thread:key, body:text},
+        return cloudWrite({action:"post", id:id, email:S.e, pin:k, thread:key, body:text},
                           function(){ return postsWith(k, key); });
       })
         .then(function(list){
-          var landed = list.some(function(p){ return p.mine && p.body === text; });
+          var landed = list.some(function(p){ return p.mine && p.id === id; });
+          if(landed) forgetConfirmedPosts(list);
+          if(!thread || thread.key !== key || (mode !== "topic" && mode !== "thread")) return;
           posts = list;
           if(topicData) topicData.posts = list;
           counts[key] = list.length;
@@ -2147,16 +2220,27 @@ window.EAI_CONFIG = {
           else {
             render();
             var m2 = document.getElementById("postMsg");
-            if(m2) m2.innerHTML = '<span class="warnt">The post did not come back \u2014 try again.</span>';
+            var ta2 = document.getElementById("fpost"), send2 = document.getElementById("sendPost");
+            if(ta2) ta2.value = text;
+            if(send2) send2.disabled = false;
+            if(m2) m2.innerHTML = '<span class="warnt">The post could not be confirmed. Try again.</span>';
           }
         }, function(err){
-          send.disabled = false;
-          msg.innerHTML = '<span class="warnt">' + (
+          if(!thread || thread.key !== key || (mode !== "topic" && mode !== "thread")) return;
+          var sendNow = document.getElementById("sendPost"), msgNow = document.getElementById("postMsg");
+          if(sendNow) sendNow.disabled = false;
+          if(msgNow) msgNow.innerHTML = '<span class="warnt">' + (
               (err && err.code === "key_reset") ? RESET_MSG
+            : (err && err.code === "locked") ? LOCK_MSG
             : (err && err.code === "bad_pin") ? keyErrMsg()
             : "Could not post. Try again.") + '</span>';
         });
     });
+    var pendingBox = document.getElementById("fpost");
+    if(pendingBox && thread && !pendingBox.value){
+      var waiting = pendingFor(String(S.e || "").trim().toLowerCase(), thread.key);
+      if(waiting.length) pendingBox.value = waiting[waiting.length-1].body;
+    }
 
     var refresh = document.getElementById("refreshPosts");
     if(refresh) refresh.addEventListener("click", function(){
@@ -2164,8 +2248,11 @@ window.EAI_CONFIG = {
       posts = null; if(topicData) topicData = {questions:topicData.questions, posts:[]};
       postErr = ""; render();
       cloudPosts(key).then(function(list){
+        if(!thread || thread.key !== key || (mode !== "topic" && mode !== "thread")) return;
+        forgetConfirmedPosts(list);
         posts = list; if(topicData) topicData.posts = list; counts[key] = list.length; render(); },
-        function(){ postErr = "Could not load the discussion."; posts = []; render(); });
+        function(){ if(!thread || thread.key !== key || (mode !== "topic" && mode !== "thread")) return;
+          postErr = "Could not load the discussion."; posts = []; render(); });
     });
 
   }

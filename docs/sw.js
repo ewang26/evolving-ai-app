@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE on every deploy so clients pick up the new build. */
-var CACHE = "eai-v52";
+var CACHE = "eai-v53";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest",
               "./icons/icon-192.png", "./icons/apple-touch-icon.png",
               "./icons/benchmark-favicon.svg"];
@@ -9,7 +9,7 @@ self.addEventListener("install", function(e){
 });
 self.addEventListener("activate", function(e){
   e.waitUntil(caches.keys().then(function(keys){
-    return Promise.all(keys.filter(function(k){ return k !== CACHE; }).map(function(k){ return caches.delete(k); }));
+    return Promise.all(keys.filter(function(k){ return k.indexOf("eai-v") === 0 && k !== CACHE; }).map(function(k){ return caches.delete(k); }));
   }).then(function(){ return self.clients.claim(); }));
 });
 self.addEventListener("fetch", function(e){
@@ -19,7 +19,7 @@ self.addEventListener("fetch", function(e){
   e.respondWith(
     fetch(e.request).then(function(res){
       var copy = res.clone();
-      caches.open(CACHE).then(function(c){ c.put(e.request, copy); });
+      if(res.ok) caches.open(CACHE).then(function(c){ c.put(e.request, copy); });
       return res;
     }).catch(function(){
       return caches.match(e.request).then(function(hit){
