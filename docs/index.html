@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<script>
+// The Benchmark mirror needs a directory URL for relative assets and offline support.
+if ((location.hostname === "www.benchmark.com" || location.hostname === "benchmark.com") &&
+    location.pathname === "/evolving-ai/app") {
+  location.replace(location.pathname + "/" + location.search + location.hash);
+}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Evolving AI Seminar Prep</title>
 <meta name="description" content="Rank three focus areas, submit a question for each, and get your pre-read for the Evolving AI gathering at Harvard, October 8–10, 2026." />
@@ -480,9 +487,9 @@ window.EAI_CONFIG = {
         {kind:"evo", req:true, len:"8 pp",
          url:"https://drive.google.com/file/d/1nPa1bEsDt1EIMiLBWwuDoXmixPSHJeAQ/view?usp=sharing",
          cite:"D. S. Wilson, <b>\u201cFunctional Organization at Multiple Scales\u201d</b> \u00b7 Encyclopedia of Ecology, 3rd ed., 2026"},
-        {kind:"evo", len:"", fmt:"Web",
-         url:"https://plato.stanford.edu/entries/selection-units/",
-         cite:"E. A. Lloyd, <b>\u201cUnits and Levels of Selection\u201d</b> \u00b7 Stanford Encyclopedia of Philosophy, rev. 2024"}
+        {kind:"ai", len:"", fmt:"PDF",
+         url:"https://arxiv.org/pdf/2012.08630",
+         cite:"A. Dafoe et al., <b>\u201cOpen Problems in Cooperative AI\u201d</b> \u00b7 2020"}
       ]
     },
     {
