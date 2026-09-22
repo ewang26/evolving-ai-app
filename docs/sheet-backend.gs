@@ -255,7 +255,7 @@ function doPost(e) {
     }
     clearFails_(sub.e);
     var qs = sub.r.map(function (id) { return String((sub.q || {})[id] || ""); });
-    var payload = Utilities.base64EncodeWebSafe(JSON.stringify(sub)).replace(/=+$/, "");
+    var payload = Utilities.base64EncodeWebSafe(JSON.stringify(sub), Utilities.Charset.UTF_8).replace(/=+$/, "");
     var row = [
       new Date(), sub.n, String(sub.e).trim(), sub.a || "",
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
