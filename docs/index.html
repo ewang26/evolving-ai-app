@@ -132,7 +132,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     text-transform:uppercase;color:var(--muted);
   }
   .f .hint{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
-  .work-step .f > label{font-family:var(--sans);font-size:calc(.94rem * var(--text-scale) + var(--text-add));letter-spacing:normal;text-transform:none;line-height:1.45}
+  .work-step .f > label{text-transform:none}
   input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
     width:100%;font-family:var(--sans);font-size:calc(1rem * var(--text-scale) + var(--text-add));color:var(--text);
     background:var(--surface);border:1px solid var(--line);border-radius:3px;
@@ -1107,12 +1107,12 @@ window.EAI_CONFIG = {
     + '    </div>'
     + '    <div class="f' + (errs.hopes?" bad":"") + '">'
     + '      <label for="fhopes">A brief description of what you hope the gathering can achieve and what your contribution can be:</label>'
-    + '      <textarea id="fhopes" data-k="hopes" rows="3">'+esc(S.hopes||"")+'</textarea>'
+    + '      <textarea id="fhopes" data-k="hopes" rows="2">'+esc(S.hopes||"")+'</textarea>'
     +        (errs.hopes?'<div class="err">'+errs.hopes+'</div>':'')
     + '    </div>'
     + '    <div class="f">'
     + '      <label for="fmoreWork">Optional: More detail describing your work (e.g., your website or selected longer articles).</label>'
-    + '      <textarea id="fmoreWork" data-k="moreWork" rows="3">'+esc(S.moreWork||"")+'</textarea>'
+    + '      <textarea id="fmoreWork" data-k="moreWork" rows="2">'+esc(S.moreWork||"")+'</textarea>'
     + '    </div>'
     + '  </div>'
     + '</section>';
