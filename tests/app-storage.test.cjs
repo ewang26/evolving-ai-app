@@ -474,3 +474,37 @@ test('work validation requires gathering goals but leaves further details option
   const old = a.t.normalize(sample());
   assert.equal(old.hopes, ''); assert.equal(old.moreWork, '');
 });
+
+for (const entry of ['next', 'editMine']) {
+  test(`${entry === 'next' ? 'Write my questions' : 'Edit answers'} then Back preserves the full reading page after reload`, () => {
+    const sub = { ...sample(), q: {}, read: { paper: 1 } };
+    const a = app({ api: '', storage: localRecord(sub, { step: 3 }) });
+    a.nodes[entry].listeners.click();
+    assert.equal(a.t.state().step, 4);
+    assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 4);
+    a.t.state().S.q.T1 = 'A question still in progress';
+    a.nodes.back.listeners.click();
+    assert.equal(a.t.state().step, 3);
+    assert.equal(a.t.state().editing, false);
+    const restored = app({ api: '', storage: a.storage });
+    assert.equal(restored.t.state().step, 3);
+    assert.equal(restored.t.state().S.q.T1, 'A question still in progress');
+    assert.equal(restored.t.state().S.read.paper, 1);
+    for (const instance of [a, restored]) {
+      for (const control of ['readingProgress', 'copyLink', 'copyRead', 'data-read', 'openGeneral']) {
+        assert.ok(instance.nodes.view.innerHTML.includes(control), `Missing ${control}`);
+      }
+    }
+  });
+}
+
+test('an older editing session still shows all reading controls and clear save wording', () => {
+  const a = app({ storage: localRecord(sample(), { step: 3, editing: true }) });
+  const reading = a.t.renderReading();
+  for (const control of ['readingProgress', 'copyLink', 'copyRead', 'data-read', 'openGeneral']) {
+    assert.ok(reading.includes(control), `Missing ${control}`);
+  }
+  assert.match(reading, />Save my progress<\/button>/);
+  assert.match(reading, /Saves your answers and reading status online/);
+  assert.doesNotMatch(reading, /Try the sheet again/);
+});

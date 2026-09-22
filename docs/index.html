@@ -751,8 +751,7 @@ window.EAI_CONFIG = {
   var confirmedSub = null;           // last response actually read back from the sheet
   var step = 0, mode = "form", orgTab = "roster", errs = {}, built = null;
   var needsPin = false;
-  var editing = false;   // true while revising an already-saved submission: the
-                         // reading step goes back to being a step, not the end
+  var editing = false;   // tracks a saved attendee's current editing session
   var thread = null;     // {key, title} while a discussion thread is open
   var posts = null;      // loaded posts for that thread, or null while loading
   var postErr = "";
@@ -975,7 +974,7 @@ window.EAI_CONFIG = {
       syncState = {state:"local", msg:err && err.code === "locked" ? ""
         : err && err.code === "bad_pin" ? "The sheet rejected this email and personal code. Your draft is preserved; an organizer may need to restore access."
         : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
-        : "Could not confirm this save. Try the sheet again."};
+        : "Could not confirm this save. Select Save my progress to retry."};
       saveLocal(); updateReadControls();
     }).then(function(){
       readSaveInFlight = null;
@@ -1263,7 +1262,7 @@ window.EAI_CONFIG = {
   }
 
   function renderReading(){
-    var ids = chosen(), done = saved && !editing;
+    var ids = chosen(), done = saved;
     var commonBlock = '<div class="topicblock common">'
       + '<div class="qtop"><span class="rn">0</span><span class="qtitle">Evolutionary Transitions</span></div>'
       + '<div class="eyebrow">Reading for everyone</div>'
@@ -1317,7 +1316,7 @@ window.EAI_CONFIG = {
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
     + '    </div>'
     +      (saved && API
-            ? '<div class="btnrow" id="retrySyncRow"' + (syncState.state === "ok" ? ' hidden' : '') + '><button class="btn btn-out" id="retrySync" type="button">Try the sheet again</button></div>' : '')
+            ? '<div id="retrySyncRow"' + (syncState.state === "ok" ? ' hidden' : '') + '><div class="btnrow"><button class="btn btn-out" id="retrySync" type="button">Save my progress</button></div><p class="note">Saves your answers and reading status online.</p></div>' : '')
     + '  </div>' : '')
     + '</section>';
   }
@@ -1847,9 +1846,9 @@ window.EAI_CONFIG = {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
       }).join("");
-      view.innerHTML = (step !== READING || editing ? '<div id="formSync">' + syncLine() + '</div>' : "")
+      view.innerHTML = (step !== READING || !saved ? '<div id="formSync">' + syncLine() + '</div>' : "")
         + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
-      if(step === READING && saved && !editing && questionsDone() === 3){
+      if(step === READING && saved && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
       } else {
         barIn.innerHTML = (step > 0 ? '<button class="btn btn-out" id="back" type="button">Back</button>' : '')
@@ -1858,7 +1857,7 @@ window.EAI_CONFIG = {
       }
       wireForm();
     }
-    var hideBar = (mode === "form" && step === READING && saved && !editing && questionsDone() === 3);
+    var hideBar = (mode === "form" && step === READING && saved && questionsDone() === 3);
     bar.hidden = hideBar;
     document.body.classList.toggle("nobar", hideBar);
     window.scrollTo(0, 0);
@@ -1938,7 +1937,7 @@ window.EAI_CONFIG = {
     var retry = document.getElementById("retrySync");
     if(retry){
       retry.disabled = syncState.state === "saving";
-      retry.textContent = retry.disabled ? "Saving\u2026" : "Try the sheet again";
+      retry.textContent = retry.disabled ? "Saving\u2026" : "Save my progress";
     }
   }
 
@@ -1971,7 +1970,7 @@ window.EAI_CONFIG = {
         }
         editing = true; errs = {};
         step = to === "0" ? 0 : to === "topics" ? STEP_TOPICS : QUESTIONS;
-        render();
+        saveLocal(); render();
         window.scrollTo({top:0, behavior:"auto"});
       });
     });
@@ -2048,16 +2047,20 @@ window.EAI_CONFIG = {
         S.c = tidyLink(S.c); saveLocal();
         if(!saved){ holdWork(); return; }
       }
-      step++; render(); queueDraftSave();
+      step++; saveLocal(); render(); queueDraftSave();
     });
     var back = document.getElementById("back");
-    if(back) back.addEventListener("click", function(){ if(step>0) step--; errs={}; render(); });
+    if(back) back.addEventListener("click", function(){
+      if(step>0) step--;
+      if(step === READING) editing = false;
+      errs={}; saveLocal(); render();
+    });
 
     wireProgress();
 
     var edit = document.getElementById("editMine");
     if(edit) edit.addEventListener("click", function(){
-      editing = true; step = QUESTIONS; errs = {}; render();
+      editing = true; step = QUESTIONS; errs = {}; saveLocal(); render();
     });
 
     Array.prototype.forEach.call(view.querySelectorAll("[data-read]"), function(b){
@@ -2273,7 +2276,7 @@ window.EAI_CONFIG = {
   if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
 
   render();
-  if(API && saved && !editing && normKey(pin).length >= 2){
+  if(API && saved && step === READING && normKey(pin).length >= 2){
     refreshCounts();
   }
 
