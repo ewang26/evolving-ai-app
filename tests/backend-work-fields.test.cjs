@@ -38,3 +38,27 @@ test('schema migration never overwrites an unexpected existing column', () => {
   assert.throws(()=>b.c.sheet_(),/Unexpected submission column 16/);
   assert.equal(sh.rows[0][15],'User-owned column');
 });
+
+test('discussion cleanup hides only exact questions and keeps submissions, comments, and counts consistent', () => {
+  const b=backend(),pin='test-model';
+  const testSub={...submission(),q:{T1:'Old test question'}};
+  const fingerprint=crypto.createHash('sha256').update(JSON.stringify([testSub.e,'T1',testSub.q.T1])).digest('hex');
+  b.c.HIDDEN_DISCUSSION_QUESTIONS=[fingerprint];
+  b.post({sub:testSub,pin,gate:'synthetic-gate'});
+  for(const name of ['Alex','David','Peter']){
+    b.post({sub:{...submission(),n:name,e:name.toLowerCase()+'@example.invalid',q:{T1:'Old test question'}},pin,gate:'synthetic-gate'});
+  }
+  b.post({action:'post',email:'alex@example.invalid',pin,thread:'topic:T1',body:'Keep this real discussion comment.'});
+  const params={email:testSub.e,pin};
+  const before=JSON.stringify(b.tabs);
+  const topic=b.get({...params,action:'topic',topic:'T1'});
+  assert.deepEqual(topic.questions.map(q=>q.name),['Alex','David','Peter']);
+  assert.equal(topic.posts[0].body,'Keep this real discussion comment.');
+  const counts=b.get({...params,action:'counts'});
+  assert.equal(counts.questions.T1,3);assert.equal(counts.counts['topic:T1'],1);
+  assert.equal(b.get({...params,action:'get'}).row.q.T1,'Old test question');
+  assert.equal(JSON.stringify(b.tabs),before);
+  b.post({sub:{...testSub,q:{T1:'A new genuine question'}},pin});
+  assert.equal(b.get({...params,action:'topic',topic:'T1'}).questions.length,4);
+  assert.equal(b.get({...params,action:'counts'}).questions.T1,4);
+});

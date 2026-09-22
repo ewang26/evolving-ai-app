@@ -51,6 +51,40 @@ var MAX_BODY       = 4000;
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
 
+// Existing test questions hidden from discussions on 2026-09-22.
+// Exact email/topic/question fingerprints keep submissions intact and allow
+// these attendees to contribute new questions. Removing a key restores it.
+var HIDDEN_DISCUSSION_QUESTIONS = [
+  "2c3eea96e8e9a77ec4df474130b26429eba77db40a80dad0c7d13f42d0ec6f36",
+  "09d86d798fe0370a74dd4cfed11b2ca2378ae4aee02e7e1befef8bdb09f9ddfe",
+  "8809cdcc1db3137d638a4d16aa18edb91fb04eb1aca58192b43955eb89794110",
+  "3cdd6088c2fcd74fb5317c53e9b864a26fafda37ca1b07876400433315cff06f",
+  "f3351d12b3df0bed77a916982050e07f70ea37acaf91c53604d628709b3dfbb9",
+  "cfbd9839e80f285f594cb0da41efd9c48975061c576e54fde68feb7ed9654763",
+  "429034323f6c0f1ab32ae50e42986818b16bd7f9f06d10f9430db8c5069aa909",
+  "efc00a2366bcf4dedacf7ac142e4c01e3c67aae0d49f035d274ea588f4b1e4ac",
+  "3370519d75c9d482aec7b733e752a196b938e57b2e1155a0da99696654cf9ec8",
+  "9199388a42ba53de2da862c4489a52cc2956565bef6be24cdac7ab4ea388358e",
+  "a906433f258c8b6f65ddf91dd9e1deac1f45ac9fb04ea03f0af4a1ea52ef85d4",
+  "16a6b687a03602800ecbf79da3e7d8f8cf808250b6473433a327451029584aa3",
+  "7d14d99582c790bf881cc15ea2c96cdb0ed66cdff2b85c3595a8e59417253304",
+  "0ca211265131833c468be89aff33c9ba229379e40ab7849344c6705cbfebecfc",
+  "5a3092f3356e2035593d8c5676f485e4a330184822f77ae0edad82612e493ac2",
+  "7e07f67818d3f25cdfb248b145a6eb3ac0d819c47bdfb73eef98b324b9dc6be4",
+  "8f246f22f04bacd158a78627b0680f6da62f8f7d819e0e8dcb392727196a146c",
+  "f7f2b05aedadbfe8aa7514a14c4f15ae9cd10b38132f8b9ca7a889eb214cd55a"
+];
+function discussionQuestionVisible_(email, topic, question) {
+  var text = String(question || "").trim();
+  if (!text) return false;
+  var raw = JSON.stringify([String(email || "").trim().toLowerCase(), String(topic || ""), text]);
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8);
+  var key = Array.prototype.map.call(digest, function(b) {
+    return ("0" + ((b + 256) % 256).toString(16)).slice(-2);
+  }).join("");
+  return HIDDEN_DISCUSSION_QUESTIONS.indexOf(key) < 0;
+}
+
 /**
  * Passcodes are never stored. What lands in the sheet is a salted SHA-256 of
  * the passcode bound to the email, so the sheet cannot be used to recover
@@ -364,7 +398,7 @@ function doGet(e) {
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
-          if (String(picks[i]) === tid && String(answers[i] || "").trim()) {
+          if (String(picks[i]) === tid && discussionQuestionVisible_(r[2], picks[i], answers[i])) {
             qs.push({name: r[1], affiliation: r[3], q: answers[i],
                      mine: String(r[2]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()});
           }
@@ -395,7 +429,7 @@ function doGet(e) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
           var tid2 = String(picks[i] || "");
-          if (tid2 && String(answers[i] || "").trim()) qtally[tid2] = (qtally[tid2] || 0) + 1;
+          if (tid2 && discussionQuestionVisible_(r[2], tid2, answers[i])) qtally[tid2] = (qtally[tid2] || 0) + 1;
         }
       });
       return out_({ok: true, counts: tally, questions: qtally}, cb);
