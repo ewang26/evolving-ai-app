@@ -116,6 +116,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
   .head.thin{border-bottom:0;padding-bottom:0}
   .intro{color:var(--muted);font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.55;max-width:32rem;margin-top:.7rem}
+  .work-step .intro{max-width:none}
 
 
   /* ---------- fields ---------- */
@@ -131,6 +132,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     text-transform:uppercase;color:var(--muted);
   }
   .f .hint{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
+  .work-step .f > label{font-family:var(--sans);font-size:calc(.94rem * var(--text-scale) + var(--text-add));letter-spacing:normal;text-transform:none;line-height:1.45}
   input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
     width:100%;font-family:var(--sans);font-size:calc(1rem * var(--text-scale) + var(--text-add));color:var(--text);
     background:var(--surface);border:1px solid var(--line);border-radius:3px;
@@ -719,7 +721,7 @@ window.EAI_CONFIG = {
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", w:"", c:"", r:["","",""], q:{}, t:"", read:{} };
+  var blank = { n:"", e:"", a:"", w:"", c:"", hopes:"", moreWork:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
   /* The shared code from the invitation, as a salted hash so it is not sitting
      in the page in plain text. This check runs in the browser, so it stops
@@ -770,6 +772,7 @@ window.EAI_CONFIG = {
     if(!o) return d;
     d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || "";
     d.w = o.w || ""; d.c = o.c || "";
+    d.hopes = o.hopes || ""; d.moreWork = o.moreWork || "";
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? JSON.parse(JSON.stringify(o.q)) : {};
@@ -943,7 +946,7 @@ window.EAI_CONFIG = {
       if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
       if(row && localDraftIdentity !== identity && (!confirmedSub || confirmedSub.e !== S.e)){
         var remote = normalize(row);
-        ["n", "a", "w", "c", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
+        ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
         if(!chosen().length) S.r = remote.r;
         S.q = Object.assign({}, remote.q, S.q);
         S.read = Object.assign({}, remote.read, S.read);
@@ -1082,7 +1085,7 @@ window.EAI_CONFIG = {
 
   function renderWork(){
     return ''
-    + '<section class="step">'
+    + '<section class="step work-step">'
     + '  <div class="head thin">'
     + '    <h2>Your work</h2>'
     + '    <p class="intro">So everyone in your subgroup knows who they are talking to. '
@@ -1090,7 +1093,7 @@ window.EAI_CONFIG = {
     + '  </div>'
     + '  <div class="fields one">'
     + '    <div class="f' + (errs.w?" bad":"") + '">'
-    + '      <label for="fw">What you work on (in one sentence)</label>'
+    + '      <label for="fw">Please briefly tell us what you work on, in one sentence.</label>'
     + '      <textarea id="fw" data-k="w" rows="2" '
     +          'placeholder="Coordination in multi-agent AI systems.">'+esc(S.w||"")+'</textarea>'
     +        (errs.w?'<div class="err">'+errs.w+'</div>':'')
@@ -1101,6 +1104,15 @@ window.EAI_CONFIG = {
     +          'autocomplete="off" placeholder="https://\u2026" value="'+esc(S.c||"")+'" />'
     + '      <div class="hint">A link to something public you\u2019ve worked on (e.g., a paper, blog post, podcast, book, model, or something else).</div>'
     +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
+    + '    </div>'
+    + '    <div class="f' + (errs.hopes?" bad":"") + '">'
+    + '      <label for="fhopes">A brief description of what you hope the gathering can achieve and what your contribution can be:</label>'
+    + '      <textarea id="fhopes" data-k="hopes" rows="3">'+esc(S.hopes||"")+'</textarea>'
+    +        (errs.hopes?'<div class="err">'+errs.hopes+'</div>':'')
+    + '    </div>'
+    + '    <div class="f">'
+    + '      <label for="fmoreWork">Optional: More detail describing your work (e.g., your website or selected longer articles).</label>'
+    + '      <textarea id="fmoreWork" data-k="moreWork" rows="3">'+esc(S.moreWork||"")+'</textarea>'
     + '    </div>'
     + '  </div>'
     + '</section>';
@@ -1463,6 +1475,7 @@ window.EAI_CONFIG = {
     if(n===WORK){
       if(S.w.trim().length < 10) errs.w = "One sentence is enough.";
       if(!linkOk(S.c)) errs.c = "Paste a link, starting with http.";
+      if(!String(S.hopes || "").trim()) errs.hopes = "Briefly describe your hopes for the gathering and your contribution.";
     }
     if(n===STEP_TOPICS){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
@@ -1767,7 +1780,7 @@ window.EAI_CONFIG = {
   }
 
   function rosterTsv(){
-    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic"];
+    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic\tGathering goals and contribution\tMore work details (optional)"];
     roster.forEach(function(p){
       var qs = p.r.map(function(id){ return String(p.q[id]||"").replace(/\s+/g," ").trim(); });
       while(qs.length < 3) qs.push("");
@@ -1775,7 +1788,7 @@ window.EAI_CONFIG = {
       while(rs.length < 3) rs.push("");
       var oneline = function(v){ return String(v||"").replace(/\s+/g," ").trim(); };
       L.push([p.n, p.e, p.a, oneline(p.w), oneline(p.c),
-              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], oneline(p.t)].join("\t"));
+              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], oneline(p.t), oneline(p.hopes), oneline(p.moreWork)].join("\t"));
     });
     return L.join("\n");
   }

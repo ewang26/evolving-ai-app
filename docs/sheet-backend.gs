@@ -30,7 +30,7 @@ var SALT        = "CHANGE-ME-to-a-second-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation",
                "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Passcode", "Payload",
-               "New topic", "Work", "Link"];
+               "New topic", "Work", "Link", "Gathering goals and contribution", "More work details (optional)"];
 
 var PASS_COL    = 11;   // 1-based column of the Passcode hash
 
@@ -106,6 +106,16 @@ function sheet_() {
     sh.appendRow(HEADERS);
     sh.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
     sh.setFrozenRows(1);
+  } else {
+    // Extend older sheets without moving their existing columns or responses.
+    var extra = sh.getRange(1, 14, 1, HEADERS.length - 13).getValues()[0];
+    extra.forEach(function(value, i) {
+      if (value && value !== HEADERS[i + 13]) throw new Error("Unexpected submission column " + (i + 14));
+    });
+    if (extra.some(function(value) { return !value; })) {
+      sh.getRange(1, 14, 1, HEADERS.length - 13).setValues([HEADERS.slice(13)]);
+      sh.getRange(1, 14, 1, HEADERS.length - 13).setFontWeight("bold");
+    }
   }
   return sh;
 }
@@ -252,6 +262,11 @@ function doPost(e) {
         noteFail_(sub.e);
         return out_({ok: false, error: "bad_pin"});
       }
+      // A still-open older form must not erase fields it does not know about.
+      var previous = rowToSub_(sh.getRange(existing, 1, 1, HEADERS.length).getValues()[0]);
+      ["hopes", "moreWork"].forEach(function(key) {
+        if (!Object.prototype.hasOwnProperty.call(sub, key) && previous) sub[key] = previous[key] || "";
+      });
     }
     clearFails_(sub.e);
     var qs = sub.r.map(function (id) { return String((sub.q || {})[id] || ""); });
@@ -264,7 +279,9 @@ function doPost(e) {
       payload,
       sub.t || "",
       sub.w || "",
-      sub.c || ""
+      sub.c || "",
+      sub.hopes || "",
+      sub.moreWork || ""
     ];
 
     if (existing > 0) sh.getRange(existing, 1, 1, HEADERS.length).setValues([row]);

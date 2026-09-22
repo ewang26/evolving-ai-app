@@ -47,7 +47,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow };`;
+    cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -388,6 +388,7 @@ test('rejected credentials do not create an automatic save retry loop', async ()
 
 test('first autosave preserves an existing attendee’s topics and questions', async () => {
   const existing = sample(); existing.read.paper = 1;
+  existing.hopes = 'Shared understanding'; existing.moreWork = 'Further research notes';
   let stored = existing;
   const a = app({ post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
     reply: () => ({ok:true,row:stored}) });
@@ -396,6 +397,8 @@ test('first autosave preserves an existing attendee’s topics and questions', a
   assert.deepEqual(stored.r, existing.r);
   assert.equal(stored.q.T1, existing.q.T1);
   assert.equal(stored.read.paper, 1);
+  assert.equal(stored.hopes, existing.hopes);
+  assert.equal(stored.moreWork, existing.moreWork);
   assert.equal(a.t.state().syncState.state,'ok');
 });
 
@@ -433,4 +436,41 @@ test('stalled upload times out, preserves draft, and allows a successful retry',
   for (let i = 0; i < 10; i++) await Promise.resolve();
   assert.equal(a.scripts.length, reads);
   assert.equal(a.t.state().syncState.state, 'ok');
+});
+
+test('work fields autosave, restore, export, and allow clearing optional details', async () => {
+  const sub = { ...sample(), hopes: 'Build shared understanding — I can contribute research.', moreWork: 'Longer article: https://example.com/research\nMore context.' };
+  let stored;
+  const a = app({ reply: () => ({ ok: true, row: stored }), post: (url, opts) => {
+    stored = JSON.parse(opts.body).sub; return Promise.resolve({ type: 'opaque' });
+  } });
+  a.t.set({ S: sub, pin: 'TestModel' });
+  await a.t.saveDraftNow();
+  assert.equal(stored.hopes, sub.hopes);
+  assert.equal(stored.moreWork, sub.moreWork);
+  const restored = app({ storage: a.storage });
+  assert.equal(restored.t.state().S.hopes, sub.hopes);
+  assert.equal(restored.t.state().S.moreWork, sub.moreWork);
+  const linked = app({ hash: linkHash(sub) });
+  assert.equal(linked.t.state().S.hopes, sub.hopes);
+  a.t.setRoster([stored]);
+  assert.match(a.t.rosterTsv(), /Gathering goals and contribution\tMore work details \(optional\)/);
+  assert.match(a.t.rosterTsv(), /Build shared understanding/);
+  sub.moreWork = '';
+  await a.t.saveDraftNow();
+  assert.equal(stored.moreWork, '');
+  assert.equal(a.t.state().syncState.state, 'ok');
+});
+
+test('work validation requires gathering goals but leaves further details optional', () => {
+  const a = app();
+  const sub = { ...sample(), hopes: '', moreWork: '' };
+  a.t.set({ S: sub });
+  assert.equal(a.t.validate(1), false);
+  assert.match(a.t.renderWork(), /Briefly describe your hopes/);
+  sub.hopes = 'Learn from others and contribute my research.';
+  assert.equal(a.t.validate(1), true);
+  assert.match(a.t.renderWork(), /Optional: More detail describing your work/);
+  const old = a.t.normalize(sample());
+  assert.equal(old.hopes, ''); assert.equal(old.moreWork, '');
 });
