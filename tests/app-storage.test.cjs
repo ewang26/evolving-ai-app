@@ -19,7 +19,7 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [];
   let nextTimer = 0;
-  const pending = new Set();
+  const pending = new Map();
   function node(id) {
     return nodes[id] ||= { id, style: {}, classList: { add() {}, remove() {}, toggle() {} },
       innerHTML: '', value: '', listeners: {}, addEventListener(e, fn) { this.listeners[e] = fn; },
@@ -27,14 +27,14 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
       setAttribute() {}, removeAttribute() {}, getAttribute() { return ''; }, scrollIntoView() {} };
   }
   const context = {
-    URL, URLSearchParams, TextEncoder, Uint8Array, console,
+    URL, URLSearchParams, TextEncoder, Uint8Array, AbortController, console,
     btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'),
     location: { origin: 'https://app.example.invalid', pathname: '/app/', hash, search },
     history: { replaceState(a, b, url) { const u = new URL(url, context.location.origin);
       context.location.hash = u.hash; context.location.search = u.search; } },
     localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => storage[k] = v, removeItem: k => delete storage[k] },
     navigator: {}, EAI_CONFIG: { apiUrl: api }, addEventListener() {}, scrollTo() {},
-    setTimeout(fn, delay) { const id = ++nextTimer; pending.add(id);
+    setTimeout(fn, delay) { const id = ++nextTimer; pending.set(id, { fn, delay });
       if (delay < 2000) queueMicrotask(() => { if (pending.delete(id)) fn(); }); return id; },
     clearTimeout(id) { pending.delete(id); },
     fetch(url, options) { requests.push({ url, options }); return post(url, options); },
@@ -49,7 +49,10 @@ function app({ hash = '', search = '', storage = {}, api = 'https://script.googl
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
     cloudPush,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
-  return { t: context.test, context, storage, requests, scripts, nodes };
+  return { t: context.test, context, storage, requests, scripts, nodes,
+    expireTimers(delay) { for (const [id, timer] of pending) {
+      if (timer.delay === delay) { pending.delete(id); timer.fn(); }
+    } } };
 }
 
 test('query-string API overrides cannot redirect credentials', async () => {
@@ -162,6 +165,7 @@ test('save snapshots nested answers and read state before asynchronous changes',
   a.t.set({ S: original });
   const saving = a.t.cloudPush(original, 'test-key');
   original.q.T1 = 'Unsent new answer'; original.read.paper = 1;
+  await Promise.resolve();
   release({ type: 'opaque' });
   const row = await saving;
   a.t.confirmCurrentSave(row);
@@ -393,4 +397,40 @@ test('first autosave preserves an existing attendee’s topics and questions', a
   assert.equal(stored.q.T1, existing.q.T1);
   assert.equal(stored.read.paper, 1);
   assert.equal(a.t.state().syncState.state,'ok');
+});
+
+test('stalled upload times out, preserves draft, and allows a successful retry', async () => {
+  let stored, releaseStalled, uploads = 0;
+  const a = app({ reply: () => ({ ok: true, row: stored }), post: (url, options) => {
+    uploads++;
+    if (uploads === 1) return new Promise(resolve => { releaseStalled = resolve; });
+    stored = JSON.parse(options.body).sub;
+    return Promise.resolve({ type: 'opaque' });
+  } });
+  const sub = sample();
+  a.t.set({ S: sub, pin: 'TestModel', saved: true });
+  const first = a.t.saveDraftNow();
+  for (let i = 0; i < 40 && !a.requests.length; i++) await Promise.resolve();
+  assert.equal(a.nodes.retrySync.disabled, true);
+  assert.equal(a.nodes.retrySync.textContent, 'Saving…');
+  a.t.wireForm();
+  a.nodes.retrySync.listeners.click();
+  a.nodes.retrySync.listeners.click();
+  assert.equal(uploads, 1);
+  a.expireTimers(12000);
+  await first;
+  assert.equal(a.requests[0].options.signal.aborted, true);
+  assert.equal(a.t.state().syncState.state, 'local');
+  assert.match(a.t.state().syncState.msg, /did not respond in time/);
+  assert.equal(a.nodes.retrySync.disabled, false);
+  assert.equal(JSON.parse(a.storage['eai.me.v3']).sub.q.T1, sub.q.T1);
+  await a.t.saveDraftNow();
+  assert.equal(uploads, 2);
+  assert.equal(a.t.state().syncState.state, 'ok');
+  // A late resolution of the expired upload must not start a stale read-back.
+  const reads = a.scripts.length;
+  releaseStalled({ type: 'opaque' });
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(a.scripts.length, reads);
+  assert.equal(a.t.state().syncState.state, 'ok');
 });

@@ -45,12 +45,14 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
     --bar:5.25rem;
+    --text-scale:1;
+    --text-add:1pt;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{-webkit-text-size-adjust:100%;color-scheme:dark}
   body{
     background:var(--bg);color:var(--text);
-    font-family:var(--serif);font-size:1.0625rem;line-height:1.6;
+    font-family:var(--serif);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));line-height:1.6;
     -webkit-font-smoothing:antialiased;
     padding-bottom:calc(var(--bar) + env(safe-area-inset-bottom,0px));
   }
@@ -75,18 +77,18 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     display:flex;align-items:center;gap:.75rem;
   }
   .mark{
-    font-family:var(--serif);font-size:1.02rem;line-height:1.1;letter-spacing:0;
+    font-family:var(--serif);font-size:calc(1.02rem * var(--text-scale) + var(--text-add));line-height:1.1;letter-spacing:0;
     background:none;border:0;padding:0;margin:0;color:var(--text);
     text-align:left;cursor:pointer;display:block;
   }
   .mark em{transition:color .15s ease}
   .mark:hover em{color:var(--accent)}
   .mark em{font-style:italic}
-  .mark span{display:block;font-family:var(--mono);font-size:.56rem;letter-spacing:.17em;
+  .mark span{display:block;font-family:var(--mono);font-size:calc(.56rem * var(--text-scale) + var(--text-add));letter-spacing:.17em;
     text-transform:uppercase;color:var(--faint);margin-top:.18rem}
   .top-sp{flex:1}
   .ghost{
-    font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.13em;text-transform:uppercase;
     color:var(--faint);background:transparent;border:1px solid var(--line);
     border-radius:2px;padding:.42rem .6rem;cursor:pointer;transition:color .15s,border-color .15s;
   }
@@ -101,19 +103,19 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .step{display:flex;flex-direction:column;gap:1.35rem}
 
   .eyebrow,.head.thin h2{
-    font-family:var(--mono);font-size:.63rem;font-weight:500;letter-spacing:.16em;
+    font-family:var(--mono);font-size:calc(.63rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.16em;
     text-transform:uppercase;color:var(--accent);
   }
   .head.thin h2{color:var(--muted)}
   h1{
-    font-family:var(--serif);font-weight:400;font-size:1.72rem;line-height:1.22;
+    font-family:var(--serif);font-weight:400;font-size:calc(1.72rem * var(--text-scale) + var(--text-add));line-height:1.22;
     letter-spacing:-.01em;text-wrap:balance;margin-top:.5rem;
   }
   h1 em{font-style:italic;color:var(--accent)}
-  .lede{color:var(--muted);font-size:1.0625rem;max-width:34rem;margin-top:.7rem}
+  .lede{color:var(--muted);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));max-width:34rem;margin-top:.7rem}
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
   .head.thin{border-bottom:0;padding-bottom:0}
-  .intro{color:var(--muted);font-size:1rem;line-height:1.55;max-width:32rem;margin-top:.7rem}
+  .intro{color:var(--muted);font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.55;max-width:32rem;margin-top:.7rem}
 
 
   /* ---------- fields ---------- */
@@ -121,20 +123,20 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .f{display:flex;flex-direction:column;gap:.42rem}
   .fields.one textarea{min-height:4.4rem}
   /* sits directly under a serif textarea: match it rather than the sans inputs */
-  .fields.one input{font-family:var(--serif);font-size:1.0625rem}
+  .fields.one input{font-family:var(--serif);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add))}
   .sixth{margin-top:.4rem;padding-top:1.4rem;border-top:1px solid var(--line)}
   .sixth textarea{min-height:4.4rem}
   .f > label{
-    font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.13em;
+    font-family:var(--mono);font-size:calc(.64rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.13em;
     text-transform:uppercase;color:var(--muted);
   }
-  .f .hint{font-family:var(--sans);font-size:.8rem;color:var(--faint);line-height:1.45}
+  .f .hint{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
   input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
-    width:100%;font-family:var(--sans);font-size:1rem;color:var(--text);
+    width:100%;font-family:var(--sans);font-size:calc(1rem * var(--text-scale) + var(--text-add));color:var(--text);
     background:var(--surface);border:1px solid var(--line);border-radius:3px;
     padding:.8rem .85rem;transition:border-color .15s,background .15s;
   }
-  textarea{font-family:var(--serif);font-size:1.0625rem;line-height:1.55;min-height:7.5rem;resize:vertical}
+  textarea{font-family:var(--serif);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));line-height:1.55;min-height:7.5rem;resize:vertical}
   input:focus,select:focus,textarea:focus{border-color:var(--accent);background:var(--raise);outline:none}
   input::placeholder,textarea::placeholder{color:#7f9099}
   select{
@@ -143,13 +145,13 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     background-repeat:no-repeat;background-position:right .9rem center;
   }
   .bad input,.bad select,.bad textarea{border-color:var(--warn)}
-  .err{font-family:var(--sans);font-size:.78rem;color:var(--warn)}
+  .err{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--warn)}
 
   /* ---------- rank rows ---------- */
   .pick{display:flex;flex-direction:column;gap:.9rem}
   .row{display:grid;grid-template-columns:2.4rem 1fr;gap:.75rem;align-items:start}
   .ord{
-    font-family:var(--mono);font-size:.72rem;font-weight:500;color:var(--bg);
+    font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));font-weight:500;color:var(--bg);
     background:var(--accent);border-radius:2px;height:2.55rem;
     display:flex;align-items:center;justify-content:center;letter-spacing:.02em;
   }
@@ -157,7 +159,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .ord.b3{background:rgba(236,193,135,.46)}
   .row .under{grid-column:2;margin-top:-.25rem}
   .framing{
-    font-size:.94rem;color:var(--muted);border-left:1px solid var(--line);
+    font-size:calc(.94rem * var(--text-scale) + var(--text-add));color:var(--muted);border-left:1px solid var(--line);
     padding:.1rem 0 .1rem .75rem;
   }
   .framing b{font-weight:400;color:var(--text)}
@@ -167,9 +169,9 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .card.flat{background:var(--wash)}
   .qcard{display:flex;flex-direction:column;gap:.6rem}
   .qtop{display:flex;align-items:baseline;gap:.75rem}
-  .rn{font-family:var(--serif);font-style:italic;font-size:1.85rem;line-height:.9;
+  .rn{font-family:var(--serif);font-style:italic;font-size:calc(1.85rem * var(--text-scale) + var(--text-add));line-height:.9;
     color:var(--accent);letter-spacing:0;min-width:1.5rem;padding-top:.05rem}
-  .qtitle{font-family:var(--serif);font-size:1.12rem;line-height:1.3}
+  .qtitle{font-family:var(--serif);font-size:calc(1.12rem * var(--text-scale) + var(--text-add));line-height:1.3}
 
   /* ---------- reading list ---------- */
   .topicblock{border-top:1px solid var(--line-soft);padding-top:1.15rem;
@@ -180,31 +182,31 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .read.req{border-color:rgba(236,193,135,.4);background:rgba(236,193,135,.05)}
   .rmeta{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
   .tag{
-    font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase;
     padding:.2rem .4rem;border-radius:2px;border:1px solid var(--line);color:var(--faint);
   }
   .tag.req{border-color:var(--accent);color:var(--accent)}
-  .rkind{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
+  .rkind{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;
     text-transform:uppercase;color:var(--faint)}
-  .rcite{font-size:1rem;line-height:1.4}
+  .rcite{font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.4}
   .rcite b{font-weight:500}
-  .rnote{font-family:var(--sans);font-size:.8rem;color:var(--faint);line-height:1.45}
+  .rnote{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
 
   /* ---------- misc blocks ---------- */
   .kv{display:flex;flex-direction:column;gap:.55rem}
   .kvrow{display:flex;gap:.8rem;justify-content:space-between;align-items:baseline;
     border-bottom:1px dotted var(--line);padding-bottom:.5rem}
   .kvrow:last-child{border-bottom:0;padding-bottom:0}
-  .kvk{font-family:var(--mono);font-size:.62rem;letter-spacing:.11em;text-transform:uppercase;
+  .kvk{font-family:var(--mono);font-size:calc(.62rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;text-transform:uppercase;
     color:var(--faint);white-space:nowrap}
-  .kvv{font-size:1rem;text-align:right}
+  .kvv{font-size:calc(1rem * var(--text-scale) + var(--text-add));text-align:right}
   details{border-top:1px solid var(--line-soft);padding-top:1rem}
   summary{
-    font-family:var(--mono);font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.64rem * var(--text-scale) + var(--text-add));letter-spacing:.13em;text-transform:uppercase;
     color:var(--muted);cursor:pointer;list-style:none;display:flex;gap:.5rem;align-items:center;
   }
   summary::-webkit-details-marker{display:none}
-  summary::after{content:"+";color:var(--accent);font-size:.9rem;line-height:1}
+  summary::after{content:"+";color:var(--accent);font-size:calc(.9rem * var(--text-scale) + var(--text-add));line-height:1}
   details[open] summary::after{content:"–"}
   details .body{margin-top:1rem;display:flex;flex-direction:column;gap:.9rem}
 
@@ -218,7 +220,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
   .bar-in{max-width:40rem;margin-inline:auto;display:flex;gap:.6rem;align-items:center}
   .btn{
-    font-family:var(--sans);font-size:.85rem;font-weight:500;letter-spacing:.02em;
+    font-family:var(--sans);font-size:calc(.85rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.02em;
     padding:.85rem 1.3rem;border-radius:2px;border:1px solid transparent;cursor:pointer;
     line-height:1;transition:background .18s,color .18s,border-color .18s;text-align:center;
   }
@@ -227,15 +229,15 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .btn-accent:disabled{opacity:.45;cursor:not-allowed}
   .btn-out{border-color:var(--line);color:var(--muted);background:transparent}
   .btn-out:hover{border-color:var(--accent);color:var(--accent)}
-  .btn-sm{padding:.6rem .85rem;font-size:.78rem}
+  .btn-sm{padding:.6rem .85rem;font-size:calc(.78rem * var(--text-scale) + var(--text-add))}
   .btnrow{display:flex;flex-wrap:wrap;gap:.55rem}
-  .stepcount{font-family:var(--mono);font-size:.6rem;letter-spacing:.11em;color:var(--faint);
+  .stepcount{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;color:var(--faint);
     text-transform:uppercase;white-space:nowrap}
-  .note{font-family:var(--sans);font-size:.78rem;color:var(--faint);line-height:1.5}
-  .flash{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ok)}
-  code,.mono{font-family:var(--mono);font-size:.8rem}
+  .note{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.5}
+  .flash{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;text-transform:uppercase;color:var(--ok)}
+  code,.mono{font-family:var(--mono);font-size:calc(.8rem * var(--text-scale) + var(--text-add))}
   .payload{
-    font-family:var(--mono);font-size:.64rem;line-height:1.5;color:var(--faint);
+    font-family:var(--mono);font-size:calc(.64rem * var(--text-scale) + var(--text-add));line-height:1.5;color:var(--faint);
     background:var(--bg);border:1px solid var(--line);border-radius:3px;
     padding:.7rem;min-height:5rem;word-break:break-all;
   }
@@ -243,7 +245,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   /* ---------- organizer ---------- */
   .tabs{display:flex;gap:.4rem;border-bottom:1px solid var(--line);margin-bottom:1.3rem;flex-wrap:wrap}
   .tab{
-    font-family:var(--mono);font-size:.62rem;letter-spacing:.11em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.62rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;text-transform:uppercase;
     background:transparent;border:0;border-bottom:2px solid transparent;color:var(--faint);
     padding:.55rem .1rem;margin-right:.9rem;cursor:pointer;
   }
@@ -255,12 +257,12 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .dfill{position:absolute;inset:0 auto 0 0;background:rgba(236,193,135,.3);
     border-right:1px solid var(--accent)}
   .dlab{position:absolute;left:.5rem;top:50%;transform:translateY(-50%);
-    font-family:var(--sans);font-size:.75rem;color:var(--text);white-space:nowrap;
+    font-family:var(--sans);font-size:calc(.75rem * var(--text-scale) + var(--text-add));color:var(--text);white-space:nowrap;
     max-width:calc(100% - 1rem);overflow:hidden;text-overflow:ellipsis}
-  .dnum{font-family:var(--mono);font-size:.72rem;color:var(--muted);text-align:right;
+  .dnum{font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));color:var(--muted);text-align:right;
     font-variant-numeric:tabular-nums}
-  table{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:.82rem}
-  th{font-family:var(--mono);font-size:.56rem;letter-spacing:.12em;text-transform:uppercase;
+  table{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:calc(.82rem * var(--text-scale) + var(--text-add))}
+  th{font-family:var(--mono);font-size:calc(.56rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase;
     color:var(--faint);text-align:left;font-weight:500;padding:.5rem .5rem .5rem 0;
     border-bottom:1px solid var(--line)}
   td{padding:.6rem .5rem .6rem 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
@@ -268,22 +270,22 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .grp{border:1px solid var(--line);border-radius:3px;padding:1rem;background:var(--surface);
     display:flex;flex-direction:column;gap:.7rem}
   .grph{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;flex-wrap:wrap}
-  .grpname{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--accent);
+  .grpname{font-family:var(--mono);font-size:calc(.68rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;color:var(--accent);
     text-transform:uppercase}
-  .grpsize{font-family:var(--mono);font-size:.6rem;color:var(--faint)}
-  .grptitle{font-size:1.05rem;line-height:1.3;width:100%}
+  .grpsize{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));color:var(--faint)}
+  .grptitle{font-size:calc(1.05rem * var(--text-scale) + var(--text-add));line-height:1.3;width:100%}
   .mem{display:flex;flex-direction:column;gap:.65rem}
   .m{border-top:1px dotted var(--line);padding-top:.6rem}
-  .mname{font-size:.98rem}
-  .mname i{font-family:var(--sans);font-style:normal;font-size:.75rem;color:var(--faint)}
-  .mq{font-size:.95rem;color:var(--muted);margin-top:.2rem}
-  .mq.none{color:var(--warn);font-family:var(--sans);font-size:.8rem}
+  .mname{font-size:calc(.98rem * var(--text-scale) + var(--text-add))}
+  .mname i{font-family:var(--sans);font-style:normal;font-size:calc(.75rem * var(--text-scale) + var(--text-add));color:var(--faint)}
+  .mq{font-size:calc(.95rem * var(--text-scale) + var(--text-add));color:var(--muted);margin-top:.2rem}
+  .mq.none{color:var(--warn);font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add))}
   .stack{display:flex;flex-direction:column;gap:1rem}
-  .empty{color:var(--faint);font-family:var(--sans);font-size:.85rem;
+  .empty{color:var(--faint);font-family:var(--sans);font-size:calc(.85rem * var(--text-scale) + var(--text-add));
     border:1px dashed var(--line);border-radius:3px;padding:1.5rem;text-align:center}
 
   @media (min-width:34rem){
-    h1{font-size:2.05rem}
+    h1{font-size:calc(2.05rem * var(--text-scale) + var(--text-add))}
     .row{grid-template-columns:2.7rem 1fr}
   }
 
@@ -291,6 +293,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
      page real vertical air, and let the two papers in a topic sit side by
      side instead of stacking down a narrow ribbon. */
   @media (min-width:62rem){
+    :root{--text-scale:1.15;--text-add:0pt}
     .top-in,.rail,.bar-in{max-width:54rem}
     main{max-width:54rem;padding:2.4rem 2rem 3rem}
     .step{gap:1.9rem}
@@ -304,7 +307,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     .topicblock{padding-top:1.8rem;gap:1rem}
     .qcard textarea{min-height:6.5rem}
     .posts{gap:1rem}
-    .pbody{font-size:1.02rem}
+    .pbody{font-size:calc(1.02rem * var(--text-scale) + var(--text-add))}
     .grp{padding:1.2rem}
   }
   @media (min-width:75rem){
@@ -323,10 +326,10 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
 
   .resume{border-top:1px solid var(--line-soft);padding-top:1rem;display:flex;flex-direction:column;gap:.3rem}
-  .linkish{background:none;border:0;color:var(--accent);font:inherit;font-size:.78rem;
+  .linkish{background:none;border:0;color:var(--accent);font:inherit;font-size:calc(.78rem * var(--text-scale) + var(--text-add));
     font-family:var(--sans);cursor:pointer;border-bottom:1px solid rgba(236,193,135,.4);padding:0}
   .warnt{color:var(--warn)}
-  .sync{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+  .sync{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;text-transform:uppercase;
     margin-top:.9rem;display:flex;gap:.45rem;align-items:center}
   .sync::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:currentColor;flex:none}
   .sync.ok{color:var(--ok)} .sync.warn{color:var(--warn)} .sync.working{color:var(--muted)}
@@ -339,8 +342,8 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     transition:background .15s,border-color .15s;
   }
   .discentry:hover{background:rgba(236,193,135,.13);border-color:var(--accent)}
-  .discentry .dtitle{font-family:var(--serif);font-size:1.05rem;color:var(--text);line-height:1.25}
-  .discentry .dcount{font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;
+  .discentry .dtitle{font-family:var(--serif);font-size:calc(1.05rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.25}
+  .discentry .dcount{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;
     text-transform:uppercase;color:var(--accent)}
 
   /* Not a widget: hairline rules, a mono label and an italic serif numeral,
@@ -352,12 +355,12 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
   .pgtop{display:flex;align-items:baseline;gap:.9rem}
   .pgpct{
-    font-family:var(--serif);font-style:italic;font-size:2.4rem;line-height:.9;
+    font-family:var(--serif);font-style:italic;font-size:calc(2.4rem * var(--text-scale) + var(--text-add));line-height:.9;
     color:var(--accent);letter-spacing:-.01em;font-variant-numeric:tabular-nums;
   }
-  .pgpct i{font-size:1.1rem;font-style:italic;margin-left:.08em}
+  .pgpct i{font-size:calc(1.1rem * var(--text-scale) + var(--text-add));font-style:italic;margin-left:.08em}
   .pgcap{display:flex;flex-direction:column;gap:.2rem}
-  .pgwhen{font-family:var(--sans);font-size:.78rem;color:var(--faint)}
+  .pgwhen{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--faint)}
   .pgtrack{height:2px;background:rgba(236,193,135,.16);overflow:hidden}
   .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
   .pgitems{list-style:none;display:flex;flex-direction:column}
@@ -371,10 +374,10 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .pgrow:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
   .pgitems li:last-child{border-bottom:0}
   .pgitems li:last-child .pgrow{padding-bottom:0}
-  .pgname{font-family:var(--serif);font-size:1.02rem;color:var(--faint)}
+  .pgname{font-family:var(--serif);font-size:calc(1.02rem * var(--text-scale) + var(--text-add));color:var(--faint)}
   .pgitems li.done .pgname{color:var(--text)}
   .pgstate{
-    font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.58rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase;
     color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;
   }
   .pgitems li.done .pgstate{color:var(--accent)}
@@ -382,14 +385,14 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .readtick{
     align-self:flex-start;display:flex;align-items:center;gap:.45rem;
     background:none;border:0;padding:.35rem 0 0;cursor:pointer;
-    font-family:var(--mono);font-size:.55rem;letter-spacing:.11em;text-transform:uppercase;
+    font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;text-transform:uppercase;
     color:var(--faint);min-height:44px;min-width:80px;touch-action:manipulation;
   }
   .readtick:hover{color:var(--accent)}
   .readtick.on{color:var(--accent)}
   .readtick .tickbox{
     width:.9rem;height:.9rem;border:1px solid var(--line);border-radius:2px;
-    display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--bg);
+    display:flex;align-items:center;justify-content:center;font-size:calc(.6rem * var(--text-scale) + var(--text-add));color:var(--bg);
   }
   .readtick.on .tickbox{background:var(--accent);border-color:var(--accent)}
 
@@ -401,16 +404,16 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     transition:background .15s;
   }
   .genentry:hover{background:var(--accent-hover)}
-  .genentry .gtitle{font-family:var(--serif);font-size:1.15rem;color:var(--bg);line-height:1.2}
-  .genentry .gsub{font-family:var(--sans);font-size:.78rem;color:rgba(28,54,78,.75);grid-row:2}
+  .genentry .gtitle{font-family:var(--serif);font-size:calc(1.15rem * var(--text-scale) + var(--text-add));color:var(--bg);line-height:1.2}
+  .genentry .gsub{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:rgba(28,54,78,.75);grid-row:2}
   .genentry .gbadge{
-    grid-row:1 / span 2;font-family:var(--mono);font-size:.9rem;color:var(--bg);
+    grid-row:1 / span 2;font-family:var(--mono);font-size:calc(.9rem * var(--text-scale) + var(--text-add));color:var(--bg);
     border:1px solid rgba(28,54,78,.35);border-radius:2px;padding:.3rem .6rem;
     font-variant-numeric:tabular-nums;
   }
   .quietlink{
     background:none;border:0;padding:.2rem 0;cursor:pointer;text-align:left;
-    font-family:var(--sans);font-size:.82rem;color:var(--muted);
+    font-family:var(--sans);font-size:calc(.82rem * var(--text-scale) + var(--text-add));color:var(--muted);
     border-bottom:1px solid transparent;align-self:flex-start;
   }
   .quietlink:hover{color:var(--accent)}
@@ -418,11 +421,11 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .posts{display:flex;flex-direction:column;gap:.8rem;margin-bottom:.3rem}
   .post{border-left:1px solid var(--line);padding:.1rem 0 .1rem .8rem}
   .post.mine{border-left-color:var(--accent)}
-  .pmeta{font-family:var(--mono);font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
+  .pmeta{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;text-transform:uppercase;
     color:var(--faint);margin-bottom:.3rem}
-  .pbody{font-size:1rem;line-height:1.55}
+  .pbody{font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.55}
   .yourq{
-    padding:.85rem 1rem;font-size:1.02rem;
+    padding:.85rem 1rem;font-size:calc(1.02rem * var(--text-scale) + var(--text-add));
     background:rgba(236,193,135,.08);
     border:1px solid rgba(236,193,135,.32);
     border-left:2px solid var(--accent);
@@ -621,6 +624,27 @@ window.EAI_CONFIG = {
   }
   function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
+  function uploadSubmission(body){
+    return new Promise(function(resolve, reject){
+      var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var timer = setTimeout(function(){
+        reject({code:"timeout"});
+        if(controller) controller.abort();
+      }, 12000);
+      Promise.resolve().then(function(){
+        return fetch(API, {
+          method:"POST", mode:"no-cors", cache:"no-store",
+          headers:{"Content-Type":"text/plain;charset=utf-8"},
+          body:body, signal:controller ? controller.signal : undefined
+        });
+      }).then(function(response){
+        clearTimeout(timer); resolve(response);
+      }, function(err){
+        clearTimeout(timer); reject(err);
+      });
+    });
+  }
+
   function cloudLookup(email, code){
     return jsonp({action:"get", email:String(email||"").trim().toLowerCase(), pin:String(code||"")})
       .then(function(res){
@@ -633,11 +657,7 @@ window.EAI_CONFIG = {
     // Freeze the submitted version: the participant may keep editing while
     // the network request is in flight.
     var sent = normalize(sub);
-    return fetch(API, {
-      method:"POST", mode:"no-cors", cache:"no-store",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({action:"put", sub:sent, pin:String(code||""), gate:gate})
-    })
+    return uploadSubmission(JSON.stringify({action:"put", sub:sent, pin:String(code||""), gate:gate}))
     .then(function(){ return wait(1400); })
     // the POST response is unreadable by design, so the read-back IS the result:
     // a wrong passcode surfaces here as bad_pin instead of a false success
@@ -951,6 +971,7 @@ window.EAI_CONFIG = {
       if(err && (err.code === "bad_pin" || err.code === "locked")) autoSaveBlocked = draftIdentity();
       syncState = {state:"local", msg:err && err.code === "locked" ? ""
         : err && err.code === "bad_pin" ? "The sheet rejected this email and personal code. Your draft is preserved; an organizer may need to restore access."
+        : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
         : "Could not confirm this save. Try the sheet again."};
       saveLocal(); updateReadControls();
     }).then(function(){
@@ -1620,7 +1641,7 @@ window.EAI_CONFIG = {
     var h = ''
       + '<div class="f">'
       + '  <label for="paste">Paste submissions</label>'
-      + '  <textarea id="paste" placeholder="Paste one or more submission emails here — the app finds every organizer data block and ignores everything else." style="min-height:8rem;font-family:var(--mono);font-size:.78rem"></textarea>'
+      + '  <textarea id="paste" placeholder="Paste one or more submission emails here — the app finds every organizer data block and ignores everything else." style="min-height:8rem;font-family:var(--mono);font-size:calc(.78rem * var(--text-scale) + var(--text-add))"></textarea>'
       + '  <div class="btnrow" style="margin-top:.55rem">'
       + '    <button class="btn btn-accent btn-sm" id="ingest" type="button" style="flex:0 1 auto">Add submissions</button>'
       + '    <button class="btn btn-out btn-sm" id="copyTsv" type="button">Copy roster as TSV</button>'
@@ -1643,7 +1664,7 @@ window.EAI_CONFIG = {
       + roster.map(function(p, i){
           var qn = p.r.filter(function(id){ return String(p.q[id]||"").trim(); }).length;
           return '<tr>'
-            + '<td>'+esc(p.n)+'<div style="color:var(--faint);font-size:.72rem">'+esc(p.a||p.e||"")+'</div></td>'
+            + '<td>'+esc(p.n)+'<div style="color:var(--faint);font-size:calc(.72rem * var(--text-scale) + var(--text-add))">'+esc(p.a||p.e||"")+'</div></td>'
             + '<td class="mono" style="color:var(--accent);letter-spacing:.06em">'+p.r.map(function(id){return T(id).rn.toUpperCase();}).join(" · ")+'</td>'
             + '<td class="mono" style="color:'+(qn<p.r.length?"var(--warn)":"var(--ok)")+'">'+qn+'/'+p.r.length+'</td>'
             + '<td><button class="ghost" data-del="'+i+'" type="button" style="padding:.25rem .45rem">Remove</button></td>'
@@ -1708,7 +1729,7 @@ window.EAI_CONFIG = {
             if(sheets){
               var req = g.topic.readings.filter(function(r){ return r.req; })[0];
               body += '<div class="rnote" style="border-left:1px solid var(--line);padding-left:.7rem">'
-                + '<b style="color:var(--accent);font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase">Required</b><br>'
+                + '<b style="color:var(--accent);font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase">Required</b><br>'
                 + req.cite.replace(/<[^>]+>/g,"") + '</div>';
             }
             body += '<div class="mem">' + g.people.map(function(p){
@@ -1901,6 +1922,11 @@ window.EAI_CONFIG = {
     if(sync) sync.innerHTML = syncLine();
     var retryRow = document.getElementById("retrySyncRow");
     if(retryRow) retryRow.hidden = syncState.state === "ok";
+    var retry = document.getElementById("retrySync");
+    if(retry){
+      retry.disabled = syncState.state === "saving";
+      retry.textContent = retry.disabled ? "Saving\u2026" : "Try the sheet again";
+    }
   }
 
   function refreshCounts(){
@@ -2049,6 +2075,7 @@ window.EAI_CONFIG = {
     });
     var retry = document.getElementById("retrySync");
     if(retry) retry.addEventListener("click", function(){
+      if(readSaveInFlight) return;
       autoSaveBlocked = ""; saveDraftNow();
     });
 
