@@ -2279,7 +2279,11 @@ window.EAI_CONFIG = {
       button.addEventListener("click", function(){
         var action = button.hasAttribute("data-block") ? "block" : "report";
         var id = button.getAttribute("data-" + action);
-        if(action === "block" && !confirm("Hide this attendee's posts and questions from your view? Contact support to undo this later.")) return;
+        if(action === "block" && button.getAttribute("data-confirm") !== "1"){
+          button.setAttribute("data-confirm", "1");
+          button.textContent = "Confirm block attendee";
+          return;
+        }
         var previous = button.textContent;
         button.disabled = true; button.textContent = "Sending…";
         var currentThread = thread, currentMode = mode;
@@ -2459,7 +2463,11 @@ window.EAI_CONFIG = {
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-hide]"), function(button){
       button.addEventListener("click", function(){
-        if(!confirm("Hide this content from every attendee's discussion?")) return;
+        if(button.getAttribute("data-confirm") !== "1"){
+          button.setAttribute("data-confirm", "1");
+          button.textContent = "Confirm hide for everyone";
+          return;
+        }
         var id = button.getAttribute("data-hide");
         button.disabled = true; button.textContent = "Hiding…";
         uploadSubmission(JSON.stringify({action:"hide", id:id, key:organizerKey}))
