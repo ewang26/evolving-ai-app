@@ -277,7 +277,14 @@ function verify_(email, code) {
   if (!keyMatches_(onFile, hash_(email, code))) { noteFail_(email); return null; }
   clearFails_(email);
   var row = sh.getRange(at, 1, 1, HEADERS.length).getValues()[0];
-  return {name: plain_(row[1]), email: row[2], affiliation: plain_(row[3])};
+  return {name: plain_(row[1]), email: row[2], affiliation: plain_(row[3]),
+    topics: [row[4], row[5], row[6]].map(String)};
+}
+
+function canUseThread_(attendee, thread) {
+  if (thread === "general") return true;
+  var match = /^(?:topic:)?(T[1-6])(?:#[0-9]{1,2})?$/.exec(thread);
+  return !!match && attendee.topics.indexOf(match[1]) !== -1;
 }
 
 /** Ignore case, spaces, and hyphens in the invitation code. */
@@ -437,6 +444,7 @@ function doPost(e) {
       if (!suitable_(text)) return out_({ok: false, error: "content_filtered"});
       var thread = String(body.thread || "general");
       if (!validThread_(thread)) return out_({ok: false, error: "invalid_thread"});
+      if (!canUseThread_(poster, thread)) return out_({ok: false, error: "topic_forbidden"});
       var id = body.id == null ? Utilities.getUuid().slice(0, 8) : String(body.id);
       if (body.id != null && !/^[A-Za-z0-9_-]{12,80}$/.test(id))
         return out_({ok: false, error: "invalid_post_id"});
@@ -593,6 +601,7 @@ function doGet(e) {
       if (!who) return out_({ok: false, error: "bad_pin"}, cb);
       var want = String(p.thread || "general");
       if (!validThread_(want)) return out_({ok: false, error: "invalid_thread"}, cb);
+      if (!canUseThread_(who, want)) return out_({ok: false, error: "topic_forbidden"}, cb);
       var blocked = blockedAuthors_(who.email);
       var hiddenP = hiddenContent_();
       var posts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
@@ -616,6 +625,7 @@ function doGet(e) {
       if (!whoT) return out_({ok: false, error: "bad_pin"}, cb);
       var tid = String(p.topic || "");
       if (!/^T[1-6]$/.test(tid)) return out_({ok: false, error: "invalid_topic"}, cb);
+      if (whoT.topics.indexOf(tid) === -1) return out_({ok: false, error: "topic_forbidden"}, cb);
       var blockedT = blockedAuthors_(whoT.email);
       var hiddenT = hiddenContent_();
       var qs = [];
@@ -655,7 +665,8 @@ function doGet(e) {
       var tally = {};
       rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS).forEach(function (r) {
         if (blockedC[String(r[4]).trim().toLowerCase()] || hiddenC[String(r[0])] || !suitable_(plain_(r[6]))) return;
-        var k = String(r[2]); tally[k] = (tally[k] || 0) + 1;
+        var k = String(r[2]);
+        if (canUseThread_(who2, k)) tally[k] = (tally[k] || 0) + 1;
       });
       var qtally = {};
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
@@ -663,7 +674,7 @@ function doGet(e) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
           var tid2 = String(picks[i] || "");
-          if (tid2 && !hiddenC["q:" + questionId_(r[2], tid2, answers[i])] &&
+          if (who2.topics.indexOf(tid2) !== -1 && !hiddenC["q:" + questionId_(r[2], tid2, answers[i])] &&
               discussionQuestionVisible_(r[2], tid2, answers[i])) qtally[tid2] = (qtally[tid2] || 0) + 1;
         }
       });

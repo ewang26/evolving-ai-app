@@ -24,7 +24,7 @@ docs/sheet-backend.gs    the Google Apps Script that writes to the shared Sheet
 npm run dev
 ```
 
-Then open http://localhost:8787. The organizer console is the button in the top right.
+Then open http://localhost:8787. Add `#organizer` to the URL to open the organizer console.
 
 ---
 
@@ -46,18 +46,23 @@ nothing to set up.
 The organizer console's **From the sheet** tab asks for that admin key and pulls the whole
 roster. The key is held only while the page is open.
 
-**Why it is built this way:** Apps Script sends no CORS headers. The deployed site currently
-uses `no-cors` POST and confirms a save by reading the row back over JSONP. This still puts
-personal access answers and organizer keys in request URLs. The private POST relay is deployed
-in Apps Script version 15 and can be tested on the website with `?relay_test=1`. It retrieves
-responses using short-lived random tickets and does not change Google's frame permissions.
-The default website path still uses the legacy route until the relay passes browser and iOS tests.
-The app reports "Saved to the organizers' sheet" only after a matching row is read back;
-an unconfirmed write remains available for retry.
+**Why it is built this way:** Apps Script sends no CORS headers. The current website and
+iOS build send reads and writes through a `no-cors` POST relay. Responses are retrieved
+with short-lived random tickets; personal access answers and organizer keys stay out of
+GET URLs for current clients. Apps Script deployment version 16 serves the relay.
+Older cached clients can still use legacy JSONP routes and may put their answers or the
+organizer key in request URLs. The app reports "Saved to the organizers' sheet" only
+after a matching row is read back; an unconfirmed write remains available for retry.
 
 **To rotate the admin key:** open the script project, change `ADMIN_KEY`, then
 Deploy → Manage deployments → edit → Version: **New version**. Editing without
 re-deploying changes nothing, because the web app serves the deployed version.
+
+**To rotate the invitation passcode:** change the private `GATE_CODE` in the same
+script project and deploy a new version to the existing web app. The new code is
+needed only for new attendee entries; existing attendees keep access through their
+email and favorite-model answer. Give invitees the new code through the normal
+invitation channel, and do not put it in this repository.
 
 **To move the endpoint** (new Google account, or a fresh deployment): paste
 `docs/sheet-backend.gs` into a new Apps Script project, set its production settings,
@@ -79,9 +84,9 @@ group of people who would (rightly) find a password prompt insulting. The lockou
 guessing, but this code does not provide strong account security: a guessed code can expose
 an attendee's full submission and discussion access.
 
-Until the relay is enabled, a JSONP lookup sends the personal answer in the URL. It is
-HTTPS in transit, but URLs may be retained in browser history or request logs. The shared
-invitation code must be rotated because an older public commit contained a literal example.
+Older cached releases can send the personal answer in a JSONP URL. It is HTTPS in transit,
+but URLs may be retained in request logs. The shared invitation code should be rotated
+because an older public commit contained it.
 
 **Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
 a submission. The endpoint only appends or updates rows and never returns the roster
@@ -89,21 +94,25 @@ without the key. It can still receive junk rows and consume Apps Script capacity
 
 ## 2. Deploy the site
 
-Any static host works. This repo publishes from `main` / `/docs`:
+Any static host works. This repo publishes from `main` / `/docs`. Review and stage
+only intended files before committing and pushing; the workspace may contain local
+audit outputs or unrelated files.
 
 ```bash
-git add -A && git commit -m "Update app" && git push
+git diff --check
+git status --short
 ```
 
-For a Benchmark-controlled URL, point a CNAME at the host and put the domain in
-**Settings → Pages → Custom domain**.
+The current public URL is `https://www.benchmark.com/evolving-ai/app/`. After pushing a
+website change, verify that URL and its service worker rather than assuming a Git push
+has finished propagating.
 
 ## 3. Install it on a phone
 
 Open the URL and use **Add to Home Screen** (iOS Safari: Share → Add to Home Screen;
 Android Chrome: it offers "Install app"). It then runs full-screen with its own icon and
-works offline after the first load. This is how participants use it before the native
-builds exist, and for most of them it is all they will ever need.
+loads its shell offline after the first visit; Sheet saves and external readings require
+a connection. The native iOS app provides the same participant flow.
 
 ## 4. The iOS app
 
@@ -219,31 +228,25 @@ where both are AI papers because that is where the literature is.
 
 ---
 
-## Discussion, debriefs and reminders (branch: `discussion`)
+## Discussion, debriefs and reminders
 
-Not on `main`, so not yet live at the Pages URL.
-
-**Reading discussion.** Every reading card gets a Discussion button once the participant
-has submitted, opening a thread anchored to that specific paper (`<topicId>#<index>`, e.g.
-`T3#0`). Posts live in a **Posts** tab.
+**Topic discussion.** The live reading page opens a thread for each of the attendee's
+three chosen topics. Posts live in a **Posts** tab. The backend checks that the attendee
+chose a topic before allowing its thread to be read or posted to.
 
 **General discussion.** The same thread machinery under the key `general`, reached from the
-button on the confirmation screen.
+reading page.
 
 **Who can take part.** Reading *and* posting require the same email + favorite-AI-model key
-that guards a submission, checked server-side against the Submissions row. So posts are
-attributable, outsiders who find the endpoint see nothing, and only people who have
-actually submitted can join — which matches the seminar rule.
+that guards a submission, checked server-side against the Submissions row. Posts are
+attributable, and only people with a saved attendee entry can join.
 
-**Group debrief.** `#debrief` (also a button on the confirmation screen). Three identical
-fields for every group — what they landed on, where they disagreed, what would settle it —
-so the results can be read side by side. Lands in a **Debriefs** tab, and the organizer
-console has a Debriefs tab that groups them by round. Deliberately not a chat thread:
-free-form notes from eleven groups do not compare.
+**Group debrief.** The backend retains a debrief route and a **Debriefs** tab, but the
+current participant reading flow does not expose a debrief form.
 
 **Nudges.** Two parts:
-- In-app: opening a reading's PDF is recorded, and the reading page shows "You have opened
-  3 of 6." It detects the click, not whether anyone read the paper.
+- In-app: an attendee marks each reading complete with its Read control; the reading
+  page shows progress. This records their choice, not whether they read the paper.
 - Email: `sendReminders()` in `docs/sheet-backend.gs` mails anyone with no submission, or a
   submission missing questions, using an **Invitees** tab (Name, Email) to know who is
   expected. It is **not armed**: `DRY_RUN = true` and no trigger is installed, so it sends

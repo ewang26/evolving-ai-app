@@ -149,6 +149,28 @@ test('malformed post dates do not take down a whole discussion', () => {
   assert.equal(result.posts[0].body, 'Synthetic discussion');
 });
 
+test('attendees can read and post only in their chosen topic threads', () => {
+  const b = backend();
+  const first = { ...submission(), r: ['T1', 'T2', 'T3'] };
+  const other = { ...submission(), n: 'Other Synthetic Attendee',
+    e: 'other@example.invalid', r: ['T4', 'T5', 'T6'], q: { T4: 'Other topic question?' } };
+  assert.equal(b.post({ action: 'put', sub: first, pin: 'first-model', gate: 'synthetic-gate' }).ok, true);
+  assert.equal(b.post({ action: 'put', sub: other, pin: 'other-model', gate: 'synthetic-gate' }).ok, true);
+  assert.equal(b.post({ action: 'post', email: other.e, pin: 'other-model',
+    thread: 'topic:T4', body: 'Other topic comment.' }).ok, true);
+  const login = { email: first.e, pin: 'first-model' };
+  assert.equal(b.get({ action: 'topic', topic: 'T4', ...login }).error, 'topic_forbidden');
+  assert.equal(b.get({ action: 'posts', thread: 'topic:T4', ...login }).error, 'topic_forbidden');
+  assert.equal(b.get({ action: 'posts', thread: 'T4#1', ...login }).error, 'topic_forbidden');
+  assert.equal(b.post({ action: 'post', thread: 'topic:T4', body: 'Unauthorized.', ...login }).error,
+    'topic_forbidden');
+  assert.equal(b.get({ action: 'counts', ...login }).counts['topic:T4'], undefined);
+  assert.equal(b.get({ action: 'counts', ...login }).questions.T4, undefined);
+  assert.equal(b.get({ action: 'topic', topic: 'T1', ...login }).ok, true);
+  assert.equal(b.post({ action: 'post', thread: 'topic:T1', body: 'Chosen topic.', ...login }).ok, true);
+  assert.equal(b.post({ action: 'post', thread: 'general', body: 'General topic.', ...login }).ok, true);
+});
+
 test('reports are idempotent and blocking an author hides their posts and questions', () => {
   const b = backend();
   const first = { ...submission(), r: ['T1', 'T2', 'T3'], q: { T1: 'A synthetic question?' } };
