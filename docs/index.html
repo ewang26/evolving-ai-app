@@ -2257,6 +2257,8 @@ window.EAI_CONFIG = {
       withKey(function(k){ return cloudLookup(S.e, k); }).then(function(row){
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = chosen().length === 3; editing = false;
+        identityEditing = false;
+        autoSaveBlocked = "";
         step = saved ? READING : S.w ? STEP_TOPICS : WORK;
         confirmedSub = normalize(row);
         syncState = {state:"ok", msg:""}; saveLocal();

@@ -74,8 +74,8 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false,
       } } }
   };
   context.window = context;
-  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
-    set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
+  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,identityEditing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
+    set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;if('identityEditing'in s)identityEditing=s.identityEditing;},
     cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
@@ -496,6 +496,29 @@ test('reading progress saves and confirms before any questions are submitted', a
   assert.equal(a.t.state().syncState.state, 'ok');
   assert.equal(Object.keys(stored.q).length, 0);
   assert.equal(stored.read['https://example.invalid/paper'], 1);
+});
+
+test('loading a reading clears in-progress identity editing so later changes save', async () => {
+  let stored = sample();
+  const a = app({
+    reply: () => ({ ok: true, row: stored, rev: 'test-revision' }),
+    post: (url, opts) => {
+      stored = JSON.parse(opts.body).sub;
+      return Promise.resolve({ type: 'opaque' });
+    }
+  });
+  a.t.set({ S: sample(), pin: 'TestModel', identityEditing: true });
+  a.t.wireForm();
+  // Load can complete before the email field's change event resets this flag.
+  a.nodes.loadMine.listeners.click();
+  for (let i = 0; i < 30 && !a.t.state().saved; i++) await Promise.resolve();
+  assert.equal(a.t.state().saved, true);
+  assert.equal(a.t.state().identityEditing, false);
+  a.t.state().S.read['https://example.invalid/paper'] = 1;
+  await a.t.saveDraftNow();
+  assert.equal(a.requests.length, 1);
+  assert.equal(stored.read['https://example.invalid/paper'], 1);
+  assert.equal(a.t.state().syncState.state, 'ok');
 });
 
 test('an unconfirmed background reading save never claims success', async () => {
