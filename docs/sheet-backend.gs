@@ -230,8 +230,7 @@ function verify_(email, code) {
   return {name: plain_(row[1]), email: row[2], affiliation: plain_(row[3])};
 }
 
-/** Forgiving on purpose: "Harvard26", "harvard 26" and "HARVARD-26" all pass,
-    so nobody is turned away by capitals, a space or a hyphen. */
+/** Ignore case, spaces, and hyphens in the invitation code. */
 function gateNorm_(v) {
   return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
