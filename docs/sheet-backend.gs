@@ -293,6 +293,15 @@ function canUseThread_(attendee, thread) {
   return !!match && attendee.topics.indexOf(match[1]) !== -1;
 }
 
+// Reserved test addresses can exercise the full app without exposing real
+// attendee discussion to reviewers or displaying test posts to attendees.
+function testAudience_(email) {
+  return /@example\.invalid$/i.test(String(email || "").trim());
+}
+function sameAudience_(viewerEmail, authorEmail) {
+  return testAudience_(viewerEmail) === testAudience_(authorEmail);
+}
+
 /** Ignore case, spaces, and hyphens in the invitation code. */
 function gateNorm_(v) {
   return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -422,6 +431,7 @@ function doPost(e) {
       var target = reportedContent_(targetId);
       if (!target) return out_({ok:false, error:"content_missing"});
       var viewerEmail = String(viewer.email).trim().toLowerCase();
+      if (!sameAudience_(viewerEmail, target.email)) return out_({ok:false, error:"content_missing"});
       if (target.email === viewerEmail) return out_({ok:false, error:"own_content"});
       if (body.action === "report") {
         var reports = tab_(REPORTS_SHEET, REPORT_HEADERS);
@@ -615,6 +625,7 @@ function doGet(e) {
       var hiddenP = hiddenContent_();
       var posts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
         .filter(function (r) { return String(r[2]) === want &&
+          sameAudience_(who.email, r[4]) &&
           !blocked[String(r[4]).trim().toLowerCase()] && !hiddenP[String(r[0])] &&
           suitable_(plain_(r[6])); })
         .map(function (r) {
@@ -641,7 +652,8 @@ function doGet(e) {
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
-          if (String(picks[i]) === tid && !blockedT[String(r[2]).trim().toLowerCase()] &&
+          if (String(picks[i]) === tid && sameAudience_(whoT.email, r[2]) &&
+              !blockedT[String(r[2]).trim().toLowerCase()] &&
               !hiddenT["q:" + questionId_(r[2], picks[i], answers[i])] &&
               discussionQuestionVisible_(r[2], picks[i], answers[i])) {
             qs.push({id:"q:" + questionId_(r[2], picks[i], answers[i]),
@@ -653,6 +665,7 @@ function doGet(e) {
       var tkey = "topic:" + tid;
       var tposts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
         .filter(function (r) { return String(r[2]) === tkey &&
+          sameAudience_(whoT.email, r[4]) &&
           !blockedT[String(r[4]).trim().toLowerCase()] && !hiddenT[String(r[0])] &&
           suitable_(plain_(r[6])); })
         .map(function (r) {
@@ -673,13 +686,14 @@ function doGet(e) {
       var hiddenC = hiddenContent_();
       var tally = {};
       rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS).forEach(function (r) {
-        if (blockedC[String(r[4]).trim().toLowerCase()] || hiddenC[String(r[0])] || !suitable_(plain_(r[6]))) return;
+        if (!sameAudience_(who2.email, r[4]) || blockedC[String(r[4]).trim().toLowerCase()] ||
+            hiddenC[String(r[0])] || !suitable_(plain_(r[6]))) return;
         var k = String(r[2]);
         if (canUseThread_(who2, k)) tally[k] = (tally[k] || 0) + 1;
       });
       var qtally = {};
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
-        if (blockedC[String(r[2]).trim().toLowerCase()]) return;
+        if (!sameAudience_(who2.email, r[2]) || blockedC[String(r[2]).trim().toLowerCase()]) return;
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
           var tid2 = String(picks[i] || "");

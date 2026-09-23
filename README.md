@@ -93,6 +93,11 @@ Older cached releases can send the personal answer in a JSONP URL. It is HTTPS i
 but URLs may be retained in request logs. The shared invitation code should be rotated
 because an older public commit contained it.
 
+Reserved `@example.invalid` test accounts use the same reading and saving flow, but
+their discussion questions, posts, and counts are separated from real attendee
+accounts in both directions. Reports and blocks cannot cross this boundary.
+The organizer can still see those test rows in the Sheet.
+
 **Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
 a submission. The endpoint only appends or updates rows and never returns the roster
 without the key. It can still receive junk rows and consume Apps Script capacity.

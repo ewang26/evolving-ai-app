@@ -190,6 +190,39 @@ test('attendees can read and post only in their chosen topic threads', () => {
   assert.equal(b.post({ action: 'post', thread: 'general', body: 'General topic.', ...login }).ok, true);
 });
 
+test('reserved demo accounts and real attendees cannot see or moderate each other', () => {
+  const b = backend();
+  const demo = { ...submission(), e: 'eai-app-review-20260922@example.invalid',
+    r: ['T1', '', ''], q: { T1: 'Demo question?' } };
+  const real = { ...submission(), e: 'attendee@example.org',
+    r: ['T1', '', ''], q: { T1: 'Private attendee question?' } };
+  assert.equal(b.post({ action: 'put', sub: demo, pin: 'demo-model', gate: 'synthetic-gate' }).ok, true);
+  assert.equal(b.post({ action: 'put', sub: real, pin: 'real-model', gate: 'synthetic-gate' }).ok, true);
+  const demoPost = b.post({ action: 'post', email: demo.e, pin: 'demo-model',
+    thread: 'topic:T1', body: 'Demo comment.' });
+  const realPost = b.post({ action: 'post', email: real.e, pin: 'real-model',
+    thread: 'topic:T1', body: 'Private attendee comment.' });
+  assert.equal(demoPost.ok, true);
+  assert.equal(realPost.ok, true);
+  for (const [viewer, pin, expected] of [[demo, 'demo-model', 'Demo'],
+    [real, 'real-model', 'Private attendee']]) {
+    const login = { email: viewer.e, pin };
+    const topic = b.get({ action: 'topic', topic: 'T1', ...login });
+    assert.equal(topic.questions.length, 1);
+    assert.match(topic.questions[0].q, new RegExp('^' + expected));
+    assert.equal(topic.posts.length, 1);
+    assert.match(topic.posts[0].body, new RegExp('^' + expected));
+    assert.equal(b.get({ action: 'posts', thread: 'topic:T1', ...login }).posts.length, 1);
+    const counts = b.get({ action: 'counts', ...login });
+    assert.equal(counts.questions.T1, 1);
+    assert.equal(counts.counts['topic:T1'], 1);
+  }
+  assert.equal(b.post({ action: 'report', id: realPost.id,
+    email: demo.e, pin: 'demo-model' }).error, 'content_missing');
+  assert.equal(b.post({ action: 'block', id: demoPost.id,
+    email: real.e, pin: 'real-model' }).error, 'content_missing');
+});
+
 test('reports are idempotent and blocking an author hides their posts and questions', () => {
   const b = backend();
   const first = { ...submission(), r: ['T1', 'T2', 'T3'], q: { T1: 'A synthetic question?' } };
