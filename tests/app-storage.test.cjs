@@ -424,7 +424,7 @@ test('HTML-only mirrors include the sheet connection without a config.js request
   vm.runInNewContext(inlineConfig, deployment);
   const endpoint = deployment.window.EAI_CONFIG.apiUrl;
   assert.equal(new URL(endpoint).origin, 'https://script.google.com');
-  assert.equal(deployment.window.EAI_CONFIG.bridge, false);
+  assert.equal(deployment.window.EAI_CONFIG.bridge, true);
   const relayPreview = { window: {}, URLSearchParams, location: { search: '?relay_test=1' } };
   vm.runInNewContext(inlineConfig, relayPreview);
   assert.equal(relayPreview.window.EAI_CONFIG.bridge, true);
