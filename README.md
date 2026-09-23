@@ -69,6 +69,16 @@ invitation channel, and do not put it in this repository.
 deploy as a web app with access **Anyone**, and update `apiUrl` in `docs/index.html`.
 Keep `docs/config.js` aligned for older app pages.
 
+**Retention after the gathering:** the backend source contains a November 10,
+2026 cutoff that stops reads and writes, plus `purgeExpiredAttendeeData()` to
+remove attendee rows from Submissions, Posts, Reports, Blocks, Hidden content,
+Debriefs, and Invitees while keeping each tab's header. This source change has
+no effect until deployed as a new Apps Script version. No cleanup trigger is
+installed by the source file. Schedule the function after the cutoff, then
+verify the returned row counts and the active Sheet tabs. The deletion is
+irreversible through the app and should be approved immediately before the
+trigger is installed.
+
 **The key is a question, not a password.** Participants name a favorite AI model, which
 gates both directions: you cannot read somebody's submission back, and you cannot overwrite
 it, without theirs. The answer is normalized in the browser (lowercased, punctuation and

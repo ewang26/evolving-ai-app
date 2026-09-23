@@ -14,6 +14,7 @@ function backend() {
     rows: [],
     getLastRow() { return this.rows.length; },
     appendRow(row) { this.rows.push(row.slice()); },
+    deleteRows(start, count) { this.rows.splice(start - 1, count); },
     setFrozenRows() {},
     getRange(r, c, n = 1, m = 1) {
       const sh = this;
@@ -33,6 +34,7 @@ function backend() {
   const lock = { waitLock() {}, releaseLock() { releaseCount++; } };
   const c = {
     console: { error() {} }, Date, JSON,
+    Logger: { log() {} },
     LockService: { getScriptLock: () => lock },
     SpreadsheetApp: { openById: () => ({ getSheetByName: n => tabs[n], insertSheet: newSheet }) },
     CacheService: { getScriptCache: () => ({
@@ -81,6 +83,28 @@ test('partial drafts are accepted, malformed ranks and oversized payloads are re
   assert.equal(b.post({ sub: { ...submission(), read: { huge: 'x'.repeat(50000) } }, pin: 'test-model' }).error,
     'too_large');
   assert.equal(b.tabs.Submissions.rows.length, 2);
+});
+
+test('retention cutoff closes access and cleanup removes only attendee rows', () => {
+  const b = backend();
+  b.c.RETENTION_CUTOFF = Date.now() + 60_000;
+  assert.equal(create(b).ok, true);
+  assert.equal(b.post({ action: 'post', thread: 'general', body: 'Synthetic comment',
+    email: submission().e, pin: 'test-model' }).ok, true);
+  b.c.RETENTION_CUTOFF = Date.now() - 1;
+  assert.equal(b.get({ action: 'get', email: submission().e, pin: 'test-model' }).error,
+    'event_closed');
+  assert.equal(b.post({ action: 'put', sub: submission(), pin: 'test-model' }).error,
+    'event_closed');
+  const removed = b.c.purgeExpiredAttendeeData();
+  assert.equal(removed.Submissions, 1);
+  assert.equal(removed.Posts, 1);
+  assert.equal(b.tabs.Submissions.rows.length, 1);
+  assert.equal(b.tabs.Posts.rows.length, 1);
+  assert.deepEqual(Array.from(b.tabs.Submissions.rows[0]), Array.from(b.c.HEADERS));
+  assert.equal(b.c.purgeExpiredAttendeeData().Submissions, 0);
+  b.c.RETENTION_CUTOFF = Date.now() + 60_000;
+  assert.throws(() => b.c.purgeExpiredAttendeeData(), /Retention deadline/);
 });
 
 test('unset or example setup keys cannot open registration or organizer reads', () => {

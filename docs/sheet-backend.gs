@@ -58,6 +58,13 @@ var MAX_PAYLOAD    = 48000; // Sheets caps one cell at 50,000 characters.
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
 
+// One month after the October 8–10 gathering. This is midnight November 10
+// Pacific, 3 a.m. Eastern. A due-date trigger must call
+// purgeExpiredAttendeeData; the cutoff also prevents new
+// writes from repopulating tabs after the cleanup.
+var RETENTION_CUTOFF = Date.UTC(2026, 10, 10, 8, 0, 0);
+function retentionClosed_() { return Date.now() >= RETENTION_CUTOFF; }
+
 // Existing test questions hidden from discussions on 2026-09-22.
 // Exact email/topic/question fingerprints keep submissions intact and allow
 // these attendees to contribute new questions. Removing a key restores it.
@@ -389,12 +396,14 @@ function poll_(p, cb) {
 function doPost(e) {
   var lock, held = false;
   try {
+    if (retentionClosed_()) return out_({ok: false, error: "event_closed"});
     if (!e || !e.postData || !e.postData.contents) return out_({ok: false, error: "bad_request"});
     var body = JSON.parse(e.postData.contents);
     if (body.action === "relay") return relay_(body);
     lock = LockService.getScriptLock();
     lock.waitLock(20000);
     held = true;
+    if (retentionClosed_()) return out_({ok: false, error: "event_closed"});
 
     if (body.action === "hide") {
       if (!adminOpen_(body.key)) return out_({ok:false, error:"bad_key"});
@@ -556,6 +565,7 @@ function doGet(e) {
   var p  = e.parameter || {};
   var cb = p.callback;
   try {
+    if (retentionClosed_()) return out_({ok: false, error: "event_closed"}, cb);
     if (p.action === "poll") return poll_(p, cb);
     // Invitation checks must work even if the spreadsheet is temporarily
     // unavailable; registration still enforces the gate during doPost.
@@ -734,6 +744,35 @@ function doGet(e) {
 }
 
 /**
+ * Remove attendee data from the active Sheet after the retention deadline.
+ * The header rows stay in place so the Sheet remains auditable. Run this from
+ * a time-driven trigger after November 10, 2026, and verify the returned row
+ * counts and the tabs themselves. No trigger is installed by this source file.
+ */
+function purgeExpiredAttendeeData() {
+  if (!retentionClosed_()) throw new Error("Retention deadline has not passed");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var names = [SHEET_NAME, POSTS_SHEET, REPORTS_SHEET, BLOCKS_SHEET,
+                 HIDDEN_SHEET, DEBRIEF_SHEET, INVITEES_SHEET];
+    var removed = {};
+    names.forEach(function(name) {
+      var sh = ss.getSheetByName(name);
+      if (!sh) { removed[name] = 0; return; }
+      var rows = Math.max(0, sh.getLastRow() - 1);
+      if (rows) sh.deleteRows(2, rows);
+      removed[name] = rows;
+    });
+    Logger.log(JSON.stringify(removed));
+    return removed;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Reminder mail. NOT armed: this only runs if you add a time-driven trigger
  * (Triggers > Add trigger > sendReminders > Day timer), and it sends nothing
  * until DRY_RUN is false.
@@ -744,9 +783,10 @@ function doGet(e) {
  */
 var DRY_RUN     = true;
 var MAX_NUDGES  = 2;
-var APP_URL     = "https://ewang26.github.io/evolving-ai-app/";
+var APP_URL     = "https://www.benchmark.com/evolving-ai/app/";
 
 function sendReminders() {
+  if (retentionClosed_()) return [];
   var sh = sheet_();
   var subs = {};
   rowsOf_(sh, HEADERS).forEach(function (r) {
