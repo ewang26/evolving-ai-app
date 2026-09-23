@@ -468,6 +468,30 @@ window.EAI_CONFIG = {
 (function(){
   "use strict";
 
+  // Close the form at midnight Pacific on November 10. The backend enforces
+  // the same cutoff; this screen makes the result clear to people who return.
+  var CLOSE_AT = Date.UTC(2026, 10, 10, 8, 0, 0);
+  function showClosed(){
+    document.getElementById("view").innerHTML = '<section class="step"><div class="head">'
+      + '<h2>Evolving AI preparation has closed</h2>'
+      + '<p class="intro">The gathering preparation app closed on November 10, 2026. '
+      + 'For a copy of your information or help, contact '
+      + '<a href="mailto:ewang@benchmark.com">ewang@benchmark.com</a>.</p>'
+      + '</div></section>';
+    document.getElementById("rail").innerHTML = "";
+    document.getElementById("bar").hidden = true;
+    document.getElementById("homeBtn").disabled = true;
+    document.body.classList.add("nobar");
+  }
+  if(Date.now() >= CLOSE_AT){ showClosed(); return; }
+  (function scheduleClose(){
+    var remaining = CLOSE_AT - Date.now();
+    setTimeout(function(){
+      if(Date.now() >= CLOSE_AT) location.reload();
+      else scheduleClose();
+    }, Math.min(remaining, 24 * 60 * 60 * 1000));
+  })();
+
   var CFG = window.EAI_CONFIG || {};
   // Only the deployed config may choose where answers and credentials go.
   var API = CFG.apiUrl || "";

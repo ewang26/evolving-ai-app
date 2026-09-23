@@ -15,7 +15,7 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, publicURL, bridge = false,
+function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now,
   api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [], relayResponses = new Map(), listeners = {};
@@ -30,6 +30,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false,
   }
   const context = {
     URL, URLSearchParams, TextEncoder, Uint8Array, AbortController, console,
+    Date: now === undefined ? Date : class extends Date { static now() { return now; } },
     btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'),
     location: { origin: 'https://app.example.invalid', pathname: '/app/', hash, search },
     history: { replaceState(a, b, url) { const u = new URL(url, context.location.origin);
@@ -83,6 +84,18 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false,
       if (timer.delay === delay) { pending.delete(id); timer.fn(); }
     } } };
 }
+
+test('the app closes on November 10 without changing local data or contacting the Sheet', () => {
+  const sub = sample();
+  const storage = localRecord(sub);
+  const before = storage['eai.me.v3'];
+  const a = app({ now: Date.UTC(2026, 10, 10, 8, 0, 0), storage });
+  assert.match(a.nodes.view.innerHTML, /Evolving AI preparation has closed/);
+  assert.equal(a.nodes.bar.hidden, true);
+  assert.equal(a.nodes.homeBtn.disabled, true);
+  assert.equal(a.requests.length, 0);
+  assert.equal(storage['eai.me.v3'], before);
+});
 
 test('query-string API overrides cannot redirect credentials', async () => {
   const a = app({ search: '?api=https%3A%2F%2Funtrusted.example.invalid%2Fexec' });
