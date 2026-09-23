@@ -9,7 +9,7 @@
 - Primary language: English (U.S.)
 - Seller team: Erik Wang
 - App Store Connect ID: `6815026303` (Prepare for Submission)
-- Version: 1.0; rebuild and upload the current source before selecting a build
+- Version: 1.0 (build 1 uploaded September 22; processed as Ready to Submit in TestFlight). Select it on the version page before App Review.
 - Price: Free proposed; awaiting confirmation in App Store Connect
 - Primary category: Education
 - Copyright: © 2026 Erik Wang
@@ -38,7 +38,7 @@ An invitation passcode is required to create an attendee entry.
 
 ## App Review information
 
-The review contact name is Erik Wang; Apple also requires a phone number. Provide Apple with an active dedicated review account and any required invitation or login details in the private App Review fields. Do not put credentials in this repository or public listing. Explain that the app saves to an organizer-controlled Google Sheet and that discussion appears after a successful submission. The organizer console is reached by a long press on the wordmark. Manual release is selected. Content Rights and the review build remain unfinished.
+The review contact name is Erik Wang; Apple also requires a phone number. Provide Apple with an active dedicated review account and any required invitation or login details in the private App Review fields. Do not put credentials in this repository or public listing. Explain that the app saves to an organizer-controlled Google Sheet and that discussion appears after a successful submission. The organizer console is reached by a long press on the wordmark. Manual release is selected. Content Rights and build selection on the version page remain unfinished.
 
 ## Privacy questionnaire notes
 
