@@ -48,9 +48,10 @@ roster. The key is held only while the page is open.
 
 **Why it is built this way:** Apps Script sends no CORS headers. The deployed site currently
 uses `no-cors` POST and confirms a save by reading the row back over JSONP. This still puts
-personal access answers and organizer keys in request URLs. A form POST bridge is implemented
-but remains disabled until the frame-enabled Apps Script version is deployed and tested in
-the website and iOS app. Once enabled, its private response is delivered by `postMessage`.
+personal access answers and organizer keys in request URLs. The private POST relay is deployed
+in Apps Script version 15 and can be tested on the website with `?relay_test=1`. It retrieves
+responses using short-lived random tickets and does not change Google's frame permissions.
+The default website path still uses the legacy route until the relay passes browser and iOS tests.
 The app reports "Saved to the organizers' sheet" only after a matching row is read back;
 an unconfirmed write remains available for retry.
 
@@ -78,7 +79,7 @@ group of people who would (rightly) find a password prompt insulting. The lockou
 guessing, but this code does not provide strong account security: a guessed code can expose
 an attendee's full submission and discussion access.
 
-Until the bridge is enabled, a JSONP lookup sends the personal answer in the URL. It is
+Until the relay is enabled, a JSONP lookup sends the personal answer in the URL. It is
 HTTPS in transit, but URLs may be retained in browser history or request logs. The shared
 invitation code must be rotated because an older public commit contained a literal example.
 

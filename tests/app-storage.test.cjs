@@ -15,10 +15,12 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, publicURL, api = 'https://script.google.com/macros/s/test/exec',
+function app({ hash = '', search = '', storage = {}, publicURL, bridge = false,
+  api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
-  const nodes = {}, requests = [], scripts = [];
+  const nodes = {}, requests = [], scripts = [], relayResponses = new Map(), listeners = {};
   let nextTimer = 0;
+  let nonceByte = 0;
   const pending = new Map();
   function node(id) {
     return nodes[id] ||= { id, style: {}, classList: { add() {}, remove() {}, toggle() {} },
@@ -33,21 +35,48 @@ function app({ hash = '', search = '', storage = {}, publicURL, api = 'https://s
     history: { replaceState(a, b, url) { const u = new URL(url, context.location.origin);
       context.location.hash = u.hash; context.location.search = u.search; } },
     localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => storage[k] = v, removeItem: k => delete storage[k] },
-    navigator: {}, EAI_CONFIG: { apiUrl: api }, EAI_PUBLIC_URL: publicURL, addEventListener() {}, scrollTo() {},
+    navigator: {}, EAI_CONFIG: { apiUrl: api, bridge }, EAI_PUBLIC_URL: publicURL,
+    crypto: { getRandomValues(bytes) { bytes.forEach((_, i) => bytes[i] = ++nonceByte % 256); return bytes; } },
+    addEventListener(event, fn) { (listeners[event] ||= new Set()).add(fn); },
+    removeEventListener(event, fn) { listeners[event]?.delete(fn); }, scrollTo() {},
     setTimeout(fn, delay) { const id = ++nextTimer; pending.set(id, { fn, delay });
       if (delay < 2000) queueMicrotask(() => { if (pending.delete(id)) fn(); }); return id; },
     clearTimeout(id) { pending.delete(id); },
-    fetch(url, options) { requests.push({ url, options }); return post(url, options); },
-    document: { getElementById: node, createElement: () => node('script' + scripts.length),
+    fetch(url, options) {
+      requests.push({ url, options });
+      if (bridge && options.body) {
+        const envelope = JSON.parse(options.body);
+        if (envelope.action === 'relay') {
+          relayResponses.set(envelope.requestId, JSON.stringify(reply(new URLSearchParams(envelope.request))));
+          return Promise.resolve({ type: 'opaque' });
+        }
+      }
+      return post(url, options);
+    },
+    document: { getElementById: node, createElement(tag) {
+      return node('script' + scripts.length);
+    },
       head: { appendChild(s) { scripts.push(s.src); s.parentNode = { removeChild() {} };
         const params = new URL(s.src).searchParams;
-        queueMicrotask(() => context[params.get('callback')]?.(reply(params))); } },
-      body: { classList: { add() {}, remove() {}, toggle() {} } } }
+        queueMicrotask(() => {
+          let result;
+          if (params.get('action') === 'poll') {
+            const response = relayResponses.get(params.get('requestId'));
+            const part = Number(params.get('part'));
+            const chunks = response?.match(/[\s\S]{1,25000}/g) || [];
+            result = chunks[part] === undefined ? { ok: false, error: 'pending' }
+              : { ok: true, parts: chunks.length, part, chunk: chunks[part] };
+          } else result = reply(params);
+          context[params.get('callback')]?.(result);
+        }); } },
+      body: { classList: { add() {}, remove() {}, toggle() {} }, appendChild(element) {
+        element.parentNode = { removeChild() {} };
+      } } }
   };
   context.window = context;
-  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,syncState,API,mode,pendingPosts,counts}),
+  const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;},
-    cloudPush,cloudLookup,cloudAll,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
+    cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -61,6 +90,56 @@ test('query-string API overrides cannot redirect credentials', async () => {
   assert.equal(a.scripts.length, 1);
   assert.equal(new URL(a.scripts[0]).origin, 'https://script.google.com');
   assert.equal(new URL(a.scripts[0]).searchParams.get('key'), 'synthetic-admin-key');
+});
+
+test('private relay sends reads in a POST body and polls with a random ticket', async () => {
+  const a = app({ bridge: true, reply: () => ({ ok: true, row: sample(), rev: 'test-rev' }) });
+  const row = await a.t.cloudLookup(sample().e, 'synthetic-model');
+  assert.equal(row.e, sample().e);
+  assert.equal(a.requests.length, 1);
+  assert.equal(a.requests[0].url, 'https://script.google.com/macros/s/test/exec');
+  const envelope = JSON.parse(a.requests[0].options.body);
+  assert.equal(envelope.action, 'relay');
+  assert.equal(envelope.request.pin, 'synthetic-model');
+  assert.equal(envelope.request.action, 'get');
+  assert.equal(new URL(a.scripts[0]).searchParams.get('action'), 'poll');
+  assert.doesNotMatch(a.scripts[0], /synthetic-model|test%40example/);
+});
+
+test('invitation validation uses the backend and keeps the code out of the URL', async () => {
+  const a = app({ bridge: true, reply: p => ({ ok: true, valid: p.get('code') === 'synthetic-gate' }) });
+  assert.equal(await a.t.cloudGate('wrong'), false);
+  assert.equal(await a.t.cloudGate('synthetic-gate'), true);
+  assert.equal(a.requests.length, 2);
+  assert.equal(JSON.parse(a.requests[1].options.body).request.code, 'synthetic-gate');
+  assert.equal(a.scripts.length, 2);
+  assert.ok(a.scripts.every(url => !url.includes('synthetic-gate')));
+  const failed = app({ bridge: true, reply: () => ({ ok: false, error: 'backend_error' }) });
+  await assert.rejects(failed.t.cloudGate('synthetic-gate'), e => e.code === 'backend_error');
+  await assert.rejects(app({ api: '' }).t.cloudGate('synthetic-gate'), e => e.code === 'no_api');
+});
+
+test('a failed invitation check leaves Continue usable and the draft intact', async () => {
+  const a = app({ bridge: true, reply: () => ({ ok: false, error: 'backend_error' }) });
+  a.t.set({ S: sample(), pin: 'TestModel', saved: false, step: 0 });
+  a.t.wireForm();
+  a.nodes.fgate.value = 'synthetic-gate';
+  a.nodes.fgate.listeners.input();
+  a.nodes.next.listeners.click();
+  for (let i = 0; i < 30 && a.nodes.next.disabled; i++) await Promise.resolve();
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.nodes.next.disabled, false);
+  assert.match(a.nodes.view.innerHTML, /Could not verify the passcode right now/);
+  assert.equal(a.t.state().S.e, sample().e);
+});
+
+test('private relay surfaces a rejected write without claiming a save', async () => {
+  const a = app({ bridge: true, reply: () => ({ ok: false, error: 'bad_gate' }) });
+  await assert.rejects(a.t.cloudPush(sample(), 'synthetic-model'), e => e.code === 'bad_gate');
+  assert.equal(a.requests.length, 1);
+  assert.equal(JSON.parse(a.requests[0].options.body).request.action, 'put');
+  assert.equal(JSON.parse(a.requests[0].options.body).request.gate, '');
+  assert.equal(new URL(a.scripts[0]).searchParams.get('action'), 'poll');
 });
 
 test('manual import accepts multiple wrapped blocks and skips broken or invalid ranks', () => {
@@ -81,7 +160,7 @@ test('query parameter cannot enable cloud access when deployment has none', asyn
   assert.equal(a.scripts.length, 0);
 });
 
-test('old personal link preserves same-attendee draft, key, and editing step', () => {
+test('old personal link preserves the draft but purges the stored personal code', () => {
   const old = sample(), draft = sample(); draft.q.T1 = 'A newer draft question?';
   const a = app({ hash: linkHash(old), storage: localRecord(draft, { editing: true, step: 4 }) });
   assert.equal(a.t.state().S.q.T1, draft.q.T1);
@@ -89,9 +168,23 @@ test('old personal link preserves same-attendee draft, key, and editing step', (
   assert.equal(a.t.state().editing, true);
   assert.equal(a.t.state().step, 4);
   assert.equal(a.context.location.hash, '');
+  assert.equal(Object.hasOwn(JSON.parse(a.storage['eai.me.v3']), 'pin'), false);
   const reloaded = app({ storage: a.storage });
   assert.equal(reloaded.t.state().S.q.T1, draft.q.T1);
-  assert.equal(reloaded.t.state().pin, 'TestModel');
+  assert.equal(reloaded.t.state().pin, '');
+  assert.equal(reloaded.t.state().needsPin, true);
+});
+
+test('an invitation code left by an older release is removed from browser storage', () => {
+  const storage = { 'eai.gate.v1': JSON.stringify('synthetic-invitation-code') };
+  const a = app({ storage });
+  assert.equal(storage['eai.gate.v1'], undefined);
+  assert.equal(a.t.state().gateOk, false);
+  a.t.set({ S: sample(), pin: 'TestModel', saved: false, step: 0 });
+  a.t.wireForm();
+  a.nodes.next.listeners.click();
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.scripts.length, 1); // the old code is sent for a fresh server check
 });
 
 test('identity matching normalizes email case and surrounding spaces', () => {
@@ -327,10 +420,14 @@ test('HTML-only mirrors include the sheet connection without a config.js request
   const inlineConfig = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(m => m[1]).find(s => s.includes('window.EAI_CONFIG ='));
   assert.ok(inlineConfig, 'The published page must carry its own configuration');
-  const deployment = { window: {} };
+  const deployment = { window: {}, URLSearchParams, location: { search: '' } };
   vm.runInNewContext(inlineConfig, deployment);
   const endpoint = deployment.window.EAI_CONFIG.apiUrl;
   assert.equal(new URL(endpoint).origin, 'https://script.google.com');
+  assert.equal(deployment.window.EAI_CONFIG.bridge, false);
+  const relayPreview = { window: {}, URLSearchParams, location: { search: '?relay_test=1' } };
+  vm.runInNewContext(inlineConfig, relayPreview);
+  assert.equal(relayPreview.window.EAI_CONFIG.bridge, true);
   const a = app({ api: endpoint, search: '?api=https://untrusted.example.invalid/exec' });
   assert.match(a.nodes.view.innerHTML, /id="loadMine"/);
   assert.doesNotMatch(a.nodes.view.innerHTML, /Open the link you saved/);
@@ -436,8 +533,13 @@ test('personal information saves before topics and questions exist', async () =>
   let stored;
   const a = app({ storage: { 'eai.gate.v1': JSON.stringify('synthetic-gate') },
     post: (url, opts) => { stored = JSON.parse(opts.body).sub; return Promise.resolve({type:'opaque'}); },
-    reply: () => ({ok:true, row:stored}) });
+    reply: params => params.get('action') === 'gate'
+      ? {ok:true, valid:true} : {ok:true, row:stored} });
   a.t.set({ S: sub, pin: 'TestModel' });
+  a.t.wireForm();
+  a.nodes.next.listeners.click();
+  for(let i=0;i<20 && !a.t.state().gateOk;i++) await Promise.resolve();
+  assert.equal(a.t.state().gateOk, true);
   a.t.queueDraftSave();
   for(let i=0;i<40 && a.t.state().syncState.state !== 'ok';i++) await Promise.resolve();
   assert.equal(a.t.state().syncState.state, 'ok');

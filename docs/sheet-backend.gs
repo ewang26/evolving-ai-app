@@ -36,6 +36,12 @@ var PASS_COL    = 11;   // 1-based column of the Passcode hash
 
 var POSTS_SHEET    = "Posts";
 var POST_HEADERS   = ["Id", "Timestamp", "Thread", "Name", "Email", "Affiliation", "Body"];
+var REPORTS_SHEET  = "Reports";
+var REPORT_HEADERS = ["Timestamp", "Reporter Email", "Content Id", "Author Email", "Reason"];
+var BLOCKS_SHEET   = "Blocks";
+var BLOCK_HEADERS  = ["Viewer Email", "Author Email", "Timestamp"];
+var HIDDEN_SHEET   = "Hidden content";
+var HIDDEN_HEADERS = ["Content Id", "Timestamp"];
 var DEBRIEF_SHEET  = "Debriefs";
 var DEBRIEF_HEADERS= ["Timestamp", "Round", "Group", "Topic", "Name", "Email",
                       "Claim", "Disagreement", "What would settle it"];
@@ -78,12 +84,56 @@ var HIDDEN_DISCUSSION_QUESTIONS = [
 function discussionQuestionVisible_(email, topic, question) {
   var text = String(question || "").trim();
   if (!text) return false;
-  var raw = JSON.stringify([String(email || "").trim().toLowerCase(), String(topic || ""), text]);
+  return HIDDEN_DISCUSSION_QUESTIONS.indexOf(questionId_(email, topic, text)) < 0 &&
+    suitable_(text);
+}
+function questionId_(email, topic, question) {
+  var raw = JSON.stringify([String(email || "").trim().toLowerCase(), String(topic || ""), String(question || "").trim()]);
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8);
-  var key = Array.prototype.map.call(digest, function(b) {
+  return Array.prototype.map.call(digest, function(b) {
     return ("0" + ((b + 256) % 256).toString(16)).slice(-2);
   }).join("");
-  return HIDDEN_DISCUSSION_QUESTIONS.indexOf(key) < 0;
+}
+
+// A conservative first-pass filter; reports and organizer review handle abuse
+// that a word filter cannot recognize. Keep this check on the server so older
+// clients cannot bypass it.
+function suitable_(value) {
+  return !/\b(?:porn|pornography|rape|kill\s+yourself|i\s+will\s+kill\s+you|nazi|fuck|shit)\b/i.test(String(value || ""));
+}
+function blockedAuthors_(viewer) {
+  var own = String(viewer || "").trim().toLowerCase(), blocked = {};
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(BLOCKS_SHEET);
+  if (!sh) return blocked;
+  rowsOf_(sh, BLOCK_HEADERS).forEach(function(row) {
+    if (String(row[0]).trim().toLowerCase() === own)
+      blocked[String(row[1]).trim().toLowerCase()] = true;
+  });
+  return blocked;
+}
+function hiddenContent_() {
+  var hidden = {}, sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(HIDDEN_SHEET);
+  if (!sh) return hidden;
+  rowsOf_(sh, HIDDEN_HEADERS).forEach(function(row) { hidden[String(row[0])] = true; });
+  return hidden;
+}
+function reportedContent_(id) {
+  id = String(id || "");
+  if (/^q:[a-f0-9]{64}$/.test(id)) {
+    var rows = rowsOf_(sheet_(), HEADERS);
+    for (var r = 0; r < rows.length; r++) {
+      var picks = [rows[r][4], rows[r][5], rows[r][6]];
+      var answers = [rows[r][7], rows[r][8], rows[r][9]];
+      for (var i = 0; i < 3; i++)
+        if (picks[i] && answers[i] && "q:" + questionId_(rows[r][2], picks[i], answers[i]) === id)
+          return {email:String(rows[r][2]).trim().toLowerCase(), body:plain_(answers[i])};
+    }
+  } else if (/^[A-Za-z0-9_-]{8,80}$/.test(id)) {
+    var post = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
+      .filter(function(row) { return String(row[0]) === id; })[0];
+    if (post) return {email:String(post[4]).trim().toLowerCase(), body:plain_(post[6])};
+  }
+  return null;
 }
 
 /**
@@ -139,7 +189,7 @@ function iso_(value) {
 function validSubmission_(sub) {
   if (!sub || typeof sub !== "object" || Array.isArray(sub)) return false;
   if (typeof sub.n !== "string" || !sub.n.trim() || sub.n.length > 200) return false;
-  if (typeof sub.e !== "string" || sub.e.length > 254 || /^=/.test(sub.e.trim()) ||
+  if (typeof sub.e !== "string" || sub.e.length > 254 || /^[=+\-@]/.test(sub.e.trim()) ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(sub.e.trim())) return false;
   if (!Array.isArray(sub.r) || sub.r.length !== 3) return false;
   var used = {};
@@ -235,8 +285,14 @@ function gateNorm_(v) {
   return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 function gateOpen_(v) {
-  if (!GATE_CODE) return true;                       // no gate configured
+  // A missing setup value must never turn a private gathering into an open
+  // registration endpoint.
+  if (!gateNorm_(GATE_CODE) || /^CHANGE-ME\b/i.test(GATE_CODE)) return false;
   return gateNorm_(v) === gateNorm_(GATE_CODE);
+}
+function adminOpen_(v) {
+  return !!String(ADMIN_KEY || "").trim() &&
+    !/^CHANGE-ME\b/i.test(ADMIN_KEY) && same_(v, ADMIN_KEY);
 }
 
 function rowsOf_(sh, headers) {
@@ -285,15 +341,89 @@ function findRow_(sh, email) {
   return -1;
 }
 
-/** Participant submits (or re-submits) — called with a simple no-cors POST. */
+// Apps Script has no CORS headers. A no-cors POST computes the response and
+// stores it briefly under a browser-generated 128-bit random ID. A JSONP GET
+// then carries only that ID and a chunk number, never a passcode or admin key.
+// Cache entries can disappear early, so callers must treat a missing result as
+// an unconfirmed request and offer retry. Legacy routes remain for old clients.
+function relay_(body) {
+  var id = String(body.requestId || "");
+  if (!/^[a-f0-9]{32}$/.test(id) || !body.request ||
+      typeof body.request !== "object" || Array.isArray(body.request))
+    return out_({ok:false, error:"bad_request"});
+  var req = body.request;
+  if (req.action === "relay" || req.action === "poll")
+    return out_({ok:false, error:"bad_request"});
+  var reads = {get:1, gate:1, posts:1, topic:1, counts:1, mydebriefs:1, debriefs:1, reports:1, all:1};
+  var response = reads[req.action]
+    ? doGet({parameter:req})
+    : doPost({postData:{contents:JSON.stringify(req)}});
+  var payload = response.getContent();
+  if (payload.length > 300000) payload = JSON.stringify({ok:false, error:"too_large"});
+  var size = 25000, count = Math.max(1, Math.ceil(payload.length / size));
+  var cache = CacheService.getScriptCache(), key = "eai-relay:" + id + ":";
+  for (var i = 0; i < count; i++) cache.put(key + i, payload.slice(i * size, (i + 1) * size), 120);
+  cache.put(key + "parts", String(count), 120);
+  return out_({ok:true, accepted:true});
+}
+function poll_(p, cb) {
+  var id = String(p.requestId || ""), part = Number(p.part);
+  if (!/^[a-f0-9]{32}$/.test(id) || !Number.isInteger(part) || part < 0 || part > 11)
+    return out_({ok:false, error:"bad_request"}, cb);
+  var cache = CacheService.getScriptCache(), key = "eai-relay:" + id + ":";
+  var count = Number(cache.get(key + "parts"));
+  if (!count || part >= count) return out_({ok:false, error:"pending"}, cb);
+  var chunk = cache.get(key + part);
+  if (chunk === null) return out_({ok:false, error:"pending"}, cb);
+  return out_({ok:true, parts:count, part:part, chunk:chunk}, cb);
+}
+
+/** Participant submits (or re-submits) — also used by the private relay. */
 function doPost(e) {
   var lock, held = false;
   try {
     if (!e || !e.postData || !e.postData.contents) return out_({ok: false, error: "bad_request"});
     var body = JSON.parse(e.postData.contents);
+    if (body.action === "relay") return relay_(body);
     lock = LockService.getScriptLock();
     lock.waitLock(20000);
     held = true;
+
+    if (body.action === "hide") {
+      if (!adminOpen_(body.key)) return out_({ok:false, error:"bad_key"});
+      var hideId = String(body.id || "");
+      if (!reportedContent_(hideId)) return out_({ok:false, error:"content_missing"});
+      var hidden = hiddenContent_();
+      if (!hidden[hideId]) tab_(HIDDEN_SHEET, HIDDEN_HEADERS).appendRow([hideId, new Date()]);
+      return out_({ok:true});
+    }
+
+    if (body.action === "report" || body.action === "block") {
+      var viewer = verify_(body.email, body.pin);
+      if (viewer === "locked") return out_({ok:false, error:"locked"});
+      if (viewer === "reset") return out_({ok:false, error:"key_reset"});
+      if (!viewer) return out_({ok:false, error:"bad_pin"});
+      var targetId = String(body.id || "");
+      var target = reportedContent_(targetId);
+      if (!target) return out_({ok:false, error:"content_missing"});
+      var viewerEmail = String(viewer.email).trim().toLowerCase();
+      if (target.email === viewerEmail) return out_({ok:false, error:"own_content"});
+      if (body.action === "report") {
+        var reports = tab_(REPORTS_SHEET, REPORT_HEADERS);
+        var already = rowsOf_(reports, REPORT_HEADERS).some(function(row) {
+          return String(row[1]).trim().toLowerCase() === viewerEmail && String(row[2]) === targetId;
+        });
+        if (!already) reports.appendRow([new Date(), viewerEmail, targetId, target.email, "Offensive content"]);
+      } else {
+        var blocks = tab_(BLOCKS_SHEET, BLOCK_HEADERS);
+        var exists = rowsOf_(blocks, BLOCK_HEADERS).some(function(row) {
+          return String(row[0]).trim().toLowerCase() === viewerEmail &&
+            String(row[1]).trim().toLowerCase() === target.email;
+        });
+        if (!exists) blocks.appendRow([viewerEmail, target.email, new Date()]);
+      }
+      return out_({ok:true});
+    }
 
     // A discussion post.
     if (body.action === "post") {
@@ -304,6 +434,7 @@ function doPost(e) {
       var text = String(body.body || "").trim();
       if (!text) return out_({ok: false, error: "empty"});
       if (text.length > MAX_BODY) return out_({ok: false, error: "too_long"});
+      if (!suitable_(text)) return out_({ok: false, error: "content_filtered"});
       var thread = String(body.thread || "general");
       if (!validThread_(thread)) return out_({ok: false, error: "invalid_thread"});
       var id = body.id == null ? Utilities.getUuid().slice(0, 8) : String(body.id);
@@ -417,10 +548,10 @@ function doGet(e) {
   var p  = e.parameter || {};
   var cb = p.callback;
   try {
+    if (p.action === "poll") return poll_(p, cb);
     // Invitation checks must work even if the spreadsheet is temporarily
     // unavailable; registration still enforces the gate during doPost.
     if (p.action === "gate") {
-      if (!GATE_CODE) return out_({ok: true, valid: true}, cb);
       if (gateOpen_(p.code)) { clearFails_("#gate"); return out_({ok: true, valid: true}, cb); }
       if (locked_("#gate")) return out_({ok: true, valid: false}, cb);
       noteFail_("#gate");
@@ -462,8 +593,12 @@ function doGet(e) {
       if (!who) return out_({ok: false, error: "bad_pin"}, cb);
       var want = String(p.thread || "general");
       if (!validThread_(want)) return out_({ok: false, error: "invalid_thread"}, cb);
+      var blocked = blockedAuthors_(who.email);
+      var hiddenP = hiddenContent_();
       var posts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
-        .filter(function (r) { return String(r[2]) === want; })
+        .filter(function (r) { return String(r[2]) === want &&
+          !blocked[String(r[4]).trim().toLowerCase()] && !hiddenP[String(r[0])] &&
+          suitable_(plain_(r[6])); })
         .map(function (r) {
           return {id: r[0], at: iso_(r[1]),
                   name: plain_(r[3]), affiliation: plain_(r[5]), body: plain_(r[6]),
@@ -481,19 +616,26 @@ function doGet(e) {
       if (!whoT) return out_({ok: false, error: "bad_pin"}, cb);
       var tid = String(p.topic || "");
       if (!/^T[1-6]$/.test(tid)) return out_({ok: false, error: "invalid_topic"}, cb);
+      var blockedT = blockedAuthors_(whoT.email);
+      var hiddenT = hiddenContent_();
       var qs = [];
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
-          if (String(picks[i]) === tid && discussionQuestionVisible_(r[2], picks[i], answers[i])) {
-            qs.push({name: plain_(r[1]), affiliation: plain_(r[3]), q: plain_(answers[i]),
+          if (String(picks[i]) === tid && !blockedT[String(r[2]).trim().toLowerCase()] &&
+              !hiddenT["q:" + questionId_(r[2], picks[i], answers[i])] &&
+              discussionQuestionVisible_(r[2], picks[i], answers[i])) {
+            qs.push({id:"q:" + questionId_(r[2], picks[i], answers[i]),
+                     name: plain_(r[1]), affiliation: plain_(r[3]), q: plain_(answers[i]),
                      mine: String(r[2]).trim().toLowerCase() === String(whoT.email).trim().toLowerCase()});
           }
         }
       });
       var tkey = "topic:" + tid;
       var tposts = rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS)
-        .filter(function (r) { return String(r[2]) === tkey; })
+        .filter(function (r) { return String(r[2]) === tkey &&
+          !blockedT[String(r[4]).trim().toLowerCase()] && !hiddenT[String(r[0])] &&
+          suitable_(plain_(r[6])); })
         .map(function (r) {
           return {id: r[0], at: iso_(r[1]),
                   name: plain_(r[3]), affiliation: plain_(r[5]), body: plain_(r[6]),
@@ -508,16 +650,21 @@ function doGet(e) {
       if (who2 === "locked") return out_({ok: false, error: "locked"}, cb);
       if (who2 === "reset") return out_({ok: false, error: "key_reset"}, cb);
       if (!who2) return out_({ok: false, error: "bad_pin"}, cb);
+      var blockedC = blockedAuthors_(who2.email);
+      var hiddenC = hiddenContent_();
       var tally = {};
       rowsOf_(tab_(POSTS_SHEET, POST_HEADERS), POST_HEADERS).forEach(function (r) {
+        if (blockedC[String(r[4]).trim().toLowerCase()] || hiddenC[String(r[0])] || !suitable_(plain_(r[6]))) return;
         var k = String(r[2]); tally[k] = (tally[k] || 0) + 1;
       });
       var qtally = {};
       rowsOf_(sheet_(), HEADERS).forEach(function (r) {
+        if (blockedC[String(r[2]).trim().toLowerCase()]) return;
         var picks = [r[4], r[5], r[6]], answers = [r[7], r[8], r[9]];
         for (var i = 0; i < 3; i++) {
           var tid2 = String(picks[i] || "");
-          if (tid2 && discussionQuestionVisible_(r[2], tid2, answers[i])) qtally[tid2] = (qtally[tid2] || 0) + 1;
+          if (tid2 && !hiddenC["q:" + questionId_(r[2], tid2, answers[i])] &&
+              discussionQuestionVisible_(r[2], tid2, answers[i])) qtally[tid2] = (qtally[tid2] || 0) + 1;
         }
       });
       return out_({ok: true, counts: tally, questions: qtally}, cb);
@@ -537,7 +684,7 @@ function doGet(e) {
     }
 
     if (p.action === "debriefs") {
-      if (String(p.key || "") !== ADMIN_KEY) return out_({ok: false, error: "bad_key"}, cb);
+      if (!adminOpen_(p.key)) return out_({ok: false, error: "bad_key"}, cb);
       var ds = rowsOf_(tab_(DEBRIEF_SHEET, DEBRIEF_HEADERS), DEBRIEF_HEADERS).map(function (r) {
         return {at: iso_(r[0]), round: plain_(r[1]), group: plain_(r[2]),
                 topic: plain_(r[3]), name: plain_(r[4]), claim: plain_(r[6]),
@@ -546,8 +693,21 @@ function doGet(e) {
       return out_({ok: true, debriefs: ds}, cb);
     }
 
+    if (p.action === "reports") {
+      if (!adminOpen_(p.key)) return out_({ok:false, error:"bad_key"}, cb);
+      var reportSheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(REPORTS_SHEET);
+      var hiddenR = hiddenContent_();
+      var reports = reportSheet ? rowsOf_(reportSheet, REPORT_HEADERS).map(function(row) {
+        var id = String(row[2]), found = reportedContent_(id);
+        return {at:iso_(row[0]), reporter:String(row[1]), id:id,
+          author:String(row[3]), reason:String(row[4]),
+          body:found ? found.body : "Content removed", hidden:!!hiddenR[id]};
+      }) : [];
+      return out_({ok:true, reports:reports}, cb);
+    }
+
     if (p.action === "all") {
-      if (String(p.key || "") !== ADMIN_KEY) return out_({ok: false, error: "bad_key"}, cb);
+      if (!adminOpen_(p.key)) return out_({ok: false, error: "bad_key"}, cb);
       var last = sh.getLastRow();
       if (last < 2) return out_({ok: true, rows: []}, cb);
       var rows = sh.getRange(2, 1, last - 1, HEADERS.length).getValues()

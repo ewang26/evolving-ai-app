@@ -36,7 +36,7 @@ function backend() {
     LockService: { getScriptLock: () => lock },
     SpreadsheetApp: { openById: () => ({ getSheetByName: n => tabs[n], insertSheet: newSheet }) },
     CacheService: { getScriptCache: () => ({
-      get: key => cache.get(key), put: (key, value) => cache.set(key, value),
+      get: key => cache.get(key) ?? null, put: (key, value) => cache.set(key, value),
       remove: key => cache.delete(key)
     }) },
     Utilities: {
@@ -49,7 +49,7 @@ function backend() {
       getUuid: () => crypto.randomUUID()
     },
     ContentService: { MimeType: { JSON: 'json', JAVASCRIPT: 'js' },
-      createTextOutput: body => ({ body, setMimeType() { return this; } }) }
+      createTextOutput: body => ({ body, getContent() { return body; }, setMimeType() { return this; } }) },
   };
   vm.runInNewContext(source, c);
   c.SALT = 'synthetic-salt'; c.ADMIN_KEY = 'synthetic-admin'; c.GATE_CODE = 'synthetic-gate';
@@ -75,10 +75,28 @@ test('partial drafts are accepted, malformed ranks and oversized payloads are re
   assert.equal(b.post({ sub: { ...submission(), e: '=x@example.invalid' }, pin: 'test-model' }).error,
     'invalid_submission');
   assert.equal(b.post({ sub: { ...submission(), e: '+test@example.invalid' },
-    pin: 'test-model', gate: 'synthetic-gate' }).ok, true);
+    pin: 'test-model', gate: 'synthetic-gate' }).error, 'invalid_submission');
+  assert.equal(b.post({ sub: { ...submission(), e: '-test@example.invalid' },
+    pin: 'test-model', gate: 'synthetic-gate' }).error, 'invalid_submission');
   assert.equal(b.post({ sub: { ...submission(), read: { huge: 'x'.repeat(50000) } }, pin: 'test-model' }).error,
     'too_large');
-  assert.equal(b.tabs.Submissions.rows.length, 3);
+  assert.equal(b.tabs.Submissions.rows.length, 2);
+});
+
+test('unset or example setup keys cannot open registration or organizer reads', () => {
+  const b = backend();
+  for (const gate of ['', '   ', 'CHANGE-ME-to-the-shared-attendee-passcode']) {
+    b.c.GATE_CODE = gate;
+    assert.equal(b.get({ action: 'gate', code: gate }).valid, false);
+    assert.equal(b.post({ action: 'put', sub: submission(), pin: 'test-model', gate }).error,
+      'bad_gate');
+  }
+  for (const key of ['', '   ', 'CHANGE-ME-to-a-long-random-string']) {
+    b.c.ADMIN_KEY = key;
+    assert.equal(b.get({ action: 'all', key }).error, 'bad_key');
+    assert.equal(b.get({ action: 'reports', key }).error, 'bad_key');
+  }
+  assert.equal(b.tabs.Submissions.rows.length, 1);
 });
 
 test('lock timeout returns a bounded error and does not release an unheld lock', () => {
@@ -129,6 +147,95 @@ test('malformed post dates do not take down a whole discussion', () => {
   assert.equal(result.ok, true);
   assert.equal(result.posts[0].at, '');
   assert.equal(result.posts[0].body, 'Synthetic discussion');
+});
+
+test('reports are idempotent and blocking an author hides their posts and questions', () => {
+  const b = backend();
+  const first = { ...submission(), r: ['T1', 'T2', 'T3'], q: { T1: 'A synthetic question?' } };
+  const second = { ...submission(), n: 'Second Test', e: 'second@example.invalid',
+    r: ['T1', 'T2', 'T3'] };
+  assert.equal(b.post({ action: 'put', sub: first, pin: 'first-model', gate: 'synthetic-gate' }).ok, true);
+  assert.equal(b.post({ action: 'put', sub: second, pin: 'second-model', gate: 'synthetic-gate' }).ok, true);
+  const posted = b.post({ action: 'post', email: first.e, pin: 'first-model',
+    thread: 'topic:T1', body: 'A synthetic comment.' });
+  const login = { email: second.e, pin: 'second-model' };
+  const before = b.get({ action: 'topic', topic: 'T1', ...login });
+  assert.equal(before.posts.length, 1);
+  assert.equal(before.questions.length, 1);
+  assert.equal(b.post({ action: 'report', id: posted.id, ...login }).ok, true);
+  assert.equal(b.post({ action: 'report', id: posted.id, ...login }).ok, true);
+  assert.equal(b.tabs.Reports.rows.length, 2);
+  assert.equal(b.get({ action: 'reports', key: 'wrong' }).error, 'bad_key');
+  const reports = b.get({ action: 'reports', key: 'synthetic-admin' });
+  assert.equal(reports.reports.length, 1);
+  assert.equal(reports.reports[0].body, 'A synthetic comment.');
+  assert.equal(b.post({ action: 'hide', id: posted.id, key: 'wrong' }).error, 'bad_key');
+  assert.equal(b.post({ action: 'hide', id: posted.id, key: 'synthetic-admin' }).ok, true);
+  assert.equal(b.get({ action: 'reports', key: 'synthetic-admin' }).reports[0].hidden, true);
+  assert.equal(b.get({ action: 'topic', topic: 'T1', email: first.e, pin: 'first-model' }).posts.length, 0);
+  assert.equal(b.post({ action: 'hide', id: before.questions[0].id, key: 'synthetic-admin' }).ok, true);
+  assert.equal(b.post({ action: 'hide', id: before.questions[0].id, key: 'synthetic-admin' }).ok, true);
+  assert.equal(b.get({ action: 'topic', topic: 'T1', email: first.e, pin: 'first-model' }).questions.length, 0);
+  assert.equal(b.post({ action: 'block', id: before.questions[0].id, ...login }).ok, true);
+  assert.equal(b.post({ action: 'block', id: posted.id, ...login }).ok, true);
+  assert.equal(b.tabs.Blocks.rows.length, 2);
+  const after = b.get({ action: 'topic', topic: 'T1', ...login });
+  assert.equal(after.posts.length, 0);
+  assert.equal(after.questions.length, 0);
+  assert.equal(b.get({ action: 'counts', ...login }).counts['topic:T1'] || 0, 0);
+  assert.equal(b.tabs['Hidden content'].rows.length, 3);
+});
+
+test('server filters objectionable posts and questions from discussion reads', () => {
+  const b = backend();
+  const sub = { ...submission(), r: ['T1', 'T2', 'T3'], q: { T1: 'pornography' } };
+  assert.equal(b.post({ action: 'put', sub, pin: 'test-model', gate: 'synthetic-gate' }).ok, true);
+  assert.equal(b.get({ action: 'topic', topic: 'T1', email: sub.e, pin: 'test-model' }).questions.length, 0);
+  assert.equal(b.post({ action: 'post', email: sub.e, pin: 'test-model',
+    thread: 'general', body: 'pornography' }).error, 'content_filtered');
+  assert.equal(b.tabs.Posts.rows.length, 1);
+});
+
+test('private relay returns a read through a random ticket without credentials in the GET', () => {
+  const b = backend();
+  const sub = { ...submission(), n: '</script><img src=x>', r: ['T1', 'T2', 'T3'] };
+  assert.equal(b.post({ action: 'put', sub, pin: 'synthetic-model', gate: 'synthetic-gate' }).ok, true);
+  const requestId = '0123456789abcdef0123456789abcdef';
+  assert.equal(b.get({ action: 'poll', requestId, part: 0 }).error, 'pending');
+  assert.equal(b.post({ action: 'relay', requestId,
+    request: { action: 'get', email: sub.e, pin: 'synthetic-model' } }).ok, true);
+  const chunk = b.get({ action: 'poll', requestId, part: 0 });
+  assert.equal(chunk.ok, true);
+  assert.equal(chunk.parts, 1);
+  assert.equal(JSON.parse(chunk.chunk).row.n, sub.n);
+  assert.equal(b.get({ action: 'poll', requestId, part: 1 }).error, 'pending');
+});
+
+test('private relay rejects malformed requests and reports write errors', () => {
+  const b = backend(), requestId = '0123456789abcdef0123456789abcdef';
+  assert.equal(b.post({ action: 'relay', requestId, request: 'bad' }).error, 'bad_request');
+  assert.equal(b.post({ action: 'relay', requestId, request: { action: 'relay' } }).error, 'bad_request');
+  assert.equal(b.post({ action: 'relay', requestId, request:
+    { action: 'put', sub: submission(), pin: 'synthetic-model', gate: 'wrong' } }).ok, true);
+  assert.equal(JSON.parse(b.get({ action: 'poll', requestId, part: 0 }).chunk).error, 'bad_gate');
+  assert.equal(b.tabs.Submissions.rows.length, 1);
+});
+
+test('private relay chunks a large roster and polls every part', () => {
+  const b = backend();
+  for (let i = 0; i < 40; i++) {
+    const sub = { ...submission(), e: `synthetic${i}@example.invalid`,
+      w: 'x'.repeat(1000) };
+    assert.equal(b.post({ action: 'put', sub, pin: 'test-model', gate: 'synthetic-gate' }).ok, true);
+  }
+  const requestId = 'fedcba9876543210fedcba9876543210';
+  assert.equal(b.post({ action: 'relay', requestId,
+    request: { action: 'all', key: 'synthetic-admin' } }).ok, true);
+  const first = b.get({ action: 'poll', requestId, part: 0 });
+  assert.ok(first.parts > 1);
+  const raw = Array.from({ length: first.parts }, (_, part) =>
+    b.get({ action: 'poll', requestId, part }).chunk).join('');
+  assert.equal(JSON.parse(raw).rows.length, 40);
 });
 
 test('post limit and thread validation reject writes rather than silently truncating', () => {

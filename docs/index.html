@@ -460,6 +460,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
 <script>
 window.EAI_CONFIG = {
   apiUrl: "https://script.google.com/macros/s/AKfycbxPqMTtvA8nZnTPS4J3bl7yekPPWafkvvuJTliI0eJx9vvxTCSBr2feWLnGyD726eGN/exec",
+  bridge: new URLSearchParams(location.search).get("relay_test") === "1",
   deadline: "Monday, October 5"
 };
 </script>
@@ -609,57 +610,54 @@ window.EAI_CONFIG = {
   }
 
   /* ---------------- the shared sheet ----------------
-     Apps Script does not provide CORS to this page. Its form bridge returns a
-     result from a hidden iframe via postMessage, with the answer in the POST
-     body instead of a JSONP URL. Old clients keep using the legacy endpoint. */
-  function bridgeRequest(params, timeoutMs){
-    return new Promise(function(resolve, reject){
-      if(!API) return reject({code:"no_api"});
-      if(!window.crypto || !window.crypto.getRandomValues) return reject({code:"crypto_unavailable"});
-      var bytes = new Uint8Array(16);
-      window.crypto.getRandomValues(bytes);
-      var id = Array.prototype.map.call(bytes, function(b){ return ("0" + b.toString(16)).slice(-2); }).join("");
-      var frame = document.createElement("iframe"), form = document.createElement("form");
-      frame.name = "eai_bridge_" + id;
-      frame.style.display = "none";
-      form.method = "POST"; form.action = API; form.target = frame.name;
-      form.acceptCharset = "UTF-8"; form.style.display = "none";
-      function field(name, value){
-        var input = document.createElement("input");
-        input.type = "hidden"; input.name = name; input.value = value;
-        form.appendChild(input);
-      }
-      field("eai_bridge", "1"); field("requestId", id);
-      field("request", JSON.stringify(params));
-      var done = false, timer;
-      function cleanup(){
-        if(done) return;
-        done = true; clearTimeout(timer);
-        window.removeEventListener("message", onMessage);
-        if(form.parentNode) form.parentNode.removeChild(form);
-        if(frame.parentNode) frame.parentNode.removeChild(frame);
-      }
-      function onMessage(event){
-        var data = event.data;
-        if(!data || data.source !== "eai-bridge" || data.requestId !== id) return;
-        var origin;
-        try { origin = new URL(event.origin); } catch(e) { return; }
-        if(origin.protocol !== "https:" ||
-           !(origin.hostname === "script.google.com" ||
-             origin.hostname === "googleusercontent.com" ||
-             /\.googleusercontent\.com$/.test(origin.hostname))) return;
-        cleanup(); resolve(data.result);
-      }
-      window.addEventListener("message", onMessage);
-      timer = setTimeout(function(){ cleanup(); reject({code:"timeout"}); }, timeoutMs || 20000);
-      document.body.appendChild(frame);
-      document.body.appendChild(form);
-      try { form.submit(); } catch(e) { cleanup(); reject({code:"network"}); }
+     Apps Script does not provide CORS. A no-cors POST computes the response;
+     a short-lived random ID retrieves it in chunks over JSONP. No credential
+     or answer appears in the GET URL. Old clients retain the legacy route. */
+  function relayRequest(params, timeoutMs){
+    if(!API) return Promise.reject({code:"no_api"});
+    if(!window.crypto || !window.crypto.getRandomValues) return Promise.reject({code:"crypto_unavailable"});
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    var id = Array.prototype.map.call(bytes, function(b){ return ("0" + b.toString(16)).slice(-2); }).join("");
+    var deadline = Date.now() + (timeoutMs || 20000);
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer;
+    var post = new Promise(function(resolve, reject){
+      timer = setTimeout(function(){
+        if(controller) controller.abort();
+        reject({code:"timeout"});
+      }, timeoutMs || 20000);
+      Promise.resolve().then(function(){
+        return fetch(API, {
+          method:"POST", mode:"no-cors", cache:"no-store",
+          headers:{"Content-Type":"text/plain;charset=utf-8"},
+          body:JSON.stringify({action:"relay", requestId:id, request:params}),
+          signal:controller ? controller.signal : undefined
+        });
+      }).then(function(){ clearTimeout(timer); resolve(); }, function(err){ clearTimeout(timer); reject(err); });
     });
+    function part(n, count, chunks){
+      if(Date.now() >= deadline) return Promise.reject({code:"timeout"});
+      return jsonpLegacy({action:"poll", requestId:id, part:n},
+        Math.max(1000, Math.min(10000, deadline - Date.now()))).then(function(res){
+        if(!res || !res.ok){
+          if(res && res.error === "pending") return wait(300).then(function(){ return part(n, count, chunks); });
+          throw {code:(res && res.error) || "refused"};
+        }
+        if(res.part !== n || !Number.isInteger(res.parts) || res.parts < 1 || res.parts > 12 ||
+           (count && count !== res.parts) || typeof res.chunk !== "string") throw {code:"bad_response"};
+        chunks.push(res.chunk);
+        return n + 1 < res.parts ? part(n + 1, res.parts, chunks) : JSON.parse(chunks.join(""));
+      });
+    }
+    return post.then(function(){ return part(0, 0, []); });
   }
   var jsonpN = 0;
   function jsonp(params, timeoutMs){
-    if(window.EAI_CONFIG && window.EAI_CONFIG.bridge) return bridgeRequest(params, timeoutMs);
+    if(window.EAI_CONFIG && window.EAI_CONFIG.bridge) return relayRequest(params, timeoutMs);
+    return jsonpLegacy(params, timeoutMs);
+  }
+  function jsonpLegacy(params, timeoutMs){
     return new Promise(function(resolve, reject){
       if(!API) return reject({code:"no_api"});
       var cb = "__eai_cb" + (++jsonpN), s = document.createElement("script");
@@ -679,7 +677,7 @@ window.EAI_CONFIG = {
 
   function uploadSubmission(body){
     if(window.EAI_CONFIG && window.EAI_CONFIG.bridge){
-      return bridgeRequest(JSON.parse(body), 20000).then(function(res){
+      return relayRequest(JSON.parse(body), 20000).then(function(res){
         if(res && res.ok) return res;
         throw {code:(res && res.error) || "refused"};
       });
