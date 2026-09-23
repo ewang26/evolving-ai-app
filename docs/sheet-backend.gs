@@ -58,10 +58,9 @@ var MAX_PAYLOAD    = 48000; // Sheets caps one cell at 50,000 characters.
 var MAX_TRIES   = 8;    // failed passcode attempts per email before a cool-off
 var LOCK_SECS   = 900;
 
-// One month after the October 8–10 gathering. This is midnight November 10
-// Pacific, 3 a.m. Eastern. A due-date trigger must call
-// purgeExpiredAttendeeData; the cutoff also prevents new
-// writes from repopulating tabs after the cleanup.
+// Close online access one month after the October 8–10 gathering:
+// midnight November 10 Pacific, 3 a.m. Eastern. Existing Sheet rows remain
+// until the organizer explicitly decides to remove them.
 var RETENTION_CUTOFF = Date.UTC(2026, 10, 10, 8, 0, 0);
 function retentionClosed_() { return Date.now() >= RETENTION_CUTOFF; }
 
@@ -740,35 +739,6 @@ function doGet(e) {
   } catch (err) {
     console.error(err);
     return out_({ok: false, error: "backend_error"}, cb);
-  }
-}
-
-/**
- * Remove attendee data from the active Sheet after the retention deadline.
- * The header rows stay in place so the Sheet remains auditable. Run this from
- * a time-driven trigger after November 10, 2026, and verify the returned row
- * counts and the tabs themselves. No trigger is installed by this source file.
- */
-function purgeExpiredAttendeeData() {
-  if (!retentionClosed_()) throw new Error("Retention deadline has not passed");
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    var ss = SpreadsheetApp.openById(SHEET_ID);
-    var names = [SHEET_NAME, POSTS_SHEET, REPORTS_SHEET, BLOCKS_SHEET,
-                 HIDDEN_SHEET, DEBRIEF_SHEET, INVITEES_SHEET];
-    var removed = {};
-    names.forEach(function(name) {
-      var sh = ss.getSheetByName(name);
-      if (!sh) { removed[name] = 0; return; }
-      var rows = Math.max(0, sh.getLastRow() - 1);
-      if (rows) sh.deleteRows(2, rows);
-      removed[name] = rows;
-    });
-    Logger.log(JSON.stringify(removed));
-    return removed;
-  } finally {
-    lock.releaseLock();
   }
 }
 

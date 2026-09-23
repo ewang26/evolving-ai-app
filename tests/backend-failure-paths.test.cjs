@@ -85,7 +85,7 @@ test('partial drafts are accepted, malformed ranks and oversized payloads are re
   assert.equal(b.tabs.Submissions.rows.length, 2);
 });
 
-test('retention cutoff closes access and cleanup removes only attendee rows', () => {
+test('November cutoff closes access while retaining all Sheet rows', () => {
   const b = backend();
   b.c.RETENTION_CUTOFF = Date.now() + 60_000;
   assert.equal(create(b).ok, true);
@@ -96,15 +96,10 @@ test('retention cutoff closes access and cleanup removes only attendee rows', ()
     'event_closed');
   assert.equal(b.post({ action: 'put', sub: submission(), pin: 'test-model' }).error,
     'event_closed');
-  const removed = b.c.purgeExpiredAttendeeData();
-  assert.equal(removed.Submissions, 1);
-  assert.equal(removed.Posts, 1);
-  assert.equal(b.tabs.Submissions.rows.length, 1);
-  assert.equal(b.tabs.Posts.rows.length, 1);
+  assert.equal(typeof b.c.purgeExpiredAttendeeData, 'undefined');
+  assert.equal(b.tabs.Submissions.rows.length, 2);
+  assert.equal(b.tabs.Posts.rows.length, 2);
   assert.deepEqual(Array.from(b.tabs.Submissions.rows[0]), Array.from(b.c.HEADERS));
-  assert.equal(b.c.purgeExpiredAttendeeData().Submissions, 0);
-  b.c.RETENTION_CUTOFF = Date.now() + 60_000;
-  assert.throws(() => b.c.purgeExpiredAttendeeData(), /Retention deadline/);
 });
 
 test('unset or example setup keys cannot open registration or organizer reads', () => {
