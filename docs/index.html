@@ -1905,14 +1905,20 @@ window.EAI_CONFIG = {
 
   function rosterTsv(){
     var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic\tGathering goals and contribution\tMore work details (optional)"];
+    // A copied roster is commonly pasted into a spreadsheet. Flatten every
+    // attendee-authored cell before joining tabs, then keep formula prefixes
+    // literal just as the backend does when it writes to the Google Sheet.
+    var cell = function(v){
+      var text = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+      return /^[=+\-@]/.test(text) ? "'" + text : text;
+    };
     roster.forEach(function(p){
-      var qs = p.r.map(function(id){ return String(p.q[id]||"").replace(/\s+/g," ").trim(); });
+      var qs = p.r.map(function(id){ return p.q[id] || ""; });
       while(qs.length < 3) qs.push("");
       var rs = p.r.map(function(id){ return T(id).title; });
       while(rs.length < 3) rs.push("");
-      var oneline = function(v){ return String(v||"").replace(/\s+/g," ").trim(); };
-      L.push([p.n, p.e, p.a, oneline(p.w), oneline(p.c),
-              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], oneline(p.t), oneline(p.hopes), oneline(p.moreWork)].join("\t"));
+      L.push([p.n, p.e, p.a, p.w, p.c,
+              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], p.t, p.hopes, p.moreWork].map(cell).join("\t"));
     });
     return L.join("\n");
   }

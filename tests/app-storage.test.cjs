@@ -639,6 +639,26 @@ test('work fields autosave, restore, export, and allow clearing optional details
   assert.equal(a.t.state().syncState.state, 'ok');
 });
 
+test('copied roster cannot create spreadsheet formulas or extra cells', () => {
+  const a = app();
+  a.t.setRoster([{ ...sample(), n: '\t=HYPERLINK("https://example.invalid")',
+    a: '+1+1', w: 'Research\n=2+2', c: '@SUM(1)',
+    q: { T1: '=3+3', T2: 'A question\t=4+4', T3: 'Ordinary question' },
+    hopes: '-5+5', moreWork: '\r@SUM(6)' }]);
+  const lines = a.t.rosterTsv().split('\n');
+  assert.equal(lines.length, 2);
+  const cells = lines[1].split('\t');
+  assert.equal(cells.length, 14);
+  assert.equal(cells[0], "'=HYPERLINK(\"https://example.invalid\")");
+  assert.equal(cells[2], "'+1+1");
+  assert.equal(cells[3], 'Research =2+2');
+  assert.equal(cells[4], "'@SUM(1)");
+  assert.equal(cells[8], "'=3+3");
+  assert.equal(cells[9], 'A question =4+4');
+  assert.equal(cells[12], "'-5+5");
+  assert.equal(cells[13], "'@SUM(6)");
+});
+
 test('work validation requires gathering goals but leaves further details optional', () => {
   const a = app();
   const sub = { ...sample(), hopes: '', moreWork: '' };
