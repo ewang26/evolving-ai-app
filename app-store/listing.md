@@ -9,8 +9,8 @@
 - Primary language: English (U.S.)
 - Seller team: Erik Wang
 - App Store Connect ID: `6815026303` (Prepare for Submission)
-- Version: 1.0 (build 1 uploaded September 22; processed as Ready to Submit in TestFlight). Select it on the version page before App Review.
-- Price: Free proposed; awaiting confirmation in App Store Connect
+- Version: 1.0 (build 1 uploaded September 22; processed as Ready to Submit in TestFlight and selected on the version page).
+- Price: Free schedule saved with United States as base region. Release availability is pending organizer choice of regions.
 - Primary category: Education
 - Copyright: © 2026 Erik Wang
 
@@ -34,11 +34,11 @@ An invitation passcode is required to create an attendee entry.
 
 **Marketing URL:** https://www.benchmark.com/evolving-ai/app/
 
-**Screenshots:** `screenshots/iphone-6.9-introduction.jpg` (1320 × 2868) is uploaded to the 6.9-inch iPhone set. `screenshots/ipad-13-introduction.jpg` (2064 × 2752) is prepared but not uploaded. Both are captures from the iPhone 18 Pro Max and iPad Pro 13-inch simulators running an earlier Release build, converted to JPEG because App Store Connect rejects alpha channels. Capture additional screens of the final reading and discussion experience before submission.
+**Screenshots:** `screenshots/iphone-6.9-introduction.jpg` (1320 × 2868) and `screenshots/ipad-13-introduction.jpg` (2064 × 2752) are uploaded to the 6.9-inch iPhone and 13-inch iPad sets. Both are captures from the iPhone 18 Pro Max and iPad Pro 13-inch simulators running an earlier Release build, converted to JPEG because App Store Connect rejects alpha channels. Additional genuine screens of the final reading and discussion experience would improve the listing.
 
 ## App Review information
 
-The review contact name is Erik Wang; Apple also requires a phone number. Provide Apple with an active dedicated review account and any required invitation or login details in the private App Review fields. Do not put credentials in this repository or public listing. Explain that the app saves to an organizer-controlled Google Sheet and that discussion appears after a successful submission. The organizer console is reached by a long press on the wordmark. Manual release is selected. Content Rights and build selection on the version page remain unfinished.
+The review contact name is Erik Wang and the organizer-provided phone number is saved in Apple's private field. A synthetic review account exists in the production Sheet; the organizer's specific approval to share its access details with Apple is pending. Do not put credentials in this repository or public listing. Generic reviewer instructions are saved in Apple's private Notes field. The organizer console is reached by a long press on the wordmark. Manual release and build 1 are selected. Content Rights remains unfinished pending an organizer attestation.
 
 ## Privacy questionnaire notes
 
