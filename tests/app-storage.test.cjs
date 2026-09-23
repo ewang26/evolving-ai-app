@@ -238,15 +238,36 @@ test('submitting and saving topics do not leave stale snapshots in the address b
   a.t.submit(); assert.equal(a.context.location.hash, '');
   assert.equal(JSON.parse(a.storage['eai.me.v3']).saved, true);
   assert.equal(app({ api: '', storage: a.storage }).t.state().step, 3);
-  assert.match(a.t.myLink(sample()), /#s=/); // Explicit sharing remains available.
+  assert.equal(a.t.myLink(sample()), 'https://app.example.invalid/app/');
 });
 
-test('native personal links open the public Benchmark app with the same submission', () => {
+test('new shared links contain no attendee data and old links still import', () => {
   const a = app({ publicURL: 'https://www.benchmark.com/evolving-ai/app/' });
   const url = new URL(a.t.myLink(sample()));
-  assert.equal(url.origin + url.pathname, 'https://www.benchmark.com/evolving-ai/app/');
-  assert.deepEqual(JSON.parse(Buffer.from(url.hash.slice(3), 'base64url').toString()), sample());
-  assert.equal(app().t.myLink(sample()).startsWith('https://app.example.invalid/app/#s='), true);
+  assert.equal(url.href, 'https://www.benchmark.com/evolving-ai/app/');
+  assert.equal(url.hash, '');
+  assert.equal(app().t.myLink(sample()), 'https://app.example.invalid/app/');
+  const old = app({ hash: linkHash(sample()) });
+  assert.equal(old.t.state().S.e, sample().e);
+});
+
+test('old organizer key and roster are removed from persistent browser storage', () => {
+  const storage = { 'eai.adminkey.v1': JSON.stringify('synthetic-key'),
+    'eai.roster.v3': JSON.stringify([sample()]) };
+  const a = app({ storage });
+  assert.equal(storage['eai.adminkey.v1'], undefined);
+  assert.equal(storage['eai.roster.v3'], undefined);
+  assert.doesNotMatch(a.t.renderOrg(), /Test Attendee/);
+});
+
+test('leaving the organizer console clears the in-memory roster and key', () => {
+  const a = app({ hash: '#organizer' });
+  a.t.setRoster([sample()]);
+  assert.match(a.t.renderOrg(), /Test Attendee/);
+  a.nodes.homeBtn.listeners.click();
+  assert.doesNotMatch(a.t.renderOrg(), /Test Attendee/);
+  assert.equal(a.storage['eai.roster.v3'], undefined);
+  assert.equal(a.storage['eai.adminkey.v1'], undefined);
 });
 
 

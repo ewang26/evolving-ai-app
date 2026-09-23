@@ -13,14 +13,13 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
 <title>Evolving AI Seminar Prep</title>
 <meta name="description" content="Rank three focus areas, submit a question for each, and get your pre-read for the Evolving AI gathering at Harvard, October 8–10, 2026." />
 <meta name="theme-color" content="#1c364e" />
+<meta name="referrer" content="no-referrer" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Evolving AI" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACoklEQVR42u2X224bNxCGvyG5u7KaWHUKJCnQ58hj5P0foBcFYsepDqsVDzO9oLI6pLUvggI2QN6sSHBm+HFm/l3JH58+G694OF75aAANoAE0gAbQABpAA2gADaABNIBXO8L5RMTx0v9fCmCm/wIgjrj9ipUE4mBGkbPfPxX2532Yggv0b9+B2XUGjBwnFre/IS4gIpXUDERqdua5q85EZkfiajWaHtdhtp2f14epaT/tBTj6QbVyc7IzVabN/cVdXPSAOA8+YECatpgZEjpUlbTf1Bi+o+QILqBawAfwHWkaSdMOfId9P4/zmCoSerRkzGrskhP4Dnx3XLfjPJAPIyUejn4cZsy2+ICIe6qJDUHQNBHX9+RxjbhAHteUww4RQQSmb38Rd18p0xYRIe/XaNrjQwcYmiNx80DcPZKnLeIDcfNA2j2SxzVx86X6Ag7re+LuG+IcpoU8/k3aPdZSBvYPf9Y4zp2y9KwKmeFCh1kBMwxDfJiDhMUbLB3I04i4gJaEhAHXL08lohlKBgxTxYUBzQdK3OPDAECOI2hB4x5NERGH5mojvlZ37Um56sv/UKF69mrsfMB3C8wU3w3oYURzRHyH7wb8clVvvmT6mxVx+0Dc3NP9coeI1GcIaDpgWvD9gAvd3C9mCqWw+PUDphkrCXE9w9t3FToncI7F3UdMC5omnO+eB0AE3y/xw3JunG65guXq2IzUOdD3HzAtSOgY7n4/ptjw/c1cki4MYEa4ub1oWDMjLG8vVcqMsFxdiIO76ea5qj4FUDel9Rfw/qQuJ18/CMa8ZmeiKz+W6lNr5wL7ZCyRqkymF0bhTKNYrN5jml/2i8yFi9sI19cioX/Zr+KrVIbnNrSPuQbQABpAA2gADaABNIAG0AAaQAP4n8Y/YCd1mlWaon0AAAAASUVORK5CYII=" />
-<script src="https://use.typekit.net/jyp8ruv.js"></script>
-<script>try{Typekit.load();}catch(e){}</script>
 <link rel="stylesheet" href="https://use.typekit.net/jyp8ruv.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -563,11 +562,8 @@ window.EAI_CONFIG = {
 
 
   /* ==================================================================
-     STORAGE — three layers, each independently optional:
-       1. this device        localStorage, so returning here resumes instantly
-       2. a personal link    the submission encoded in the URL, so any device
-                             restores it with no account and no network
-       3. the shared sheet    an Apps Script endpoint, when one is configured
+     STORAGE — the current draft stays on this device; a confirmed save also
+     reaches the shared sheet. Newly copied links contain only the app URL.
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
   var LS_POST_PENDING = "eai.post.pending.v1";
@@ -591,10 +587,10 @@ window.EAI_CONFIG = {
     o.q = (o.q && typeof o.q === "object") ? o.q : {};
     return o;
   }
-  function myLink(d){
-    // A native build shares a public URL, never its private seminar:// origin.
-    var base = window.EAI_PUBLIC_URL || (location.origin + location.pathname);
-    return base + "#s=" + encodeSub(d);
+  function myLink(){
+    // Share the app address only. Older #s= links still import for compatibility,
+    // but new links must not disclose an attendee's answers to their recipients.
+    return window.EAI_PUBLIC_URL || (location.origin + location.pathname);
   }
   function decodeAll(text){
     var found = [], pattern = /--EAI1--([A-Za-z0-9_\-\s]+?)--END--/g, match;
@@ -776,8 +772,11 @@ window.EAI_CONFIG = {
   var readTimer = null;
   var readSaveInFlight = null, readSavePending = false;
   var autoSaveBlocked = "", identityEditing = false, preparedIdentity = "", localDraftIdentity = "";
-  var roster = lsGet(LS_ROSTER, []);
-  if(!Array.isArray(roster)) roster = [];
+  // A roster and its organizer key should never survive a browser restart.
+  // Remove values left by older releases on this origin.
+  lsDel(LS_ROSTER); lsDel(LS_KEY);
+  var roster = [];
+  var organizerKey = "";
   var pendingPosts = lsGet(LS_POST_PENDING, []);
   if(!Array.isArray(pendingPosts)) pendingPosts = pendingPosts && pendingPosts.id ? [pendingPosts] : [];
 
@@ -1363,9 +1362,9 @@ window.EAI_CONFIG = {
     + '      <span class="gsub">For the whole group, not one topic</span>'
     + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
     + '    </button>'
-    + '    <p class="note">Save this link to get your reading back on any device.</p>'
+    + '    <p class="note">Bookmark this app. On another device, use Load my reading with the same email and favorite AI model.</p>'
     + '    <div class="btnrow">'
-    + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy my link</button>'
+    + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy app link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
     + '      <button class="btn btn-out" id="editMine" type="button">Edit answers</button>'
     +      (saved && API
@@ -1863,12 +1862,12 @@ window.EAI_CONFIG = {
   function orgSheet(){
     if(!API) return '<div class="empty">This build has no sheet endpoint configured. '
       + 'Set <code>apiUrl</code> in config.js and reload, or use the paste box on the Roster tab.</div>';
-    var key = lsGet(LS_KEY, "");
+    var key = organizerKey;
     return ''
     + '<div class="f">'
     + '  <label for="akey">Admin key</label>'
     + '  <input id="akey" type="password" placeholder="The ADMIN_KEY from your Apps Script" value="'+esc(key)+'" autocomplete="off" />'
-    + '  <div class="hint">Kept in this browser only, never in the app’s source.</div>'
+    + '  <div class="hint">Used for this open page only, never stored on this device.</div>'
     + '  <div class="btnrow" style="margin-top:.55rem">'
     + '    <button class="btn btn-accent btn-sm" id="pull" type="button" style="flex:0 1 auto">Pull submissions</button>'
     + '  </div>'
@@ -2147,7 +2146,7 @@ window.EAI_CONFIG = {
     if(og) og.addEventListener("click", function(){ openThread("general", ""); });
     var cl = document.getElementById("copyLink");
     if(cl) cl.addEventListener("click", function(){
-      copyText(myLink(S)).then(function(ok){ flash(cl, ok ? "Link copied" : "Copy failed"); });
+      copyText(myLink()).then(function(ok){ flash(cl, ok ? "Link copied" : "Copy failed"); });
     });
     var cr = document.getElementById("copyRead");
     if(cr) cr.addEventListener("click", function(){
@@ -2284,7 +2283,6 @@ window.EAI_CONFIG = {
         });
         if(at > -1){ roster[at] = p; updated++; } else { roster.push(p); added++; }
       });
-      lsSet(LS_ROSTER, roster);
       ta.value = "";
       msg.innerHTML = '<span class="flash">Added ' + added + (updated?", updated "+updated:"") + '</span>';
       var keep = msg.innerHTML;
@@ -2298,13 +2296,13 @@ window.EAI_CONFIG = {
     });
     var wipe = document.getElementById("wipe");
     if(wipe) wipe.addEventListener("click", function(){
-      if(!confirm("Remove all " + roster.length + " submissions from this browser?")) return;
-      roster = []; lsSet(LS_ROSTER, roster); render();
+      if(!confirm("Clear all " + roster.length + " submissions from this open page?")) return;
+      roster = []; render();
     });
     Array.prototype.forEach.call(view.querySelectorAll("[data-del]"), function(b){
       b.addEventListener("click", function(){
         roster.splice(+b.getAttribute("data-del"), 1);
-        lsSet(LS_ROSTER, roster); render();
+        render();
       });
     });
     var ps = document.getElementById("printSheets");
@@ -2322,7 +2320,7 @@ window.EAI_CONFIG = {
     pull.addEventListener("click", function(){
       var k = document.getElementById("akey").value.trim();
       var msg = document.getElementById("pullMsg");
-      lsSet(LS_KEY, k);
+      organizerKey = k;
       msg.textContent = "Pulling…";
       cloudAll(k).then(function(rows){
         var clean = [];
@@ -2330,7 +2328,7 @@ window.EAI_CONFIG = {
           var d = normalize(o);
           if(d.n && d.r.filter(function(x){return x;}).length === 3) clean.push(d);
         });
-        roster = clean; lsSet(LS_ROSTER, roster);
+        roster = clean;
         render();
         var m = document.getElementById("pullMsg");
         if(m) m.innerHTML = '<span class="flash">Loaded ' + clean.length + '</span>';
@@ -2343,6 +2341,7 @@ window.EAI_CONFIG = {
 
   if(homeBtn) homeBtn.addEventListener("click", function(){
     // Home from a discussion or the organizer console.
+    if(mode === "org") { roster = []; organizerKey = ""; }
     if(/organizer/.test(String(location.hash || ""))){
       try { history.replaceState(null, "", location.pathname); } catch(e){}
     }
