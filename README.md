@@ -2,9 +2,9 @@
 
 The pre-gathering app for **Evolving AI**, Harvard University, October 8–10, 2026.
 
-A participant enters their details, ranks three of the five focus areas, reads the pre-read
+A participant enters their details, ranks three of the six focus areas, reads the pre-read
 assembled from those choices, then writes one question per topic plus an optional proposal
-for a sixth. The organizer
+for another. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
 
 Everything lives in `docs/` and is a static site — no build step, no server.
@@ -36,22 +36,23 @@ nothing to set up.
 
 | | |
 | --- | --- |
-| Sheet | `1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY` (13 columns; `Payload` is looked up by name, so column order can change safely) |
+| Sheet | `1QZJrNvhEIPk0XVnM6l1YtBPbJNh1hhn8RTpLXnj8HcY` (`Submissions` and discussion tabs) |
 | Script project | "Evolving AI - submissions endpoint" (standalone, in the same Drive) |
-| Endpoint | set as `apiUrl` in `docs/config.js` |
+| Endpoint | set as `apiUrl` in `docs/index.html`; keep `docs/config.js` aligned for older clients |
 | Deployment | Execute as: Erik · Who has access: **Anyone** (anonymous submissions) |
 | Admin key | in the script as `ADMIN_KEY`; deliberately **not** in this repo |
 | Passcode salt | in the script as `SALT`; never leaves it. Changing it invalidates every passcode |
 
 The organizer console's **From the sheet** tab asks for that admin key and pulls the whole
-roster. The key is stored only in that browser.
+roster. The key is held only while the page is open.
 
-**Why it is built this way:** a static page cannot read an Apps Script response, because
-Apps Script sends no CORS headers. So a submission goes out as a simple `no-cors` POST and
-is then *confirmed* by reading the row back over JSONP, which Apps Script can serve
-cross-origin. The app only reports "Saved to the organizers' sheet" once it has actually
-read the row back, so a silent failure shows as "Saved on this device" plus a retry rather
-than a false success.
+**Why it is built this way:** Apps Script sends no CORS headers. The deployed site currently
+uses `no-cors` POST and confirms a save by reading the row back over JSONP. This still puts
+personal access answers and organizer keys in request URLs. A form POST bridge is implemented
+but remains disabled until the frame-enabled Apps Script version is deployed and tested in
+the website and iOS app. Once enabled, its private response is delivered by `postMessage`.
+The app reports "Saved to the organizers' sheet" only after a matching row is read back;
+an unconfirmed write remains available for retry.
 
 **To rotate the admin key:** open the script project, change `ADMIN_KEY`, then
 Deploy → Manage deployments → edit → Version: **New version**. Editing without
@@ -77,10 +78,9 @@ group of people who would (rightly) find a password prompt insulting. The lockou
 guessing, but this code does not provide strong account security: a guessed code can expose
 an attendee's full submission and discussion access.
 
-One known limitation: the lookup is a JSONP `GET`, so the passcode travels as a query
-parameter. It is HTTPS end to end, but it will appear in the participant's browser history
-and in Apps Script's request logs. Closing that would need a readable POST response, which
-Apps Script cannot give a static page.
+Until the bridge is enabled, a JSONP lookup sends the personal answer in the URL. It is
+HTTPS in transit, but URLs may be retained in browser history or request logs. The shared
+invitation code must be rotated because an older public commit contained a literal example.
 
 **Abuse surface:** `apiUrl` is public by nature — anyone reading the page source can POST
 a submission. The endpoint only appends or updates rows and never returns the roster
@@ -189,13 +189,12 @@ them into rooms.
 
 ## Data
 
-Submissions contain a name, email, affiliation, a passcode hash, three topic choices and
-three questions. They are stored in the Google Sheet you own, in the participant's own browser,
-and in the personal link the app gives them. There is no third-party analytics, no
-cookies, and no login. The `apiUrl` in `config.js` is public by nature — anyone who reads
-the page source can post a submission to it, so treat the Sheet as append-only input and
-expect to delete the occasional junk row. `ADMIN_KEY` never leaves the organizer's
-browser.
+Submissions contain a name, email, affiliation, a salted personal-answer hash, topic choices,
+questions, and optional work details. They are stored in the organizer's Google Sheet and
+the participant's local draft. Current copied links contain only the public app address;
+older `#s=` links may still contain a readable submission. There is no analytics SDK.
+The public `apiUrl` can receive unwanted requests, so organizers should monitor the Sheet.
+The organizer key is held in memory while the console is open.
 
 ## Reading lists
 

@@ -425,6 +425,9 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .pmeta{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;text-transform:uppercase;
     color:var(--faint);margin-bottom:.3rem}
   .pbody{font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.55}
+  .modtools{display:flex;gap:.9rem;margin-top:.4rem}
+  .modtools button{border:0;background:none;padding:.2rem 0;color:var(--muted);font:inherit;font-size:.75rem;text-decoration:underline;cursor:pointer}
+  .modtools button:hover{color:var(--accent)}
   .yourq{
     padding:.85rem 1rem;font-size:calc(1.02rem * var(--text-scale) + var(--text-add));
     background:rgba(236,193,135,.08);
@@ -567,7 +570,7 @@ window.EAI_CONFIG = {
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
   var LS_POST_PENDING = "eai.post.pending.v1";
-  var LS_GATE = "eai.gate.v1";   // the shared code, entered once per device
+  var LS_GATE = "eai.gate.v1";   // older releases stored the shared code here
 
   function lsGet(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
   function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
@@ -606,11 +609,57 @@ window.EAI_CONFIG = {
   }
 
   /* ---------------- the shared sheet ----------------
-     A static page cannot read an Apps Script response (no CORS headers), so
-     writes go out as a simple no-cors POST and are then CONFIRMED by reading
-     the row back over JSONP, which Apps Script can serve cross-origin. */
+     Apps Script does not provide CORS to this page. Its form bridge returns a
+     result from a hidden iframe via postMessage, with the answer in the POST
+     body instead of a JSONP URL. Old clients keep using the legacy endpoint. */
+  function bridgeRequest(params, timeoutMs){
+    return new Promise(function(resolve, reject){
+      if(!API) return reject({code:"no_api"});
+      if(!window.crypto || !window.crypto.getRandomValues) return reject({code:"crypto_unavailable"});
+      var bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      var id = Array.prototype.map.call(bytes, function(b){ return ("0" + b.toString(16)).slice(-2); }).join("");
+      var frame = document.createElement("iframe"), form = document.createElement("form");
+      frame.name = "eai_bridge_" + id;
+      frame.style.display = "none";
+      form.method = "POST"; form.action = API; form.target = frame.name;
+      form.acceptCharset = "UTF-8"; form.style.display = "none";
+      function field(name, value){
+        var input = document.createElement("input");
+        input.type = "hidden"; input.name = name; input.value = value;
+        form.appendChild(input);
+      }
+      field("eai_bridge", "1"); field("requestId", id);
+      field("request", JSON.stringify(params));
+      var done = false, timer;
+      function cleanup(){
+        if(done) return;
+        done = true; clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        if(form.parentNode) form.parentNode.removeChild(form);
+        if(frame.parentNode) frame.parentNode.removeChild(frame);
+      }
+      function onMessage(event){
+        var data = event.data;
+        if(!data || data.source !== "eai-bridge" || data.requestId !== id) return;
+        var origin;
+        try { origin = new URL(event.origin); } catch(e) { return; }
+        if(origin.protocol !== "https:" ||
+           !(origin.hostname === "script.google.com" ||
+             origin.hostname === "googleusercontent.com" ||
+             /\.googleusercontent\.com$/.test(origin.hostname))) return;
+        cleanup(); resolve(data.result);
+      }
+      window.addEventListener("message", onMessage);
+      timer = setTimeout(function(){ cleanup(); reject({code:"timeout"}); }, timeoutMs || 20000);
+      document.body.appendChild(frame);
+      document.body.appendChild(form);
+      try { form.submit(); } catch(e) { cleanup(); reject({code:"network"}); }
+    });
+  }
   var jsonpN = 0;
   function jsonp(params, timeoutMs){
+    if(window.EAI_CONFIG && window.EAI_CONFIG.bridge) return bridgeRequest(params, timeoutMs);
     return new Promise(function(resolve, reject){
       if(!API) return reject({code:"no_api"});
       var cb = "__eai_cb" + (++jsonpN), s = document.createElement("script");
@@ -629,6 +678,12 @@ window.EAI_CONFIG = {
   function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
   function uploadSubmission(body){
+    if(window.EAI_CONFIG && window.EAI_CONFIG.bridge){
+      return bridgeRequest(JSON.parse(body), 20000).then(function(res){
+        if(res && res.ok) return res;
+        throw {code:(res && res.error) || "refused"};
+      });
+    }
     return new Promise(function(resolve, reject){
       var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
       var timer = setTimeout(function(){
@@ -679,6 +734,7 @@ window.EAI_CONFIG = {
     .then(function(res){
       if(res.row && sameSubmission(res.row, sent)){
         revisionByEmail[email] = res.rev || "";
+        gate = ""; gateOk = true; lsDel(LS_GATE);
         return res.row;
       }
       if(baseRev && res.rev && baseRev !== res.rev) throw {code:"conflict"};
@@ -686,10 +742,11 @@ window.EAI_CONFIG = {
     });
   }
   function cloudGate(code){
-    if(!API) return Promise.resolve(true);
+    if(!API) return Promise.reject({code:"no_api"});
     return jsonp({action:"gate", code:code}, 12000).then(function(res){
-      return !(res && res.ok) || res.valid !== false;   // never block on a failed check
-    }, function(){ return true; });
+      if(res && res.ok) return res.valid === true;
+      throw {code:(res && res.error) || "gate_unavailable"};
+    });
   }
   function cloudPosts(key){
     return withKey(function(k){ return postsWith(k, key); });
@@ -729,33 +786,24 @@ window.EAI_CONFIG = {
       return res.rows || [];
     });
   }
+  function cloudReports(key){
+    return jsonp({action:"reports", key:key}, 25000).then(function(res){
+      if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
+      return res.reports || [];
+    });
+  }
 
   /* ==================================================================
      STATE
      ================================================================== */
   var blank = { n:"", e:"", a:"", w:"", c:"", hopes:"", moreWork:"", r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
-  /* The shared code from the invitation, as a salted hash so it is not sitting
-     in the page in plain text. This check runs in the browser, so it stops
-     someone who follows the link — not someone who calls the endpoint directly.
-     The Apps Script holds the real gate; see GATE_CODE in sheet-backend.gs. */
-  var GATE_SALT = "eai-gate-v1|";
-  var GATE_HASH = "1335789f41f0c599a51ee6176095cf63605e0fd5e435073ef45d79ffb3904a7e";
+  // The invitation code is checked by Apps Script, never published in this page.
 
-  function gateNorm(v){ return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
-  function gateMatches(v){
-    var c = (window.crypto && window.crypto.subtle);
-    if(!c || !GATE_HASH) return Promise.resolve(true);    // no check possible here
-    return c.digest("SHA-256", new TextEncoder().encode(GATE_SALT + gateNorm(v)))
-      .then(function(buf){
-        var hex = Array.prototype.map.call(new Uint8Array(buf), function(b){
-          return ("0" + b.toString(16)).slice(-2); }).join("");
-        return hex === GATE_HASH;
-      }, function(){ return true; });
-  }
-
-  var gate   = lsGet(LS_GATE, "") || "";   // the shared code from the invitation
-  var gateOk = !!gate;                     // entered once, then never asked again
+  var gate   = lsGet(LS_GATE, "") || "";   // migrate an older session once
+  lsDel(LS_GATE);                          // never leave the invitation code on disk
+  // An old saved code may have been rotated; verify it again before advancing.
+  var gateOk = false;
   var pin = "";                      // deliberately NOT part of S, so the
                                      // personal link never carries the passcode
   var saved = false;                 // this submission is stored somewhere durable
@@ -777,6 +825,7 @@ window.EAI_CONFIG = {
   lsDel(LS_ROSTER); lsDel(LS_KEY);
   var roster = [];
   var organizerKey = "";
+  var reportsData = null;
   var pendingPosts = lsGet(LS_POST_PENDING, []);
   if(!Array.isArray(pendingPosts)) pendingPosts = pendingPosts && pendingPosts.id ? [pendingPosts] : [];
 
@@ -836,7 +885,7 @@ window.EAI_CONFIG = {
     if(syncState.state === "ok" && (!confirmedSub || !sameSubmission(confirmedSub, S))){
       syncState = {state:"local", msg:"Your latest changes have not reached the sheet yet. Try again below."};
     }
-    lsSet(LS_ME, {sub:S, pin:pin, saved:saved, step:step, editing:editing,
+    lsSet(LS_ME, {sub:S, saved:saved, step:step, editing:editing,
       rev:revisionByEmail[String(S.e || "").trim().toLowerCase()] || ""});
   }
 
@@ -849,7 +898,7 @@ window.EAI_CONFIG = {
     try { history.replaceState(null, "", location.pathname + location.search + (parts.length ? "#" + parts.join("&") : "")); } catch(e){}
   }
 
-  /* ---- boot: preserve this attendee's local draft and personal code ---- */
+  /* ---- boot: preserve the local draft, then purge any older stored code ---- */
   (function boot(){
     var fromHash = null;
     try {
@@ -863,7 +912,7 @@ window.EAI_CONFIG = {
     if(mine && mine.sub && (!fromHash || samePerson)){
       S = normalize(mine.sub);
       if(mine.rev) revisionByEmail[String(S.e || "").trim().toLowerCase()] = mine.rev;
-      pin = mine.pin || "";
+      pin = mine.pin || ""; // old releases stored this; saveLocal removes it
       saved = !!mine.saved && chosen().length === 3;
       editing = !!mine.editing;
       step = Number.isInteger(mine.step) && mine.step >= 0 && mine.step <= QUESTIONS
@@ -918,7 +967,10 @@ window.EAI_CONFIG = {
     return attempt();
   }
 
-  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||"").trim()); }
+  function emailOk(v){
+    var value = String(v||"").trim();
+    return !/^[=+\-@]/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+  }
 
   // The email is how somebody gets back in, so flag the usual slips without
   // blocking anyone whose address really does end in something unusual.
@@ -954,10 +1006,10 @@ window.EAI_CONFIG = {
     var identity = draftIdentity(), code = gate;
     readTimer = setTimeout(function(){
       if(identityEditing || identity !== draftIdentity()) return;
-      var ready = gateOk || confirmedSub ? Promise.resolve(true) : gateMatches(code);
+      var ready = Promise.resolve(gateOk || !!confirmedSub);
       ready.then(function(ok){
         if(!ok || !code && !confirmedSub || identityEditing || identity !== draftIdentity() || code !== gate) return;
-        gateOk = true; lsSet(LS_GATE, gate);
+        gateOk = true;
         readSavePending = true; flushReadSave();
       });
     }, 1800);
@@ -1389,6 +1441,7 @@ window.EAI_CONFIG = {
           +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
           +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
           + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+          + moderationTools(p)
           + '</div>';
       }).join("");
     }
@@ -1425,6 +1478,14 @@ window.EAI_CONFIG = {
     } catch(e){ return ""; }
   }
 
+  function moderationTools(item){
+    if(item.mine || !item.id || !(window.EAI_CONFIG && window.EAI_CONFIG.bridge)) return "";
+    return '<div class="modtools">'
+      + '<button type="button" data-report="' + esc(item.id) + '">Report content</button>'
+      + '<button type="button" data-block="' + esc(item.id) + '">Block attendee</button>'
+      + '</div>';
+  }
+
   var topicData = null;
 
   function renderTopic(){
@@ -1441,6 +1502,7 @@ window.EAI_CONFIG = {
               +   (q.affiliation ? ' \u00b7 ' + esc(q.affiliation) : '')
               +   (q.mine ? ' \u00b7 yours' : '') + '</div>'
               + '<div class="pbody">' + esc(q.q) + '</div>'
+              + moderationTools(q)
               + '</div>';
           }).join("") + '</div>'
         : '<div class="empty">No questions submitted for this topic yet.</div>';
@@ -1451,6 +1513,7 @@ window.EAI_CONFIG = {
               +   (p.affiliation ? ' \u00b7 ' + esc(p.affiliation) : '')
               +   (p.at ? ' \u00b7 ' + esc(when(p.at)) : '') + '</div>'
               + '<div class="pbody">' + esc(p.body).replace(/\n+/g, "<br>") + '</div>'
+              + moderationTools(p)
               + '</div>';
           }).join("")
         : '<div class="empty">No replies yet.</div>';
@@ -1697,7 +1760,8 @@ window.EAI_CONFIG = {
       + '  <p class="lede">Pull from the sheet, or paste submissions in. Everything below is computed from the roster held in this browser.</p>'
       + '</div>'
       + '<div class="tabs noprint">'
-      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets'].map(function(x){
+      +   ['roster:Roster','sheet:From the sheet','demand:Demand','groups:Subgroups','sheets:Question sheets']
+          .concat(window.EAI_CONFIG && window.EAI_CONFIG.bridge ? ['reports:Reports'] : []).map(function(x){
             var k = x.split(":")[0], l = x.split(":")[1];
             return '<button class="tab'+(orgTab===k?" on":"")+'" data-tab="'+k+'" type="button">'+l+'</button>';
           }).join("")
@@ -1708,6 +1772,7 @@ window.EAI_CONFIG = {
     if(orgTab === "demand")  h += orgDemand();
     if(orgTab === "groups")  h += orgGroups(false);
     if(orgTab === "sheets")  h += orgGroups(true);
+    if(orgTab === "reports") h += orgReports();
     return h + '</section>';
   }
 
@@ -1876,6 +1941,24 @@ window.EAI_CONFIG = {
     + '<p class="note">Pulling replaces the local roster with whatever the sheet holds, so it is always safe to run again.</p>';
   }
 
+  function orgReports(){
+    var h = '<div class="f"><label for="reportKey">Admin key</label>'
+      + '<input id="reportKey" type="password" autocomplete="off" value="' + esc(organizerKey) + '">'
+      + '<div class="hint">Used for this open page only.</div>'
+      + '<div class="btnrow" style="margin-top:.55rem"><button class="btn btn-accent btn-sm" id="loadReports" type="button">Load reports</button></div>'
+      + '<div class="note" id="reportsMsg"></div></div>';
+    if(reportsData === null) return h + '<div class="empty">Load attendee reports to review discussion content.</div>';
+    if(!reportsData.length) return h + '<div class="empty">No reports have been filed.</div>';
+    return h + '<div class="posts">' + reportsData.map(function(report){
+      return '<div class="post"><div class="pmeta">' + esc(report.at ? when(report.at) : "")
+        + ' · Reporter ' + esc(report.reporter) + ' · Author ' + esc(report.author) + '</div>'
+        + '<div class="pbody">' + esc(report.body) + '</div>'
+        + (report.hidden ? '<div class="note">Hidden from discussions</div>'
+          : '<div class="modtools"><button type="button" data-hide="' + esc(report.id) + '">Hide from all discussions</button></div>')
+        + '</div>';
+    }).join("") + '</div>';
+  }
+
   /* ==================================================================
      RENDER
      ================================================================== */
@@ -1904,6 +1987,7 @@ window.EAI_CONFIG = {
       barIn.innerHTML = '<div class="top-sp"></div><span class="stepcount">'+roster.length+' in roster</span>';
       wireOrg();
       wireSheet();
+      wireReports();
     } else {
       rail.innerHTML = STEPS.map(function(_, i){
         return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
@@ -1932,7 +2016,7 @@ window.EAI_CONFIG = {
       render(); return;
     }
     if(code === "bad_gate"){
-      gate = ""; gateOk = false; lsSet(LS_GATE, false);
+      gate = ""; gateOk = false; lsDel(LS_GATE);
       step = 0;
       errs.gate = "That is not the passcode from your invitation.";
       syncState = {state:"idle", msg:""}; render();
@@ -2088,9 +2172,7 @@ window.EAI_CONFIG = {
       if(step === 0 && !saved && !gateOk){
         var el = document.getElementById("next");
         if(el){ el.disabled = true; el.textContent = "Checking\u2026"; }
-        gateMatches(gate).then(function(here){
-          return here ? cloudGate(gate) : false;    // wrong here, no need to ask
-        }).then(function(ok){
+        cloudGate(gate).then(function(ok){
           if(el){ el.disabled = false; el.textContent = "Continue"; }
           if(!ok){
             errs.gate = "That is not the passcode from your invitation.";
@@ -2099,8 +2181,12 @@ window.EAI_CONFIG = {
             if(bad) bad.scrollIntoView({block:"center", behavior:"auto"});
             return;
           }
-          gateOk = true; lsSet(LS_GATE, gate);
+          gateOk = true;
           step++; render(); queueDraftSave();
+        }, function(){
+          if(el){ el.disabled = false; el.textContent = "Continue"; }
+          errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
+          render();
         });
         return;
       }
@@ -2191,6 +2277,25 @@ window.EAI_CONFIG = {
       render();
     });
 
+    Array.prototype.forEach.call(view.querySelectorAll("[data-report], [data-block]"), function(button){
+      button.addEventListener("click", function(){
+        var action = button.hasAttribute("data-block") ? "block" : "report";
+        var id = button.getAttribute("data-" + action);
+        if(action === "block" && !confirm("Hide this attendee's posts and questions from your view? Contact support to undo this later.")) return;
+        var previous = button.textContent;
+        button.disabled = true; button.textContent = "Sending…";
+        var currentThread = thread, currentMode = mode;
+        withKey(function(k){
+          return uploadSubmission(JSON.stringify({action:action, id:id, email:S.e, pin:k}));
+        }).then(function(res){
+          if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
+          if(action === "report") button.textContent = "Reported";
+          else if(currentMode === "topic" && currentThread) openTopic(currentThread.topic);
+          else if(currentThread) openThread(currentThread.key, currentThread.title);
+        }).catch(function(){ button.disabled = false; button.textContent = "Try again: " + previous; });
+      });
+    });
+
     var send = document.getElementById("sendPost");
     if(send) send.addEventListener("click", function(){
       var ta = document.getElementById("fpost");
@@ -2236,6 +2341,7 @@ window.EAI_CONFIG = {
               (err && err.code === "key_reset") ? RESET_MSG
             : (err && err.code === "locked") ? LOCK_MSG
             : (err && err.code === "bad_pin") ? keyErrMsg()
+            : (err && err.code === "content_filtered") ? "This post cannot be published. Please revise it."
             : "Could not post. Try again.") + '</span>';
         });
     });
@@ -2339,9 +2445,38 @@ window.EAI_CONFIG = {
     });
   }
 
+  function wireReports(){
+    var load = document.getElementById("loadReports");
+    if(!load) return;
+    load.addEventListener("click", function(){
+      organizerKey = document.getElementById("reportKey").value.trim();
+      var msg = document.getElementById("reportsMsg");
+      msg.textContent = "Loading…";
+      cloudReports(organizerKey).then(function(list){
+        reportsData = list; render();
+      }, function(err){
+        msg.textContent = err && err.code === "bad_key"
+          ? "That admin key was refused." : "Could not load reports. Try again.";
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-hide]"), function(button){
+      button.addEventListener("click", function(){
+        if(!confirm("Hide this content from every attendee's discussion?")) return;
+        var id = button.getAttribute("data-hide");
+        button.disabled = true; button.textContent = "Hiding…";
+        uploadSubmission(JSON.stringify({action:"hide", id:id, key:organizerKey}))
+          .then(function(res){
+            if(!res || !res.ok) throw {code:(res && res.error) || "refused"};
+            return cloudReports(organizerKey);
+          }).then(function(list){ reportsData = list; render(); })
+          .catch(function(){ button.disabled = false; button.textContent = "Could not hide; try again"; });
+      });
+    });
+  }
+
   if(homeBtn) homeBtn.addEventListener("click", function(){
     // Home from a discussion or the organizer console.
-    if(mode === "org") { roster = []; organizerKey = ""; }
+    if(mode === "org") { roster = []; organizerKey = ""; reportsData = null; }
     if(/organizer/.test(String(location.hash || ""))){
       try { history.replaceState(null, "", location.pathname); } catch(e){}
     }
