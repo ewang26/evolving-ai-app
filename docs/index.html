@@ -1379,7 +1379,7 @@ window.EAI_CONFIG = {
     if(s.state === "saving")  return '<div class="sync working">Saving…</div>';
     if(s.state === "ok")      return '<div class="sync ok">Saved to the organizers’ sheet.</div>';
     if(s.state === "local")   return '<div class="sync warn"><span>'
-      + (API ? 'Saved on this device only. ' + esc(s.msg||"")
+      + (API ? 'Saved on this device. Latest sheet save unconfirmed. ' + esc(s.msg||"")
              : 'Saved on this device only. Online saving is unavailable.')
       + (step > 0 && (s.code === "bad_pin" || s.code === "locked")
           ? '<br><button class="linkish" id="checkAccess" type="button">Check email and personal code</button>' : '')

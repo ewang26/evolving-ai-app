@@ -471,7 +471,7 @@ test('save authentication failures preserve the current step and display an expl
     assert.equal(JSON.parse(a.storage['eai.me.v3']).step, 4);
     assert.equal(a.t.state().S.q.T1, 'Question one?');
     if (code === 'locked') {
-      assert.match(a.nodes.view.innerHTML, /Saved on this device only/);
+      assert.match(a.nodes.view.innerHTML, /Saved on this device\. Latest sheet save unconfirmed/);
       assert.doesNotMatch(a.nodes.view.innerHTML, /Wait 15 minutes|temporarily locked|personal code is/);
     } else assert.match(a.nodes.view.innerHTML, /favorite AI model/);
   }
@@ -667,6 +667,90 @@ test('correcting access from the questions page saves the preserved draft and re
   assert.equal(a.t.state().syncState.state, 'ok');
   assert.equal(b.get({ action: 'get', email: draft.e, pin: 'org:testmodel' }).row.q.T1, draft.q.T1);
   assert.equal(Object.hasOwn(JSON.parse(a.storage['eai.me.v3']), 'pin'), false);
+});
+
+test('Continue retries a previous access rejection with unchanged credentials and preserves other submissions', async () => {
+  const b = backend(), sub = sample();
+  for (let i = 0; i < 50; i++) {
+    const other = { ...sample(), e: `existing-${i}@example.invalid`,
+      hopes: `Existing contribution ${i}`, moreWork: `Existing research ${i}` };
+    assert.equal(b.post({ sub: other, pin: i % 2 ? 'LegacyModel' : 'org:currentmodel',
+      gate: 'synthetic-gate' }).ok, true);
+  }
+  const othersBefore = JSON.stringify(b.tabs.Submissions.rows);
+  assert.equal(b.post({ sub, pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
+  const keyBefore = b.tabs.Submissions.rows[51][10];
+  let rejectReads = true;
+  const a = app({ bridge: true, relay: request => request.action === 'put'
+    ? b.post(request) : rejectReads && request.action === 'get'
+      ? { ok: false, error: 'bad_pin' } : b.get(request) });
+  const draft = { ...sub, q: { ...sub.q, T1: 'The local question must survive recovery' } };
+  a.t.set({ S: draft, pin: 'TestModel', saved: true, step: 4 });
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.code, 'bad_pin');
+  rejectReads = false;
+  a.nodes.checkAccess.onclick();
+  // Do not change the email or model: Continue itself must clear the old block.
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 4);
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(b.get({ action: 'get', email: sub.e, pin: 'org:testmodel' }).row.q.T1, draft.q.T1);
+  assert.equal(b.tabs.Submissions.rows.length, 52);
+  assert.equal(b.tabs.Submissions.rows[51][10], keyBefore);
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows.slice(0, 51)), othersBefore);
+});
+
+test('reloading an older local draft preserves unsent answers when the sheet only has initial details', async () => {
+  const b = backend(), initial = { ...sample(), r: ['', '', ''], q: {} };
+  assert.equal(b.post({ sub: initial, pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
+  const keyBefore = b.tabs.Submissions.rows[1][10];
+  const recorded = b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' });
+  const draft = sample();
+  const storage = { 'eai.me.v3': JSON.stringify({ sub: draft, saved: true, step: 4, rev: recorded.rev }) };
+  const a = app({ storage, bridge: true, relay: request =>
+    request.action === 'put' ? b.post(request) : b.get(request) });
+  assert.equal(a.t.state().step, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(a.t.state().S.q)), draft.q);
+  a.nodes.fpin.value = 'TestModel';
+  a.nodes.fpin.listeners.input();
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().syncState.state, 'ok');
+  const restored = b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' }).row;
+  assert.deepEqual(restored.q, draft.q);
+  assert.deepEqual(restored.r, draft.r);
+  assert.equal(b.tabs.Submissions.rows[1][10], keyBefore);
+  assert.equal(b.tabs.Submissions.rows.length, 2);
+});
+
+test('loading current and legacy submissions never rewrites their rows or stored access keys', async () => {
+  const b = backend();
+  const variants = [
+    { code: 'org:testmodel', bare: false },
+    { code: 'TestModel', bare: false },
+    { code: 'TestModel', bare: true }
+  ];
+  for (const [i, variant] of variants.entries()) {
+    const sub = { ...sample(), e: `stored-${i}@example.invalid` };
+    assert.equal(b.post({ sub, pin: variant.code, gate: 'synthetic-gate' }).ok, true);
+    if (variant.bare) b.tabs.Submissions.rows[i + 1][10] = b.tabs.Submissions.rows[i + 1][10].slice(2);
+  }
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  let writes = 0;
+  for (const [i, variant] of variants.entries()) {
+    const a = app({ bridge: true, relay: request => {
+      if (request.action === 'put') { writes++; return b.post(request); }
+      return b.get(request);
+    } });
+    a.t.set({ S: { ...sample(), e: `stored-${i}@example.invalid` }, pin: 'TestModel' });
+    a.nodes.loadMine.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().syncState.state, 'ok', variant.code);
+    assert.equal(a.t.state().S.q.T1, sample().q.T1);
+  }
+  assert.equal(writes, 0);
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
 });
 
 test('Continue waits for a slow access check and ignores credentials changed during it', async () => {
