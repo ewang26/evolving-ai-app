@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { backend } = require('./helpers/sheet-backend.cjs');
 
 const html = fs.readFileSync(path.join(__dirname, '../docs/index.html'), 'utf8');
 const source = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
@@ -15,7 +16,7 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now,
+function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now, relay,
   api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [], relayResponses = new Map(), listeners = {};
@@ -48,8 +49,11 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
       if (bridge && options.body) {
         const envelope = JSON.parse(options.body);
         if (envelope.action === 'relay') {
-          relayResponses.set(envelope.requestId, JSON.stringify(reply(new URLSearchParams(envelope.request))));
-          return Promise.resolve({ type: 'opaque' });
+          const response = relay ? relay(envelope.request) : reply(new URLSearchParams(envelope.request));
+          return Promise.resolve(response).then(result => {
+            relayResponses.set(envelope.requestId, JSON.stringify(result));
+            return { type: 'opaque' };
+          });
         }
       }
       return post(url, options);
@@ -188,7 +192,7 @@ test('old personal link preserves the draft but purges the stored personal code'
   assert.equal(reloaded.t.state().needsPin, true);
 });
 
-test('an invitation code left by an older release is removed from browser storage', () => {
+test('an invitation code left by an older release is removed from browser storage', async () => {
   const storage = { 'eai.gate.v1': JSON.stringify('synthetic-invitation-code') };
   const a = app({ storage });
   assert.equal(storage['eai.gate.v1'], undefined);
@@ -196,6 +200,7 @@ test('an invitation code left by an older release is removed from browser storag
   a.t.set({ S: sample(), pin: 'TestModel', saved: false, step: 0 });
   a.t.wireForm();
   a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
   assert.equal(a.scripts.length, 1); // the old code is sent for a fresh server check
 });
@@ -619,8 +624,206 @@ test('rejected credentials do not create an automatic save retry loop', async ()
   await a.t.saveDraftNow();
   assert.equal(a.requests.length, attempts);
   assert.equal(a.t.state().syncState.state, 'local');
-  assert.match(a.t.state().syncState.msg, /sheet rejected/);
+  assert.match(a.t.state().syncState.msg, /Could not verify this email and favorite AI model/);
+  assert.doesNotMatch(a.t.state().syncState.msg, /organizer|restore access/);
 });
+
+test('Continue verifies a returning attendee before advancing beyond their details', async () => {
+  const b = backend();
+  assert.equal(b.post({ sub: sample(), pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
+  let writes = 0;
+  const a = app({ bridge: true, relay: request => {
+    if (request.action === 'put') { writes++; return b.post(request); }
+    return b.get(request);
+  } });
+  a.t.set({ S: sample(), pin: 'DifferentModel' });
+  a.nodes.fgate.value = 'synthetic-gate';
+  a.nodes.fgate.listeners.input();
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 0);
+  assert.match(a.nodes.view.innerHTML, /same email and model you originally submitted/);
+  assert.equal(writes, 0);
+  assert.equal(a.t.state().S.q.T1, sample().q.T1);
+});
+
+test('correcting access from the questions page saves the preserved draft and returns there', async () => {
+  const b = backend(), draft = sample(); draft.q.T1 = 'My question typed before the access error';
+  assert.equal(b.post({ sub: sample(), pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
+  const a = app({ bridge: true, relay: request =>
+    request.action === 'put' ? b.post(request) : b.get(request) });
+  a.t.set({ S: draft, pin: 'DifferentModel', saved: true, step: 4 });
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.code, 'bad_pin');
+  assert.doesNotMatch(a.t.state().syncState.msg, /organizer|restore access/);
+  a.nodes.checkAccess.onclick();
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.t.state().S.q.T1, draft.q.T1);
+  a.nodes.fpin.value = 'TestModel';
+  a.nodes.fpin.listeners.input();
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 4);
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(b.get({ action: 'get', email: draft.e, pin: 'org:testmodel' }).row.q.T1, draft.q.T1);
+  assert.equal(Object.hasOwn(JSON.parse(a.storage['eai.me.v3']), 'pin'), false);
+});
+
+test('Continue waits for a slow access check and ignores credentials changed during it', async () => {
+  let finishLookup;
+  const a = app({ bridge: true, relay: request => request.action === 'gate'
+    ? { ok: true, valid: true } : new Promise(resolve => { finishLookup = resolve; }) });
+  a.t.set({ S: sample(), pin: 'TestModel' });
+  a.nodes.fgate.value = 'synthetic-gate';
+  a.nodes.fgate.listeners.input();
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.nodes.next.disabled, true);
+  a.nodes.fpin.value = 'DifferentModel';
+  a.nodes.fpin.listeners.input();
+  finishLookup({ ok: true, row: sample(), rev: 'test-revision' });
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.nodes.next.disabled, false);
+  assert.match(a.nodes.view.innerHTML, /access details changed while checking/);
+});
+
+test('a slow reading lookup cannot accept a personal code changed while it was running', async () => {
+  let finishLookup;
+  const a = app({ bridge: true, relay: () => new Promise(resolve => { finishLookup = resolve; }) });
+  a.t.set({ S: sample(), pin: 'TestModel' });
+  a.nodes.loadMine.listeners.click();
+  await new Promise(setImmediate);
+  a.t.set({ pin: 'DifferentModel' });
+  finishLookup({ ok: true, row: sample(), rev: 'test-revision' });
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.t.state().saved, false);
+  assert.notEqual(a.t.state().syncState.state, 'ok');
+});
+
+test('a slow load cannot replace questions edited after leaving the details page', async () => {
+  let finishLookup;
+  const a = app({ bridge: true, relay: () => new Promise(resolve => { finishLookup = resolve; }) });
+  a.t.set({ S: sample(), pin: 'TestModel', saved: true });
+  a.nodes.loadMine.listeners.click();
+  await new Promise(setImmediate);
+  a.nodes.homeBtn.listeners.click();
+  a.nodes.editMine.listeners.click();
+  a.t.state().S.q.T1 = 'A newer question while the earlier load was pending';
+  finishLookup({ ok: true, row: sample(), rev: 'test-revision' });
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 4);
+  assert.equal(a.t.state().S.q.T1, 'A newer question while the earlier load was pending');
+});
+
+test('a failed lookup does not retry an old code against a newly entered email', async () => {
+  let rejectLookup, attempts = 0;
+  const a = app();
+  a.t.set({ S: sample(), pin: 'TestModel' });
+  const lookup = a.t.withKey(() => {
+    attempts++;
+    if (attempts > 1) return Promise.reject({ code: 'bad_pin' });
+    return new Promise((resolve, reject) => { rejectLookup = reject; });
+  });
+  a.t.set({ S: { ...sample(), e: 'different@example.invalid' } });
+  const rejected = assert.rejects(lookup, error => error.code === 'identity_changed');
+  rejectLookup({ code: 'bad_pin' });
+  await rejected;
+  assert.equal(attempts, 1);
+});
+
+test('a verified legacy code remains usable during simultaneous reading requests', async () => {
+  const b = backend();
+  assert.equal(b.post({ sub: sample(), pin: 'TestModel', gate: 'synthetic-gate' }).ok, true);
+  const a = app(); a.t.set({ S: sample(), pin: 'TestModel' });
+  const authenticate = () => a.t.withKey(code => {
+    const result = b.get({ action: 'get', email: sample().e, pin: code });
+    return result.ok ? Promise.resolve(result) : Promise.reject({ code: result.error });
+  });
+  assert.equal((await authenticate()).ok, true);
+  const results = await Promise.allSettled(Array.from({ length: 8 }, authenticate));
+  assert.ok(results.every(result => result.status === 'fulfilled'));
+  assert.ok(!b.c.locked_(sample().e));
+});
+
+test('re-entering a code after reload cannot overwrite a newer sheet revision', async () => {
+  const b = backend(), local = sample(); local.q.T1 = 'A local unsaved question';
+  assert.equal(b.post({ sub: sample(), pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
+  const original = b.get({ action: 'get', email: sample().e, pin: 'org:testmodel' });
+  const storage = { 'eai.me.v3': JSON.stringify({ sub: local, saved: true, step: 0, rev: original.rev }) };
+  const remote = sample(); remote.q.T1 = 'A newer question on another device';
+  assert.equal(b.post({ sub: remote, pin: 'org:testmodel', ifMatch: original.rev }).ok, true);
+  const a = app({ storage, bridge: true, relay: request =>
+    request.action === 'put' ? b.post(request) : b.get(request) });
+  assert.equal(a.t.state().pin, '');
+  a.nodes.fpin.value = 'TestModel';
+  a.nodes.fpin.listeners.input();
+  a.nodes.next.listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 0);
+  assert.equal(a.t.state().S.q.T1, local.q.T1);
+  assert.equal(b.get({ action: 'get', email: sample().e, pin: 'org:testmodel' }).row.q.T1, remote.q.T1);
+});
+
+for (const storedKey of [null, 'org:testmodel', 'TestModel']) {
+  test(`details through questions save against the real backend (${storedKey || 'new attendee'})`, async () => {
+    const b = backend();
+    if (storedKey) assert.equal(b.post({ sub: sample(), pin: storedKey, gate: 'synthetic-gate' }).ok, true);
+    const a = app({ bridge: true, relay: request =>
+      request.action === 'put' ? b.post(request) : b.get(request) });
+    a.t.set({ S: { ...sample(), r: ['', '', ''], q: {}, w: '' }, pin: 'TestModel' });
+    a.nodes.fgate.value = 'synthetic-gate';
+    a.nodes.fgate.listeners.input();
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 1);
+    a.t.state().S.w = 'Research on AI and evolution';
+    a.t.state().S.hopes = 'Compare approaches and share research';
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 2);
+    a.t.state().S.r = ['T1', 'T2', 'T3'];
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 3);
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 4);
+    assert.equal(a.t.state().syncState.state, 'ok');
+    const restored = b.get({ action: 'get', email: sample().e, pin: storedKey || 'org:testmodel' });
+    assert.equal(restored.ok, true);
+    assert.deepEqual(restored.row.r, ['T1', 'T2', 'T3']);
+    assert.equal(restored.row.hopes, 'Compare approaches and share research');
+  });
+}
+
+for (const code of ['org:testmodel', 'TestModel']) {
+  test(`loaded reading can change topics and save new questions with ${code}`, async () => {
+    const b = backend(), sub = sample(); sub.q = {};
+    assert.equal(b.post({ sub, pin: code, gate: 'synthetic-gate' }).ok, true);
+    const a = app({ bridge: true, relay: request =>
+      request.action === 'put' ? b.post(request) : b.get(request) });
+    a.t.set({ S: sample(), pin: 'TestModel' });
+    a.nodes.loadMine.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 3);
+    a.nodes.editTopics.listeners.click();
+    a.t.state().S.r = ['T1', 'T2', 'T4'];
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    a.nodes.next.listeners.click();
+    a.t.state().S.q.T4 = 'What should our new group investigate?';
+    a.t.queueDraftSave();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 4);
+    assert.equal(a.t.state().syncState.state, 'ok');
+    const row = b.get({ action: 'get', email: sub.e, pin: code }).row;
+    assert.deepEqual(row.r, ['T1', 'T2', 'T4']);
+    assert.equal(row.q.T4, a.t.state().S.q.T4);
+  });
+}
 
 
 test('first autosave preserves an existing attendee’s topics and questions', async () => {

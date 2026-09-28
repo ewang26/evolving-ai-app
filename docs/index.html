@@ -849,6 +849,8 @@ window.EAI_CONFIG = {
   var readTimer = null;
   var readSaveInFlight = null, readSavePending = false;
   var autoSaveBlocked = "", identityEditing = false, preparedIdentity = "", localDraftIdentity = "";
+  var checkingDetails = false;
+  var returnAfterAccess = null;
   // A roster and its organizer key should never survive a browser restart.
   // Remove values left by older releases on this origin.
   lsDel(LS_ROSTER); lsDel(LS_KEY);
@@ -981,13 +983,24 @@ window.EAI_CONFIG = {
     return (b && b !== a) ? [a, b] : [a];
   }
   var LOCK_MSG = "Could not load your reading right now. Please try again later.";
+  var verifiedKeyIdentity = "", verifiedKey = ""; // memory only, never browser storage
   function withKey(fn){
+    var identity = draftIdentity();
     var email = String(S.e || "").trim().toLowerCase();
     var lockKey = "eai.lock.v1:" + email;
     if(Number(lsGet(lockKey, 0)) > Date.now()) return Promise.reject({code:"locked"});
     var ks = keyCandidates(), i = 0;
+    if(verifiedKeyIdentity === identity && ks.indexOf(verifiedKey) >= 0){
+      ks = [verifiedKey].concat(ks.filter(function(k){ return k !== verifiedKey; }));
+    }
     function attempt(){
-      return fn(ks[i]).then(null, function(err){
+      if(identity !== draftIdentity()) return Promise.reject({code:"identity_changed"});
+      return fn(ks[i]).then(function(result){
+        if(identity !== draftIdentity()) throw {code:"identity_changed"};
+        verifiedKeyIdentity = identity; verifiedKey = ks[i];
+        return result;
+      }, function(err){
+        if(identity !== draftIdentity()) throw {code:"identity_changed"};
         if(err && err.code === "locked") lsSet(lockKey, Date.now() + 15 * 60 * 1000);
         if(err && err.code === "bad_pin" && ++i < ks.length) return attempt();
         throw err;
@@ -1030,7 +1043,8 @@ window.EAI_CONFIG = {
   function draftIdentity(){ return String(S.e || "").trim().toLowerCase() + "|" + pin; }
   function queueDraftSave(){
     clearTimeout(readTimer);
-    if(!API || identityEditing || !S.n.trim() || !emailOk(S.e) || normKey(pin).length < 2) return;
+    if(!API || checkingDetails || identityEditing || !S.n.trim() || !emailOk(S.e) || normKey(pin).length < 2) return;
+    if(step === 0 && preparedIdentity !== draftIdentity()) return;
     if(autoSaveBlocked === draftIdentity()) return;
     var identity = draftIdentity(), code = gate;
     readTimer = setTimeout(function(){
@@ -1050,18 +1064,11 @@ window.EAI_CONFIG = {
     readSavePending = true;
     return flushReadSave();
   }
-  function flushReadSave(){
-    if(readSaveInFlight) return readSaveInFlight;
-    if(!readSavePending) return Promise.resolve();
-    readSavePending = false;
-    if(identityEditing) return Promise.resolve();
-    var sent, identity = draftIdentity();
-    if(autoSaveBlocked === identity) return Promise.resolve();
-    syncState = {state:"saving", msg:""}; updateReadControls();
-    var succeeded = false;
+  function prepareDraft(identity, force){
     // Authenticate before the first write. A returning attendee entering their
     // details must not overwrite existing topics/questions with a blank form.
-    var prepare = preparedIdentity === identity ? Promise.resolve() : withKey(function(k){
+    if(!force && preparedIdentity === identity) return Promise.resolve();
+    return withKey(function(k){
       return cloudLookupRecord(S.e, k);
     }).then(function(res){
       if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
@@ -1069,8 +1076,9 @@ window.EAI_CONFIG = {
       var email = String(S.e || "").trim().toLowerCase();
       var localRev = revisionByEmail[email] || "";
       var remoteRev = res.rev || "";
-      if(localDraftIdentity === identity && row &&
-         (localRev && remoteRev ? localRev !== remoteRev : !sameSubmission(row, S)))
+      // Re-entering a code after reload does not make an old local revision new.
+      if(row && (localRev && remoteRev ? localRev !== remoteRev
+          : localDraftIdentity === identity && !sameSubmission(row, S)))
         throw {code:"conflict"};
       if(localRev && !row) throw {code:"conflict"};
       revisionByEmail[email] = remoteRev;
@@ -1082,10 +1090,21 @@ window.EAI_CONFIG = {
         S.read = Object.assign({}, remote.read, S.read);
         saveLocal();
       }
+      confirmedSub = row ? normalize(row) : null;
       localDraftIdentity = identity;
       preparedIdentity = identity;
     });
-    readSaveInFlight = prepare.then(function(){
+  }
+  function flushReadSave(){
+    if(readSaveInFlight) return readSaveInFlight;
+    if(!readSavePending) return Promise.resolve();
+    readSavePending = false;
+    if(identityEditing) return Promise.resolve();
+    var sent, identity = draftIdentity();
+    if(autoSaveBlocked === identity) return Promise.resolve();
+    syncState = {state:"saving", msg:""}; updateReadControls();
+    var succeeded = false;
+    readSaveInFlight = prepareDraft(identity).then(function(){
       if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
       sent = normalize(S);
       return withKey(function(k){ return cloudPush(sent, k); });
@@ -1102,8 +1121,8 @@ window.EAI_CONFIG = {
       if(identity !== draftIdentity()) return;
       if(err && err.code === "identity_changed") return;
       if(err && (err.code === "bad_pin" || err.code === "locked" || err.code === "conflict")) autoSaveBlocked = draftIdentity();
-      syncState = {state:"local", msg:err && err.code === "locked" ? ""
-        : err && err.code === "bad_pin" ? "The sheet rejected this email and personal code. Your draft is preserved; an organizer may need to restore access."
+      syncState = {state:"local", code:err && err.code, msg:err && err.code === "locked" ? LOCK_MSG
+        : err && err.code === "bad_pin" ? "Could not verify this email and favorite AI model. Use the same email and model you originally submitted. Your draft is preserved."
         : err && err.code === "conflict" ? "The sheet changed on another device. Your edits remain here. Copy them before loading the latest reading, which replaces this draft."
         : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
         : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
@@ -1116,6 +1135,55 @@ window.EAI_CONFIG = {
       readSavePending = false;
     });
     return readSaveInFlight;
+  }
+
+  function checkDetailsAndContinue(){
+    if(checkingDetails) return;
+    checkingDetails = true;
+    clearTimeout(readTimer);
+    var identity = draftIdentity(), invitation = gate;
+    var next = document.getElementById("next"), load = document.getElementById("loadMine");
+    if(next){ next.disabled = true; next.textContent = "Checking\u2026"; }
+    if(load) load.disabled = true;
+    // Finish any earlier save before fetching the revision it may have changed.
+    Promise.resolve(readSaveInFlight).then(function(){
+      if(identity !== draftIdentity()) throw {code:"identity_changed"};
+      if(saved || gateOk) return;
+      return cloudGate(invitation).then(function(ok){
+        if(invitation !== gate) throw {code:"identity_changed"};
+        if(!ok) throw {code:"bad_gate"};
+        gateOk = true;
+      }, function(err){
+        throw {code:err && err.code, field:"gate"};
+      });
+    }).then(function(){
+      if(identity !== draftIdentity()) throw {code:"identity_changed"};
+      return prepareDraft(identity, true);
+    }).then(function(){ finish(); }, finish);
+
+    function finish(err){
+      checkingDetails = false;
+      if(next){ next.disabled = false; next.textContent = "Continue"; }
+      if(load) load.disabled = false;
+      if(step !== 0 || mode !== "form") return;
+      if(identity !== draftIdentity() || identityEditing) err = {code:"identity_changed"};
+      else if(!saved && !gateOk && !err) err = {code:"identity_changed"};
+      if(err){
+        if(err.code === "bad_gate") errs.gate = "That is not the passcode from your invitation.";
+        else if(err.field === "gate") errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
+        else errs.pin = err.code === "bad_pin" ? keyErrMsg()
+          : err.code === "locked" ? LOCK_MSG
+          : err.code === "key_reset" || err.code === "corrupt_payload" ? RESET_MSG
+          : err.code === "conflict" ? "The sheet has newer answers. Load my reading to retrieve them; your current draft is still on this device."
+          : err.code === "identity_changed" ? "Your access details changed while checking. Select Continue again."
+          : "Could not verify access right now. Please try again. Your draft is preserved.";
+        saveLocal(); render(); return;
+      }
+      autoSaveBlocked = ""; needsPin = false;
+      step = returnAfterAccess === null ? WORK : returnAfterAccess;
+      returnAfterAccess = null;
+      saveLocal(); render(); queueDraftSave();
+    }
   }
   /* Only the required text per group counts: the second is a recommendation. */
   function requiredReadings(){
@@ -1188,7 +1256,7 @@ window.EAI_CONFIG = {
     + '      <label for="fpin">Favorite AI model</label>'
     + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
     +          'placeholder="AlphaFold" value="'+esc(pin)+'" />'
-    + '      <div class="hint">Remember this as your personal code for accessing your readings later!</div>'
+    + '      <div class="hint">This is your personal access code. When returning, enter the same model you originally used.</div>'
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
@@ -1310,10 +1378,12 @@ window.EAI_CONFIG = {
     var s = syncState;
     if(s.state === "saving")  return '<div class="sync working">Saving…</div>';
     if(s.state === "ok")      return '<div class="sync ok">Saved to the organizers’ sheet.</div>';
-    if(s.state === "local")   return '<div class="sync warn">'
+    if(s.state === "local")   return '<div class="sync warn"><span>'
       + (API ? 'Saved on this device only. ' + esc(s.msg||"")
              : 'Saved on this device only. Online saving is unavailable.')
-      + '</div>';
+      + (step > 0 && (s.code === "bad_pin" || s.code === "locked")
+          ? '<br><button class="linkish" id="checkAccess" type="button">Check email and personal code</button>' : '')
+      + '</span></div>';
     if(s.state === "error")   return '<div class="sync warn">'+esc(s.msg||"Could not reach the sheet.")+'</div>';
     return "";
   }
@@ -2116,6 +2186,7 @@ window.EAI_CONFIG = {
     if(progress){ progress.innerHTML = renderProgress(); wireProgress(); }
     var sync = document.getElementById("readingSync") || document.getElementById("formSync");
     if(sync) sync.innerHTML = syncLine();
+    wireSyncActions();
     var retry = document.getElementById("retrySync");
     if(retry){
       retry.hidden = syncState.state === "ok";
@@ -2161,6 +2232,7 @@ window.EAI_CONFIG = {
   }
 
   function wireForm(){
+    wireSyncActions();
     Array.prototype.forEach.call(view.querySelectorAll("[data-k]"), function(inp){
       inp.addEventListener("input", function(){
         var k = inp.getAttribute("data-k");
@@ -2205,27 +2277,7 @@ window.EAI_CONFIG = {
       errs = {};
       identityEditing = false;
       needsPin = false;
-      if(step === 0 && !saved && !gateOk){
-        var el = document.getElementById("next");
-        if(el){ el.disabled = true; el.textContent = "Checking\u2026"; }
-        cloudGate(gate).then(function(ok){
-          if(el){ el.disabled = false; el.textContent = "Continue"; }
-          if(!ok){
-            errs.gate = "That is not the passcode from your invitation.";
-            render();
-            var bad = view.querySelector(".bad, .err");
-            if(bad) bad.scrollIntoView({block:"center", behavior:"auto"});
-            return;
-          }
-          gateOk = true;
-          step++; render(); queueDraftSave();
-        }, function(){
-          if(el){ el.disabled = false; el.textContent = "Continue"; }
-          errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
-          render();
-        });
-        return;
-      }
+      if(step === 0 && API){ checkDetailsAndContinue(); return; }
       if(step === QUESTIONS){ submit(); return; }
       if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
       if(step === WORK){                                 // and save here too
@@ -2287,14 +2339,25 @@ window.EAI_CONFIG = {
 
     var lm = document.getElementById("loadMine");
     if(lm) lm.addEventListener("click", function(){
+      if(checkingDetails) return;
       var msg = document.getElementById("loadMsg");
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
       if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
+      var identity = draftIdentity(), next = document.getElementById("next");
+      checkingDetails = true; clearTimeout(readTimer);
+      lm.disabled = true; if(next) next.disabled = true;
       msg.textContent = "Looking…";
-      withKey(function(k){ return cloudLookup(S.e, k); }).then(function(row){
+      Promise.resolve(readSaveInFlight).then(function(){
+        if(identity !== draftIdentity()) throw {code:"identity_changed"};
+        return withKey(function(k){ return cloudLookup(S.e, k); });
+      }).then(function(row){
+        checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
+        if(step !== 0 || mode !== "form") return;
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
         S = normalize(row); saved = chosen().length === 3; editing = false;
         identityEditing = false;
+        preparedIdentity = identity; localDraftIdentity = identity;
+        returnAfterAccess = null;
         autoSaveBlocked = "";
         step = saved ? READING : S.w ? STEP_TOPICS : WORK;
         confirmedSub = normalize(row);
@@ -2302,15 +2365,24 @@ window.EAI_CONFIG = {
         render();
         refreshCounts();
       }, function(err){
+        checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
-          code === "key_reset" ? RESET_MSG
+          code === "identity_changed" ? "Your access details changed while loading. Select Load my reading again."
+          : code === "key_reset" ? RESET_MSG
           : code === "corrupt_payload" ? "The saved answers could not be read. Contact an organizer to restore them."
           : code === "bad_pin" ? keyErrMsg()
           : code === "locked" ? LOCK_MSG
           : "Could not reach the sheet. Use your personal link instead.") + '</span>';
       });
     });
+  }
+  function wireSyncActions(){
+    var access = document.getElementById("checkAccess");
+    if(access) access.onclick = function(){
+      returnAfterAccess = step;
+      editing = true; step = 0; errs = {}; saveLocal(); render();
+    };
   }
   function wireSub(){
     var back = document.getElementById("leaveSub");
@@ -2534,7 +2606,7 @@ window.EAI_CONFIG = {
     mode = "form";
     thread = null; topicData = null; posts = null; postErr = "";
 
-    editing = false; errs = {}; needsPin = false;
+    editing = false; errs = {}; needsPin = false; returnAfterAccess = null;
     step = saved ? READING : 0;
     render();
   });
