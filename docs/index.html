@@ -1064,14 +1064,15 @@ window.EAI_CONFIG = {
     readSavePending = true;
     return flushReadSave();
   }
-  function prepareDraft(identity, force){
+  function prepareDraft(identity, force, record){
     // Authenticate before the first write. A returning attendee entering their
     // details must not overwrite existing topics/questions with a blank form.
     if(!force && preparedIdentity === identity) return Promise.resolve();
-    return withKey(function(k){
+    return (record ? Promise.resolve(record) : withKey(function(k){
       return cloudLookupRecord(S.e, k);
-    }).then(function(res){
-      if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
+    })).then(function(res){
+      if(identityEditing || identity !== draftIdentity() || record && (step !== 0 || mode !== "form"))
+        throw {code:"identity_changed"};
       var row = res.row || null;
       var email = String(S.e || "").trim().toLowerCase();
       var localRev = revisionByEmail[email] || "";
@@ -1137,28 +1138,62 @@ window.EAI_CONFIG = {
     return readSaveInFlight;
   }
 
+  function resumeSavedSubmission(row, identity){
+    S = normalize(row); saved = chosen().length === 3; editing = false;
+    identityEditing = false; needsPin = false;
+    preparedIdentity = identity; localDraftIdentity = identity;
+    returnAfterAccess = null; autoSaveBlocked = "";
+    step = saved ? READING : S.w ? STEP_TOPICS : WORK;
+    confirmedSub = normalize(row);
+    syncState = {state:"ok", msg:""}; saveLocal(); render();
+    refreshCounts();
+  }
+
   function checkDetailsAndContinue(){
     if(checkingDetails) return;
     checkingDetails = true;
     clearTimeout(readTimer);
-    var identity = draftIdentity(), invitation = gate;
+    var identity = draftIdentity(), invitation = gate, matched = null, restore = false;
     var next = document.getElementById("next"), load = document.getElementById("loadMine");
     if(next){ next.disabled = true; next.textContent = "Checking\u2026"; }
     if(load) load.disabled = true;
     // Finish any earlier save before fetching the revision it may have changed.
     Promise.resolve(readSaveInFlight).then(function(){
       if(identity !== draftIdentity()) throw {code:"identity_changed"};
-      if(saved || gateOk) return;
+      return withKey(function(k){ return cloudLookupRecord(S.e, k); });
+    }).then(function(res){
+      if(identity !== draftIdentity() || identityEditing || step !== 0 || mode !== "form")
+        throw {code:"identity_changed"};
+      var email = String(S.e || "").trim().toLowerCase();
+      if(res.row){
+        matched = res;
+        var hasAnswers = chosen().length || ["w", "c", "hopes", "moreWork", "t"].some(function(k){ return !!S[k]; }) ||
+          Object.keys(S.q).some(function(k){ return !!S.q[k]; }) || Object.keys(S.read).length;
+        var knownConfirmed = confirmedSub && String(confirmedSub.e).trim().toLowerCase() === email;
+        var knownDraft = knownConfirmed ||
+          (hasAnswers || revisionByEmail[email]) && localDraftIdentity.indexOf(email + "|") === 0;
+        // A fresh sign-in restores the exact authenticated row without writing.
+        // A returning local draft can contain answers that never reached it.
+        if(returnAfterAccess === null && (!knownDraft || sameSubmission(res.row, S))){
+          restore = true; return;
+        }
+        if(knownDraft && !revisionByEmail[email] && !knownConfirmed && !sameSubmission(res.row, S))
+          throw {code:"conflict"};
+        return prepareDraft(identity, true, res);
+      }
+      if(revisionByEmail[email]) throw {code:"conflict"};
+      // Registration requirements apply only after a successful lookup finds
+      // no row. A matching existing login does not need profile fields again.
+      if(!validate(0)) throw {code:"invalid_details"};
+      if(gateOk) return prepareDraft(identity, true, res);
       return cloudGate(invitation).then(function(ok){
         if(invitation !== gate) throw {code:"identity_changed"};
         if(!ok) throw {code:"bad_gate"};
         gateOk = true;
+        return prepareDraft(identity, true, res);
       }, function(err){
         throw {code:err && err.code, field:"gate"};
       });
-    }).then(function(){
-      if(identity !== draftIdentity()) throw {code:"identity_changed"};
-      return prepareDraft(identity, true);
     }).then(function(){ finish(); }, finish);
 
     function finish(err){
@@ -1167,20 +1202,27 @@ window.EAI_CONFIG = {
       if(load) load.disabled = false;
       if(step !== 0 || mode !== "form") return;
       if(identity !== draftIdentity() || identityEditing) err = {code:"identity_changed"};
-      else if(!saved && !gateOk && !err) err = {code:"identity_changed"};
+      else if(!matched && !gateOk && !err) err = {code:"identity_changed"};
       if(err){
+        if(err.code === "invalid_details"){ saveLocal(); render(); return; }
         if(err.code === "bad_gate") errs.gate = "That is not the passcode from your invitation.";
         else if(err.field === "gate") errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
         else errs.pin = err.code === "bad_pin" ? keyErrMsg()
           : err.code === "locked" ? LOCK_MSG
           : err.code === "key_reset" || err.code === "corrupt_payload" ? RESET_MSG
-          : err.code === "conflict" ? "The sheet has newer answers. Load my reading to retrieve them; your current draft is still on this device."
+          : err.code === "conflict" ? "This device and the sheet have different answers. Your current draft is still on this device. Copy any unsaved edits before using Load my reading to replace it."
           : err.code === "identity_changed" ? "Your access details changed while checking. Select Continue again."
           : "Could not verify access right now. Please try again. Your draft is preserved.";
         saveLocal(); render(); return;
       }
+      if(restore){
+        revisionByEmail[String(S.e).trim().toLowerCase()] = matched.rev || "";
+        resumeSavedSubmission(matched.row, identity); return;
+      }
       autoSaveBlocked = ""; needsPin = false;
-      step = returnAfterAccess === null ? WORK : returnAfterAccess;
+      if(matched) saved = chosen().length === 3;
+      step = returnAfterAccess !== null ? returnAfterAccess
+        : matched ? (saved ? READING : S.w ? STEP_TOPICS : WORK) : WORK;
       returnAfterAccess = null;
       saveLocal(); render(); queueDraftSave();
     }
@@ -1265,7 +1307,7 @@ window.EAI_CONFIG = {
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Already submitted? <button class="linkish" id="loadMine" type="button">Load my reading</button> using the email and model above.</span>'
+        ? '<span class="note">Already submitted? Enter the same email and favorite AI model, then select Continue to resume. <button class="linkish" id="loadMine" type="button">Load my reading</button> replaces this device’s draft with the saved version.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -1514,7 +1556,7 @@ window.EAI_CONFIG = {
     + '      <span class="gsub">For the whole group, not one topic</span>'
     + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
     + '    </button>'
-    + '    <p class="note">Bookmark this app. On another device, use Load my reading with the same email and favorite AI model.</p>'
+    + '    <p class="note">Bookmark this app. On another device, enter the same email and favorite AI model, then select Continue to resume.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy app link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
@@ -1687,13 +1729,13 @@ window.EAI_CONFIG = {
     });
   }
 
-  function validate(n){
+  function validate(n, accessOnly){
     errs = {};
     if(n===0){
-      if(!gateOk && !saved && !String(gate).trim()) errs.gate = "Enter the passcode from your invitation.";
-      if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
+      if(!accessOnly && !gateOk && (!saved || API) && !String(gate).trim()) errs.gate = "Enter the passcode from your invitation.";
+      if(!accessOnly && !S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
-      if(!S.a.trim()) errs.a = "Where are you coming from?";
+      if(!accessOnly && !S.a.trim()) errs.a = "Where are you coming from?";
       if(normKey(pin).length < 2) errs.pin = "Name a model.";
     }
     if(n===WORK){
@@ -2272,7 +2314,7 @@ window.EAI_CONFIG = {
 
     var next = document.getElementById("next");
     if(next) next.addEventListener("click", function(){
-      if(!validate(step)){ render(); var bad = view.querySelector(".bad, .err");
+      if(!validate(step, step === 0 && !!API)){ render(); var bad = view.querySelector(".bad, .err");
         if(bad) bad.scrollIntoView({block:"center", behavior:"auto"}); return; }
       errs = {};
       identityEditing = false;
@@ -2354,16 +2396,7 @@ window.EAI_CONFIG = {
         checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
         if(step !== 0 || mode !== "form") return;
         if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
-        S = normalize(row); saved = chosen().length === 3; editing = false;
-        identityEditing = false;
-        preparedIdentity = identity; localDraftIdentity = identity;
-        returnAfterAccess = null;
-        autoSaveBlocked = "";
-        step = saved ? READING : S.w ? STEP_TOPICS : WORK;
-        confirmedSub = normalize(row);
-        syncState = {state:"ok", msg:""}; saveLocal();
-        render();
-        refreshCounts();
+        resumeSavedSubmission(row, identity);
       }, function(err){
         checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
         var code = err && err.code;
