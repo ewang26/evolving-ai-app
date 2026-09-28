@@ -534,6 +534,30 @@ test('loading a reading clears in-progress identity editing so later changes sav
   assert.equal(a.t.state().syncState.state, 'ok');
 });
 
+for (const complete of [true, false]) {
+  test(`a loaded ${complete ? 'completed' : 'unfinished'} reading can reopen topic selections`, async () => {
+    const sub = sample();
+    if (!complete) sub.q = {};
+    const a = app({ reply: params => params.get('action') === 'counts'
+      ? { ok: true, counts: {}, questions: {} }
+      : { ok: true, row: sub, rev: 'test-revision' } });
+    a.t.set({ S: sample(), pin: 'TestModel', step: 0 });
+    a.t.wireForm();
+    a.nodes.loadMine.listeners.click();
+    for (let i = 0; i < 30 && !a.t.state().saved; i++) await Promise.resolve();
+
+    assert.equal(a.t.state().step, 3);
+    assert.equal(a.nodes.bar.hidden, complete);
+    assert.match(a.nodes.view.innerHTML, /id="editTopics"[^>]*>Edit topic selections<\/button>/);
+    a.nodes.editTopics.listeners.click();
+    assert.equal(a.t.state().step, 2);
+    assert.equal(a.t.state().editing, true);
+    assert.deepEqual(Array.from(a.t.state().S.r), sub.r);
+    assert.deepEqual(JSON.parse(a.storage['eai.me.v3']).sub.q, sub.q);
+    assert.equal(a.nodes.bar.hidden, false);
+  });
+}
+
 test('an unconfirmed background reading save never claims success', async () => {
   const sub = sample(); sub.q = {};
   const a = app({ reply: () => ({ ok: true, row: { ...sub, read: {} } }) });
@@ -709,7 +733,7 @@ test('work validation requires gathering goals but leaves further details option
 });
 
 for (const entry of ['next', 'editMine']) {
-  test(`${entry === 'next' ? 'Write my questions' : 'Edit answers'} then Back preserves the full reading page after reload`, () => {
+  test(`${entry === 'next' ? 'Write my questions' : 'Edit questions'} then Back preserves the full reading page after reload`, () => {
     const sub = { ...sample(), q: {}, read: { paper: 1 } };
     const a = app({ api: '', storage: localRecord(sub, { step: 3 }) });
     a.nodes[entry].listeners.click();
