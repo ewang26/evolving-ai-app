@@ -81,7 +81,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,identityEditing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;if('identityEditing'in s)identityEditing=s.identityEditing;},
-    cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
+    cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -394,6 +394,55 @@ test('reading and organizer screens omit article commentary, manual fallback and
   assert.match(reading, /role="checkbox" aria-checked="false"/);
   assert.doesNotMatch(reading, /data-opened/);
   assert.doesNotMatch(a.t.renderOrg(), /debrief/i);
+});
+
+test('unselected topics appear in a collapsed optional reading section', () => {
+  for (const [selected, unselectedTitles] of [
+    [['T1', 'T2', 'T3'], ['Human–AI Coevolution', 'Steering Open-Ended AI Ecosystems', 'Collective Intelligence']],
+    [['T4', 'T5', 'T6'], ['AI as a Major Evolutionary Transition', 'From Adaptive Agents to Adaptive Wholes', 'Regulation, Cheating, and Systemic Breakdown']]
+  ]) {
+    const a = app({ api: '', storage: localRecord({ ...sample(), r: selected }) });
+    const reading = a.t.renderReading();
+    const section = reading.match(/<div class="topicblock other-topics">([\s\S]*?)<\/details><\/div>/)?.[1];
+    assert.ok(section);
+    assert.match(section, /^<div class="eyebrow">Topics not selected<\/div><details>/);
+    assert.match(section, /<summary><span>See <strong>optional<\/strong> readings from other topics<\/span><\/summary>/);
+    for (const title of unselectedTitles) assert.ok(section.includes(title), title);
+    assert.equal((section.match(/<span class="tag">Optional<\/span>/g) || []).length, 6);
+    assert.doesNotMatch(section, /data-read=|role="checkbox"|<span class="tag req">Required<\/span>/);
+    assert.doesNotMatch(section, /<details open/);
+    assert.equal((reading.match(/<span class="tag req">Required<\/span>/g) || []).length, 4);
+  }
+});
+
+test('topic choices keep their saved IDs without repeating topic numbers beside rank badges', () => {
+  const a = app({ api: '', storage: localRecord(sample()) });
+  const choices = a.t.renderStep1();
+  for (const id of ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']) {
+    assert.match(choices, new RegExp(`<option value="${id}"`));
+  }
+  assert.match(choices, /class="ord">1st<\/div>/);
+  assert.doesNotMatch(choices, /<option[^>]*>\d+ — /);
+});
+
+test('reading cards lead with titles and omit page-count metadata', () => {
+  const a = app({ api: '', storage: localRecord(sample()) });
+  const reading = a.t.renderReading();
+  assert.match(reading, /<span class="rtitle">Evolvable AI: Threats of a new major transition in evolution<\/span>/);
+  assert.match(reading, /<span class="rby">V\. Müller, L\. Steels &amp; E\. Szathmáry · 2026<\/span>/);
+  assert.equal((reading.match(/class="rtitle"/g) || []).length, 13);
+  assert.doesNotMatch(reading, /\b\d+ pp\b|class="rkind"/);
+});
+
+test('seminar prep restores the overall progress percentage and navigation', () => {
+  const a = app({ api: '', storage: localRecord(sample()) });
+  const reading = a.t.renderReading();
+  assert.match(reading, /Your <em>seminar prep\.<\/em>/);
+  assert.match(reading, /<span class="pgpct">75<i>%<\/i><\/span>/);
+  assert.match(reading, /aria-label="Overall preparation complete"[^>]*aria-valuenow="75"/);
+  for (const target of ['0', 'topics', 'reads', 'questions']) {
+    assert.match(reading, new RegExp(`data-go="${target}"`));
+  }
 });
 
 test('each Read click toggles once and leaves the article controls in place', () => {

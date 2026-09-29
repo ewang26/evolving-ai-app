@@ -28,16 +28,16 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
 <style>
   :root{
     --bg:#1c364e;
-    --surface:#173044;
-    --wash:#162c41;
-    --raise:#1b3a52;
+    --surface:#244158;
+    --wash:#203b50;
+    --raise:#2a4a61;
     --text:#f6e3c9;
     --muted:#c4b396;
     --faint:#9d8f79;
     --accent:#ecc187;
     --accent-hover:#f6e3c9;
-    --line:#143049;
-    --line-soft:#173751;
+    --line:#35536a;
+    --line-soft:#315067;
     --ok:#a8c79a;
     --warn:#e0a074;
     --serif:"arno-pro",Palatino,"Palatino Linotype","Book Antiqua",Georgia,serif;
@@ -50,7 +50,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   *{margin:0;padding:0;box-sizing:border-box}
   html{-webkit-text-size-adjust:100%;color-scheme:dark}
   body{
-    background:var(--bg);color:var(--text);
+    background:radial-gradient(ellipse 110% 30rem at 50% 0, #2a4c67 0%, var(--bg) 72%);color:var(--text);
     font-family:var(--serif);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));line-height:1.6;
     -webkit-font-smoothing:antialiased;
     min-height:100vh;min-height:100dvh;
@@ -74,7 +74,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     border-bottom:1px solid var(--line);
   }
   .top-in{
-    max-width:40rem;margin-inline:auto;padding:.7rem 1.1rem .6rem;
+    max-width:40rem;margin-inline:auto;padding:.85rem 1.1rem .7rem;
     display:flex;align-items:center;gap:.75rem;
   }
   .mark{
@@ -94,31 +94,41 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .ghost:hover{color:var(--accent);border-color:var(--accent)}
 
   .rail{display:flex;gap:.3rem;max-width:40rem;margin-inline:auto;padding:0 1.1rem .7rem}
-  .rail i{flex:1;height:2px;background:var(--line);border-radius:2px;transition:background .3s}
+  .rail i{flex:1;height:3px;background:var(--line);border-radius:3px;transition:background .3s}
   .rail i.on{background:var(--accent)}
   .rail i.done{background:rgba(236,193,135,.45)}
 
-  main{width:100%;max-width:40rem;margin-inline:auto;padding:1.5rem 1.1rem 2rem;flex:1}
+  main{width:100%;max-width:40rem;margin-inline:auto;padding:1.8rem 1.1rem 2rem;flex:1}
   .site-legal{
     width:100%;max-width:40rem;margin:0 auto;padding:0 1.1rem 1rem;
     font-family:var(--sans);font-size:.8rem;color:var(--muted);
   }
-  .step{display:flex;flex-direction:column;gap:1.35rem}
+  .step{display:flex;flex-direction:column;gap:1.55rem}
 
-  .eyebrow,.head.thin h2{
-    font-family:var(--mono);font-size:calc(.63rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.16em;
+  .eyebrow{
+    font-family:var(--mono);font-size:calc(.76rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.11em;
     text-transform:uppercase;color:var(--accent);
   }
-  .head.thin h2{color:var(--muted)}
+  .head.thin h2{
+    font-family:var(--serif);font-size:calc(2.75rem * var(--text-scale) + var(--text-add));
+    line-height:1.04;font-weight:400;letter-spacing:-.025em;color:var(--text);text-wrap:balance;
+    margin-top:.4rem;
+  }
+  .head.thin h2 em{font-style:italic;color:var(--accent)}
+  .reading-step .head.thin h2{
+    font-family:var(--sans);font-size:clamp(2.25rem,8.6vw,2.85rem);font-weight:600;
+    line-height:1.04;letter-spacing:-.045em;text-transform:none;margin-top:.65rem;
+  }
+  .reading-step .head.thin h2 em{display:inline;font-style:normal;color:var(--accent)}
   h1{
-    font-family:var(--serif);font-weight:400;font-size:calc(1.72rem * var(--text-scale) + var(--text-add));line-height:1.22;
+    font-family:var(--serif);font-weight:400;font-size:calc(2.55rem * var(--text-scale) + var(--text-add));line-height:1.05;
     letter-spacing:-.01em;text-wrap:balance;margin-top:.5rem;
   }
   h1 em{font-style:italic;color:var(--accent)}
-  .lede{color:var(--muted);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));max-width:34rem;margin-top:.7rem}
+  .lede{color:var(--muted);font-size:calc(1.05rem * var(--text-scale) + var(--text-add));max-width:34rem;margin-top:.75rem;line-height:1.45}
   .head{border-bottom:1px solid var(--line-soft);padding-bottom:1.2rem}
   .head.thin{border-bottom:0;padding-bottom:0}
-  .intro{color:var(--muted);font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.55;max-width:32rem;margin-top:.7rem}
+  .intro{color:var(--muted);font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.5;max-width:32rem;margin-top:.65rem}
   .work-step .intro{max-width:none}
 
 
@@ -131,15 +141,15 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .sixth{margin-top:.4rem;padding-top:1.4rem;border-top:1px solid var(--line)}
   .sixth textarea{min-height:4.4rem}
   .f > label{
-    font-family:var(--mono);font-size:calc(.64rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.13em;
+    font-family:var(--mono);font-size:calc(.78rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.08em;
     text-transform:uppercase;color:var(--muted);
   }
-  .f .hint{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
-  .work-step .f > label{font-family:var(--serif);font-size:calc(1rem * var(--text-scale) + var(--text-add));font-weight:400;letter-spacing:normal;text-transform:none;line-height:1.55}
+  .f .hint{font-family:var(--sans);font-size:calc(.85rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.45}
+  .work-step .f > label{font-family:var(--serif);font-size:calc(1.08rem * var(--text-scale) + var(--text-add));font-weight:400;letter-spacing:normal;text-transform:none;line-height:1.4;color:var(--text)}
   input[type=text],input[type=email],input[type=password],input[type=url],select,textarea{
     width:100%;font-family:var(--sans);font-size:calc(1rem * var(--text-scale) + var(--text-add));color:var(--text);
-    background:var(--surface);border:1px solid var(--line);border-radius:3px;
-    padding:.8rem .85rem;transition:border-color .15s,background .15s;
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:.88rem .95rem;min-height:3.2rem;transition:border-color .15s,background .15s;
   }
   textarea{font-family:var(--serif);font-size:calc(1.0625rem * var(--text-scale) + var(--text-add));line-height:1.55;min-height:7.5rem;resize:vertical}
   input:focus,select:focus,textarea:focus{border-color:var(--accent);background:var(--raise);outline:none}
@@ -157,7 +167,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .row{display:grid;grid-template-columns:2.4rem 1fr;gap:.75rem;align-items:start}
   .ord{
     font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));font-weight:500;color:var(--bg);
-    background:var(--accent);border-radius:2px;height:2.55rem;
+    background:var(--accent);border-radius:9px;height:3.2rem;
     display:flex;align-items:center;justify-content:center;letter-spacing:.02em;
   }
   .ord.b2{background:rgba(236,193,135,.72)}
@@ -170,39 +180,56 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .framing b{font-weight:400;color:var(--text)}
 
   /* ---------- cards ---------- */
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:1.1rem}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.15rem}
   .card.flat{background:var(--wash)}
   .qcard{display:flex;flex-direction:column;gap:.6rem}
   .qtop{display:flex;align-items:baseline;gap:.75rem}
-  .rn{font-family:var(--serif);font-style:italic;font-size:calc(1.85rem * var(--text-scale) + var(--text-add));line-height:.9;
+  .rn{font-family:var(--serif);font-style:italic;font-size:calc(2.2rem * var(--text-scale) + var(--text-add));line-height:.9;
     color:var(--accent);letter-spacing:0;min-width:1.5rem;padding-top:.05rem}
-  .qtitle{font-family:var(--serif);font-size:calc(1.12rem * var(--text-scale) + var(--text-add));line-height:1.3}
+  .qtitle{font-family:var(--serif);font-size:calc(1.5rem * var(--text-scale) + var(--text-add));line-height:1.13}
 
   /* ---------- reading list ---------- */
-  .topicblock{border-top:1px solid var(--line-soft);padding-top:1.15rem;
-    display:flex;flex-direction:column;gap:.85rem}
-  .reads{display:flex;flex-direction:column;gap:.7rem}
+  .topicblock{border-top:1px solid var(--line-soft);padding-top:1.35rem;
+    display:flex;flex-direction:column;gap:.95rem}
+  .reads{display:flex;flex-direction:column;gap:0;background:#23435a;
+    border:1px solid var(--line-soft);border-radius:16px;overflow:hidden;
+    box-shadow:0 10px 25px rgba(6,23,38,.12)}
   .read{display:grid;grid-template-columns:1fr;gap:.3rem;
-    background:var(--wash);border:1px solid var(--line-soft);border-radius:3px;padding:.8rem .9rem}
-  .read.req{border-color:rgba(236,193,135,.4);background:rgba(236,193,135,.05)}
+    padding:1.15rem 1.1rem}
+  .reads:not(.solo) .read{padding:.85rem 1.1rem}
+  .read + .read{border-top:1px solid rgba(236,193,135,.28)}
   .rmeta{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
   .tag{
-    font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase;
-    padding:.2rem .4rem;border-radius:2px;border:1px solid var(--line);color:var(--faint);
+    font-family:var(--sans);font-size:calc(.73rem * var(--text-scale) + var(--text-add));font-weight:600;letter-spacing:.02em;
+    padding:.18rem .55rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);
   }
   .tag.req{border-color:var(--accent);color:var(--accent)}
-  .rkind{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;
-    text-transform:uppercase;color:var(--faint)}
-  .rcite{font-size:calc(1rem * var(--text-scale) + var(--text-add));line-height:1.4}
-  .rcite b{font-weight:500}
+  .rcite a{display:block;border:0;color:var(--text)}
+  .rcite a:hover .rtitle{color:var(--accent)}
+  .rtitle{display:block;font-family:var(--serif);font-size:calc(1.3rem * var(--text-scale) + var(--text-add));
+    font-weight:600;line-height:1.2;letter-spacing:-.01em}
+  .rtitle::after{content:" ↗";font-family:var(--sans);font-size:.72em;font-weight:400;color:var(--accent)}
+  .rby{display:block;margin-top:.4rem;font-family:var(--sans);font-size:calc(.9rem * var(--text-scale) + var(--text-add));
+    color:var(--muted);line-height:1.35}
   .rnote{font-family:var(--sans);font-size:calc(.8rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.45}
+  .topicblock.common{border-top:0;padding-top:0}
+  .common .reads{
+    background:radial-gradient(circle at 95% 0,rgba(236,193,135,.17),transparent 46%),
+      linear-gradient(145deg,#335c75,#25465e);
+    border-color:rgba(236,193,135,.48);border-left:4px solid var(--accent);
+    box-shadow:0 18px 34px rgba(5,20,33,.26);
+  }
+  .common .read{padding:1.3rem 1.25rem}
+  .common .rtitle{font-size:calc(1.65rem * var(--text-scale) + var(--text-add))}
+  .common .rby{color:#e1d0b6}
+  .common .readtick .tickbox{border-color:var(--accent)}
 
   /* ---------- misc blocks ---------- */
   .kv{display:flex;flex-direction:column;gap:.55rem}
   .kvrow{display:flex;gap:.8rem;justify-content:space-between;align-items:baseline;
     border-bottom:1px dotted var(--line);padding-bottom:.5rem}
   .kvrow:last-child{border-bottom:0;padding-bottom:0}
-  .kvk{font-family:var(--mono);font-size:calc(.62rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;text-transform:uppercase;
+  .kvk{font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));letter-spacing:.09em;text-transform:uppercase;
     color:var(--faint);white-space:nowrap}
   .kvv{font-size:calc(1rem * var(--text-scale) + var(--text-add));text-align:right}
   details{border-top:1px solid var(--line-soft);padding-top:1rem}
@@ -214,6 +241,18 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   summary::after{content:"+";color:var(--accent);font-size:calc(.9rem * var(--text-scale) + var(--text-add));line-height:1}
   details[open] summary::after{content:"–"}
   details .body{margin-top:1rem;display:flex;flex-direction:column;gap:.9rem}
+  .other-topics details{border:0;padding:0}
+  .other-topics summary{font-family:var(--serif);font-size:calc(1.18rem * var(--text-scale) + var(--text-add));
+    letter-spacing:0;text-transform:none;color:var(--text);justify-content:space-between;
+    min-height:3.6rem;padding:.9rem 1.05rem;background:var(--wash);border:1px solid var(--line-soft);border-radius:14px}
+  .other-topics summary strong{font-weight:700;color:inherit}
+  .other-topics summary:hover,.other-topics details[open] summary{border-color:var(--accent)}
+  .other-topics summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .other-topics summary::after{content:"";flex:none;width:.52rem;height:.52rem;margin:0 .2rem .25rem .75rem;
+    border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(45deg);
+    transition:transform .18s}
+  .other-topics details[open] summary::after{content:"";transform:rotate(225deg);margin-bottom:-.25rem}
+  .other-topics .topicblock:first-of-type{border-top:0;padding-top:0}
 
   /* ---------- buttons / bar ---------- */
   .bar{
@@ -225,8 +264,8 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
   .bar-in{max-width:40rem;margin-inline:auto;display:flex;gap:.6rem;align-items:center}
   .btn{
-    font-family:var(--sans);font-size:calc(.85rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.02em;
-    padding:.85rem 1.3rem;border-radius:2px;border:1px solid transparent;cursor:pointer;
+    font-family:var(--sans);font-size:calc(.9rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.02em;
+    padding:.95rem 1.3rem;min-height:3rem;border-radius:10px;border:1px solid transparent;cursor:pointer;
     line-height:1;transition:background .18s,color .18s,border-color .18s;text-align:center;
   }
   .btn-accent{background:var(--accent);color:var(--bg);flex:1}
@@ -234,12 +273,12 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .btn-accent:disabled{opacity:.45;cursor:not-allowed}
   .btn-out{border-color:var(--line);color:var(--muted);background:transparent}
   .btn-out:hover{border-color:var(--accent);color:var(--accent)}
-  .btn-sm{padding:.6rem .85rem;font-size:calc(.78rem * var(--text-scale) + var(--text-add))}
+  .btn-sm{padding:.7rem .95rem;font-size:calc(.82rem * var(--text-scale) + var(--text-add))}
   .btnrow{display:flex;flex-wrap:wrap;gap:.55rem}
-  .reading-actions{margin-top:1rem}
+  .reading-actions{margin-top:0}
   .stepcount{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;color:var(--faint);
     text-transform:uppercase;white-space:nowrap}
-  .note{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--faint);line-height:1.5}
+  .note{font-family:var(--sans);font-size:calc(.84rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.5}
   .flash{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.1em;text-transform:uppercase;color:var(--ok)}
   code,.mono{font-family:var(--mono);font-size:calc(.8rem * var(--text-scale) + var(--text-add))}
   .payload{
@@ -308,8 +347,9 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;align-items:start}
     .fields.one{display:flex;flex-direction:column;gap:1.4rem;align-items:stretch}
     .resume,.intro,.f.wide{grid-column:1 / -1}
-    .reads{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:start}
+    .reads{display:grid;grid-template-columns:1fr 1fr;align-items:stretch}
     .reads.solo{grid-template-columns:1fr}
+    .read + .read{border-top:0;border-left:1px solid rgba(236,193,135,.28)}
     .read{height:100%}
     .topicblock{padding-top:1.8rem;gap:1rem}
     .qcard textarea{min-height:6.5rem}
@@ -345,78 +385,72 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .discentry{
     display:flex;flex-direction:column;gap:.25rem;width:100%;text-align:left;
     background:rgba(236,193,135,.07);border:1px solid rgba(236,193,135,.32);
-    border-left:2px solid var(--accent);border-radius:3px;
+    border-left:2px solid var(--accent);border-radius:12px;
     padding:.85rem 1rem;cursor:pointer;
     transition:background .15s,border-color .15s;
   }
   .discentry:hover{background:rgba(236,193,135,.13);border-color:var(--accent)}
   .discentry .dtitle{font-family:var(--serif);font-size:calc(1.05rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.25}
-  .discentry .dcount{font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;
+  .discentry .dcount{font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));letter-spacing:.09em;
     text-transform:uppercase;color:var(--accent)}
 
-  /* Not a widget: hairline rules, a mono label and an italic serif numeral,
-     the same vocabulary as the rest of the page. */
+  /* Overall progress sits above the reading list. */
   .progress{
     display:flex;flex-direction:column;gap:.9rem;
-    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-    padding-block:1.25rem;
+    background:linear-gradient(145deg,#2c4e65,#223f56);
+    border:1px solid rgba(236,193,135,.35);border-radius:18px;
+    padding:1.2rem 1.15rem .95rem;
+    box-shadow:0 14px 30px rgba(5,20,33,.18);
   }
-  .pgtop{display:flex;align-items:baseline;gap:.9rem}
-  .pgpct{
-    font-family:var(--serif);font-style:italic;font-size:calc(2.4rem * var(--text-scale) + var(--text-add));line-height:.9;
-    color:var(--accent);letter-spacing:-.01em;font-variant-numeric:tabular-nums;
-  }
-  .pgpct i{font-size:calc(1.1rem * var(--text-scale) + var(--text-add));font-style:italic;margin-left:.08em}
-  .pgcap{display:flex;flex-direction:column;gap:.2rem}
-  .pgwhen{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--faint)}
-  .pgtrack{height:2px;background:rgba(236,193,135,.16);overflow:hidden}
+  .pgtop{display:flex;align-items:center;gap:.95rem}
+  .pgpct{font-family:var(--serif);font-size:calc(3.1rem * var(--text-scale) + var(--text-add));font-style:italic;
+    color:var(--accent);line-height:.85;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .pgpct i{font-size:.44em;font-style:italic;margin-left:.06em}
+  .pgcap{display:flex;flex-direction:column;gap:.15rem}
+  .pgwhen{font-family:var(--sans);font-size:calc(.88rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.3}
+  .pgtrack{height:6px;background:rgba(236,193,135,.2);border-radius:999px;overflow:hidden}
   .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
-  .pgitems{list-style:none;display:flex;flex-direction:column}
-  .pgitems li{border-bottom:1px dotted var(--line)}
-  .pgrow{
-    width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
-    padding:.42rem 0;background:none;border:0;cursor:pointer;text-align:left;
-    font:inherit;color:inherit;
-  }
+  .pgitems{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.9rem}
+  .pgitems li{border-bottom:1px solid rgba(236,193,135,.14)}
+  .pgitems li:nth-last-child(-n+2){border-bottom:0}
+  .pgrow{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;gap:.35rem;
+    padding:.5rem 0;background:none;border:0;cursor:pointer;text-align:left;color:inherit}
   .pgrow:hover .pgname,.pgrow:focus-visible .pgname{color:var(--accent)}
-  .pgrow:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
-  .pgitems li:last-child{border-bottom:0}
-  .pgitems li:last-child .pgrow{padding-bottom:0}
-  .pgname{font-family:var(--serif);font-size:calc(1.02rem * var(--text-scale) + var(--text-add));color:var(--faint)}
+  .pgname{font-family:var(--serif);font-size:calc(.95rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.15}
   .pgitems li.done .pgname{color:var(--text)}
-  .pgstate{
-    font-family:var(--mono);font-size:calc(.58rem * var(--text-scale) + var(--text-add));letter-spacing:.12em;text-transform:uppercase;
-    color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;
-  }
+  .pgstate{font-family:var(--sans);font-size:calc(.68rem * var(--text-scale) + var(--text-add));font-weight:600;
+    color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .pgitems li.done .pgstate{color:var(--accent)}
 
   .readtick{
     align-self:flex-start;display:flex;align-items:center;gap:.45rem;
     background:none;border:0;padding:.35rem 0 0;cursor:pointer;
-    font-family:var(--mono);font-size:calc(.55rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;text-transform:uppercase;
-    color:var(--faint);min-height:44px;min-width:80px;touch-action:manipulation;
+    font-family:var(--sans);font-size:calc(.83rem * var(--text-scale) + var(--text-add));font-weight:600;
+    color:var(--muted);min-height:44px;min-width:80px;touch-action:manipulation;
   }
   .readtick:hover{color:var(--accent)}
   .readtick.on{color:var(--accent)}
+  .common .readtick.on,.common .readtick:hover{color:var(--accent)}
   .readtick .tickbox{
-    width:.9rem;height:.9rem;border:1px solid var(--line);border-radius:2px;
+    width:1.1rem;height:1.1rem;border:1px solid var(--line);border-radius:4px;
     display:flex;align-items:center;justify-content:center;font-size:calc(.6rem * var(--text-scale) + var(--text-add));color:var(--bg);
   }
   .readtick.on .tickbox{background:var(--accent);border-color:var(--accent)}
 
-  /* the general room is the one thing worth making loud */
+  /* Keep the all-attendee room distinct without a solid accent fill. */
   .genentry{
     display:grid;grid-template-columns:1fr auto;align-items:center;gap:.2rem 1rem;
     width:100%;text-align:left;cursor:pointer;
-    background:var(--accent);border:0;border-radius:3px;padding:1rem 1.15rem;
-    transition:background .15s;
+    background:rgba(236,193,135,.08);border:1px solid rgba(236,193,135,.32);border-radius:12px;padding:1rem 1.15rem;
+    transition:background .15s,border-color .15s;
   }
-  .genentry:hover{background:var(--accent-hover)}
-  .genentry .gtitle{font-family:var(--serif);font-size:calc(1.15rem * var(--text-scale) + var(--text-add));color:var(--bg);line-height:1.2}
-  .genentry .gsub{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:rgba(28,54,78,.75);grid-row:2}
+  .genentry:hover{background:rgba(236,193,135,.13);border-color:var(--accent)}
+  .genentry:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .genentry .gtitle{font-family:var(--serif);font-size:calc(1.15rem * var(--text-scale) + var(--text-add));color:var(--accent);line-height:1.2}
+  .genentry .gsub{font-family:var(--sans);font-size:calc(.78rem * var(--text-scale) + var(--text-add));color:var(--muted);grid-row:2}
   .genentry .gbadge{
-    grid-row:1 / span 2;font-family:var(--mono);font-size:calc(.9rem * var(--text-scale) + var(--text-add));color:var(--bg);
-    border:1px solid rgba(28,54,78,.35);border-radius:2px;padding:.3rem .6rem;
+    grid-row:1 / span 2;font-family:var(--mono);font-size:calc(.9rem * var(--text-scale) + var(--text-add));color:var(--accent);
+    border:1px solid rgba(236,193,135,.32);border-radius:2px;padding:.3rem .6rem;
     font-variant-numeric:tabular-nums;
   }
   .quietlink{
@@ -1248,8 +1282,7 @@ window.EAI_CONFIG = {
   function readingText(){
     var L = ["EVOLVING AI — PRE-READ · " + S.n, ""];
     L.push("0. Evolutionary Transitions \u2014 reading for everyone");
-    L.push("   [required]    " + COMMON.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&")
-      + "  (" + COMMON.len + ")");
+    L.push("   [required]    " + COMMON.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&"));
     L.push("                 " + COMMON.url);
     L.push("");
     chosen().forEach(function(id){
@@ -1257,8 +1290,7 @@ window.EAI_CONFIG = {
       L.push(t.rn + ". " + t.title);
       t.readings.forEach(function(r){
         L.push("   " + (r.req ? "[required]    " : "[recommended] ")
-          + r.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&")
-          + (r.len ? "  (" + r.len + ")" : ""));
+          + r.cite.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&"));
         L.push("                 " + r.url);
       });
       L.push("   Your question: " + String(S.q[id]||"").replace(/\s+/g," ").trim());
@@ -1283,6 +1315,11 @@ window.EAI_CONFIG = {
   function renderStep0(){
     return ''
     + '<section class="step">'
+    + '  <div class="head thin">'
+    + '    <div class="eyebrow">01 / 05 · Seminar prep</div>'
+    + '    <h1>Prepare for <em>Evolving AI.</em></h1>'
+    + '    <p class="lede">Choose three topics, read the essentials, and bring your questions.</p>'
+    + '  </div>'
     + '  <div class="fields">'
     +      '    <div class="f wide' + (errs.gate?" bad":"") + '">'
          + '      <label for="fgate">Invitation passcode</label>'
@@ -1298,7 +1335,7 @@ window.EAI_CONFIG = {
     + '      <label for="fpin">Favorite AI model</label>'
     + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
     +          'placeholder="AlphaFold" value="'+esc(pin)+'" />'
-    + '      <div class="hint">This is your personal access code. When returning, enter the same model you originally used.</div>'
+    + '      <div class="hint">Your personal access code. Use the same answer when you return.</div>'
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
@@ -1307,7 +1344,7 @@ window.EAI_CONFIG = {
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Already submitted? Enter the same email and favorite AI model, then select Continue to resume. <button class="linkish" id="loadMine" type="button">Load my reading</button> replaces this device’s draft with the saved version.</span>'
+        ? '<span class="note">Returning? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> replaces this device’s draft.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -1330,31 +1367,31 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step work-step">'
     + '  <div class="head thin">'
-    + '    <h2>Your work</h2>'
-    + '    <p class="intro">So everyone in your subgroup knows who they are talking to. '
-    +        '(All of this is private to this gathering and is not shared outside it.)</p>'
+    + '    <div class="eyebrow">02 / 05 · About you</div>'
+    + '    <h2>Your <em>work.</em></h2>'
+    + '    <p class="intro">Help your subgroup get to know you. Shared only at this gathering.</p>'
     + '  </div>'
     + '  <div class="fields one">'
     + '    <div class="f' + (errs.w?" bad":"") + '">'
-    + '      <label for="fw">Please briefly tell us what you work on, in one sentence.</label>'
+    + '      <label for="fw">What do you work on? One sentence is enough.</label>'
     + '      <textarea id="fw" data-k="w" rows="2" '
     +          'placeholder="Coordination in multi-agent AI systems.">'+esc(S.w||"")+'</textarea>'
     +        (errs.w?'<div class="err">'+errs.w+'</div>':'')
     + '    </div>'
     + '    <div class="f' + (errs.c?" bad":"") + '">'
-    + '      <label for="fc">An example of my work that others can look at</label>'
+    + '      <label for="fc">A public example of your work</label>'
     + '      <input id="fc" data-k="c" type="url" inputmode="url" spellcheck="false" '
     +          'autocomplete="off" placeholder="https://\u2026" value="'+esc(S.c||"")+'" />'
-    + '      <div class="hint">A link to something public you\u2019ve worked on (e.g., a paper, blog post, podcast, book, model, or something else).</div>'
+    + '      <div class="hint">A paper, post, podcast, book, model, or site.</div>'
     +        (errs.c?'<div class="err">'+errs.c+'</div>':'')
     + '    </div>'
     + '    <div class="f' + (errs.hopes?" bad":"") + '">'
-    + '      <label for="fhopes">A brief description of what you hope the gathering can achieve and what your contribution can be:</label>'
+    + '      <label for="fhopes">Briefly describe your hopes for the gathering and what you can contribute.</label>'
     + '      <textarea id="fhopes" data-k="hopes" rows="2">'+esc(S.hopes||"")+'</textarea>'
     +        (errs.hopes?'<div class="err">'+errs.hopes+'</div>':'')
     + '    </div>'
     + '    <div class="f">'
-    + '      <label for="fmoreWork"><strong>Optional</strong>: More detail describing your work (e.g., your website or selected longer articles).</label>'
+    + '      <label for="fmoreWork"><strong>Optional</strong>: More detail describing your work</label>'
     + '      <textarea id="fmoreWork" data-k="moreWork" rows="2">'+esc(S.moreWork||"")+'</textarea>'
     + '    </div>'
     + '  </div>'
@@ -1367,7 +1404,7 @@ window.EAI_CONFIG = {
     TOPICS.forEach(function(t){
       var dis = taken.indexOf(t.id) > -1 && t.id !== sel;
       h += '<option value="'+t.id+'"'+(t.id===sel?" selected":"")+(dis?" disabled":"")+'>'
-         + t.rn.toUpperCase()+' — '+esc(t.title)+'</option>';
+         + esc(t.title)+'</option>';
     });
     return h;
   }
@@ -1385,11 +1422,12 @@ window.EAI_CONFIG = {
 
     return ''
     + '<section class="step">'
-    + '  <div class="head thin"><h2>Choose three topics</h2></div>'
+    + '  <div class="head thin"><div class="eyebrow">03 / 05 · Your focus</div><h2>Choose three <em>topics.</em></h2>'
+    + '    <p class="intro">Pick the conversations you most want to join.</p></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
     + '  <div class="f sixth">'
-    + '    <label for="fnewtopic">Propose one additional focus area not covered by the current six that you\u2019re most interested in discussing</label>'
+    + '    <label for="fnewtopic">Suggest another focus area (optional)</label>'
     + '    <textarea id="fnewtopic" data-k="t" rows="2">'+esc(S.t||"")+'</textarea>'
     + '  </div>'
     + '</section>';
@@ -1409,8 +1447,9 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <h2>Your questions</h2>'
-    + '    <p class="intro">Each group runs as a graduate seminar. Your questions are printed and shared with your specific subgroup partners on Thursday night.</p>'
+    + '    <div class="eyebrow">05 / 05 · Final step</div>'
+    + '    <h2>Your <em>questions.</em></h2>'
+    + '    <p class="intro">Bring one question to each seminar. We’ll share these with your subgroup on Thursday night.</p>'
     + '  </div>'
     + '  <div class="stack">' + cards + '</div>'
     + '</section>';
@@ -1441,62 +1480,61 @@ window.EAI_CONFIG = {
     }).length;
   }
 
-  /* What is actually outstanding, named. "3 readings left", not a reassurance. */
   function remaining(readsLeft, qsLeft){
     var bits = [];
     if(readsLeft) bits.push(readsLeft + (readsLeft === 1 ? " reading" : " readings"));
-    if(qsLeft)    bits.push(qsLeft + (qsLeft === 1 ? " question" : " questions"));
-    if(!bits.length) return "Nothing left to do.";
-    return bits.join(" and ") + " left.";
+    if(qsLeft) bits.push(qsLeft + (qsLeft === 1 ? " question" : " questions"));
+    return bits.length ? bits.join(" and ") + " left." : "All set for the seminar.";
   }
 
   function renderProgress(){
     var reads = readingCount(), read = readDone(), qs = questionsDone();
     var items = [
-      {label:"Your details",   done:!!(S.n && S.e && S.a), state:"Done",   go:"0"},
-      {label:"Topics chosen",  done:chosen().length === 3, state:"Done",   go:"topics"},
-      {label:"Readings",       done:reads > 0 && read === reads, state:read + " of " + reads, go:"reads"},
-      {label:"Questions",      done:qs === 3,              state:qs + " of 3", go:"questions"}
+      {label:"Your details", done:!!(S.n && S.e && S.a), state:"Done", go:"0"},
+      {label:"Topics chosen", done:chosen().length === 3, state:"Done", go:"topics"},
+      {label:"Readings", done:reads > 0 && read === reads, state:read + " of " + reads, go:"reads"},
+      {label:"Questions", done:qs === 3, state:qs + " of 3", go:"questions"}
     ];
     var frac = ((!!(S.n && S.e && S.a) ? 1 : 0)
-              + (chosen().length === 3 ? 1 : 0)
-              + (reads ? read / reads : 0)
-              + qs / 3) / 4;
+      + (chosen().length === 3 ? 1 : 0)
+      + (reads ? read / reads : 0) + qs / 3) / 4;
     var pct = Math.round(frac * 100);
 
     return ''
     + '<div class="progress">'
-    + '  <div class="pgtop">'
-    + '    <span class="pgpct">' + pct + '<i>%</i></span>'
-    + '    <span class="pgcap">'
-    + '      <span class="eyebrow">Your progress</span>'
-    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs)) + '</span>'
-    + '    </span>'
-    + '  </div>'
-    + '  <div class="pgtrack"><span style="width:' + pct + '%"></span></div>'
-    + '  <ul class="pgitems">'
-    +      items.map(function(x){
-             return '<li class="' + (x.done ? "done" : "") + '">'
-               + '<button class="pgrow" type="button" data-go="' + x.go + '">'
-               +   '<span class="pgname">' + x.label + '</span>'
-               +   '<span class="pgstate">' + esc(x.state) + '</span>'
-               + '</button>'
-               + '</li>';
-           }).join("")
-    + '  </ul>'
+    + '  <div class="pgtop"><span class="pgpct">' + pct + '<i>%</i></span>'
+    + '    <span class="pgcap"><span class="eyebrow">Your progress</span>'
+    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs)) + '</span></span></div>'
+    + '  <div class="pgtrack" role="progressbar" aria-label="Overall preparation complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><span style="width:' + pct + '%"></span></div>'
+    + '  <ul class="pgitems">' + items.map(function(x){
+      return '<li class="' + (x.done ? "done" : "") + '"><button class="pgrow" type="button" data-go="' + x.go + '">'
+        + '<span class="pgname">' + x.label + '</span><span class="pgstate">' + esc(x.state) + '</span>'
+        + '</button></li>';
+    }).join("") + '</ul>'
     + '</div>';
   }
 
-  function readCard(r, done){
-    var tick = !!(S.read && S.read[r.url]);
-    return '<div class="read'+(r.req?" req":"")+(tick?" ticked":"")+'">'
+  function shortCite(cite){
+    var m = String(cite||"").match(/^(.*?)<b>(.*?)<\/b>(.*)$/);
+    if(!m) return {title:String(cite||""), by:""};
+    var by = m[1].replace(/,\s*$/, "").trim();
+    if(by.length > 48) by = by.split(",")[0] + " et al.";
+    var year = m[3].match(/\b(?:19|20)\d{2}\b/);
+    return {
+      title:m[2].replace(/^[\u201c\u201d"']+|[\u201c\u201d"']+$/g, ""),
+      by:by + (year ? " · " + year[0] : "")
+    };
+  }
+
+  function readCard(r, done, optional){
+    var tick = !optional && !!(S.read && S.read[r.url]);
+    var cite = shortCite(r.cite);
+    return '<div class="read'+(r.req && !optional?" req":"")+(tick?" ticked":"")+'">'
       + '<div class="rmeta">'
-      +   (r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
-      +   '<span class="rkind">'
-      +     (r.kind==="ai"?"AI research":r.kind==="evo"?"Evolutionary science":"Bridge")
-      +     (r.len?' \u00b7 '+r.len:'') + ' \u00b7 ' + (r.fmt||"PDF") + '</span>'
+      +   (optional?'<span class="tag">Optional</span>':r.req?'<span class="tag req">Required</span>':'<span class="tag">Recommended</span>')
       + '</div>'
-      + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+r.cite+'</a></div>'
+      + '<div class="rcite"><a href="'+esc(r.url)+'" target="_blank" rel="noopener">'
+      + '<span class="rtitle">'+esc(cite.title)+'</span><span class="rby">'+esc(cite.by)+'</span></a></div>'
       + (done
           ? '<button class="readtick' + (tick ? ' on' : '') + '" type="button" '
             + 'role="checkbox" aria-checked="'+tick+'" data-read="'+esc(r.url)+'">'
@@ -1509,9 +1547,9 @@ window.EAI_CONFIG = {
 
   function renderReading(){
     var ids = chosen(), done = saved;
+    var otherTopics = TOPICS.filter(function(t){ return ids.indexOf(t.id) === -1; });
     var commonBlock = '<div class="topicblock common">'
-      + '<div class="qtop"><span class="rn">0</span><span class="qtitle">Evolutionary Transitions</span></div>'
-      + '<div class="eyebrow">Reading for everyone</div>'
+      + '<div class="eyebrow">Start here · For everyone</div>'
       + '<div class="reads solo">' + readCard(COMMON, done) + '</div>'
       + '</div>';
     var blocks = ids.map(function(id){
@@ -1527,7 +1565,7 @@ window.EAI_CONFIG = {
             : '')
         + (done
             ? '<button class="discentry" type="button" data-topic="'+t.id+'">'
-              + '<span class="dtitle">Discuss with your group and see other questions or comments</span>'
+              + '<span class="dtitle">Discuss this topic</span>'
               + '<span class="dcount">'
               +   (qcounts[t.id] ? qcounts[t.id] + ' question' + (qcounts[t.id]===1?'':'s') : 'no questions yet')
               +   (counts['topic:'+t.id] ? ' \u00b7 ' + counts['topic:'+t.id] + ' post' + (counts['topic:'+t.id]===1?'':'s') : '')
@@ -1538,25 +1576,36 @@ window.EAI_CONFIG = {
     }).join("");
 
     return ''
-    + '<section class="step">'
+    + '<section class="step reading-step">'
     + '  <div class="head thin">'
-    + '    <h2>Your reading</h2>'
+    + '    <div class="eyebrow">04 / 05 · Reading list</div>'
+    + '    <h2>Your <em>seminar prep.</em></h2>'
     +      (done ? '<div id="readingSync">' + syncLine() + '</div>'
-            : '<p class="intro">Read these before you write your questions. One required text per group.'
+            : '<p class="intro">Read the essentials before writing your questions.'
               + '</p>')
-    + '    <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topic selections</button></div>'
     + '  </div>'
     +      (done ? '<div id="readingProgress">' + renderProgress() + '</div>' : '')
     + commonBlock
     + blocks
+    + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topic selections</button></div>'
+    + (otherTopics.length ? '<div class="topicblock other-topics"><div class="eyebrow">Topics not selected</div><details>'
+      + '<summary><span>See <strong>optional</strong> readings from other topics</span></summary>'
+      + '<div class="body"><p class="note">These do not count toward progress.</p>'
+      + otherTopics.map(function(t){
+          return '<div class="topicblock">'
+            + '<div class="qtop"><span class="rn">'+t.rn+'</span><span class="qtitle">'+esc(t.title)+'</span></div>'
+            + '<div class="reads">' + t.readings.map(function(r){ return readCard(r, false, true); }).join("") + '</div>'
+            + '</div>';
+        }).join("")
+      + '</div></details></div>' : '')
     + (done ? ''
     + '  <div class="topicblock">'
     + '    <button class="genentry" id="openGeneral" type="button">'
     + '      <span class="gtitle">General discussion</span>'
-    + '      <span class="gsub">For the whole group, not one topic</span>'
+    + '      <span class="gsub">For everyone</span>'
     + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
     + '    </button>'
-    + '    <p class="note">Bookmark this app. On another device, enter the same email and favorite AI model, then select Continue to resume.</p>'
+    + '    <p class="note">Bookmark this page. On another device, use the same email and favorite AI model to resume.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy app link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
