@@ -286,8 +286,8 @@ test('a reloaded local draft cannot borrow a newer Sheet revision and overwrite 
   await a.t.saveDraftNow();
   assert.equal(a.requests.length, 0);
   assert.equal(a.t.state().S.q.T1, 'Older local answer');
-  assert.match(a.t.state().syncState.msg, /changed on another device/);
-  assert.match(a.t.state().syncState.msg, /loading the latest reading, which replaces this draft/);
+  assert.match(a.t.state().syncState.msg, /different answers/);
+  assert.match(a.t.state().syncState.msg, /Review the differences/);
   assert.equal(JSON.parse(a.storage['eai.me.v3']).rev, 'old-revision');
 });
 
@@ -792,7 +792,7 @@ test('Continue does not replace or upload an older local draft whose saved revis
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
-  assert.match(a.nodes.view.innerHTML, /current draft is still on this device/);
+  assert.match(a.nodes.view.innerHTML, /Your draft is preserved/);
   assert.equal(a.t.state().S.q.T1, local.q.T1);
   assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
 });
@@ -1321,4 +1321,164 @@ test('a late topic response cannot update a different discussion page', async ()
   await new Promise(setImmediate);
   assert.equal(a.t.state().mode, 'thread');
   assert.equal(a.t.state().counts.general || 0, 0);
+});
+
+test('a committed save with a lost confirmation recovers after reload without losing later edits', async () => {
+  const b = backend(), initial = sample();
+  b.post({ action: 'put', sub: initial, pin: 'org:testmodel', gate: 'synthetic-gate' });
+  const record = b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' });
+  const storage = localRecord(initial, { rev: record.rev });
+  let failConfirmation = false;
+  const a = app({ bridge: true, storage, relay: req => {
+    if (req.action === 'put') { const result = b.post(req); failConfirmation = true; return result; }
+    if (req.action === 'get' && failConfirmation) return { ok: false, error: 'backend_error' };
+    return b.get(req);
+  } });
+  const first = sample(); first.q.T1 = 'My first saved edit';
+  a.t.set({ S: first });
+  await a.t.saveDraftNow();
+  assert.equal(b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' }).row.q.T1, first.q.T1);
+  const newer = sample(); newer.q.T1 = 'My next unsent edit';
+  a.t.set({ S: newer }); a.t.saveLocal();
+  const reloaded = app({ bridge: true, storage, relay: req => req.action === 'put' ? b.post(req) : b.get(req) });
+  reloaded.t.set({ pin: 'TestModel' });
+  await reloaded.t.saveDraftNow();
+  assert.equal(reloaded.t.state().syncState.state, 'ok');
+  assert.equal(b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' }).row.q.T1, newer.q.T1);
+});
+
+function savedBackend(initial = sample()) {
+  const b = backend();
+  b.post({ action: 'put', sub: initial, pin: 'org:testmodel', gate: 'synthetic-gate' });
+  const record = b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' });
+  return { b, record, relay: req => req.action === 'put' ? b.post(req) : b.get(req) };
+}
+
+test('concurrent changes to separate questions merge against the persisted saved base', async () => {
+  const initial = sample(), { b, record, relay } = savedBackend(initial);
+  const local = sample(); local.q.T1 = 'Unsent local question'; delete local.read.paper;
+  const remote = sample(); remote.q.T2 = 'New question from the other browser'; remote.hopes = 'A remote contribution';
+  b.post({ action: 'put', sub: remote, pin: 'org:testmodel', ifMatch: record.rev });
+  const a = app({ bridge: true, storage: localRecord(local, { rev: record.rev, base: { sub: initial, rev: record.rev } }), relay });
+  await a.t.saveDraftNow();
+  const saved = b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row;
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.equal(saved.q.T1, local.q.T1); assert.equal(saved.q.T2, remote.q.T2);
+  assert.equal(saved.hopes, remote.hopes); assert.equal(a.t.state().S.q.T2, remote.q.T2);
+});
+
+test('a cleared local field stays cleared while unrelated remote changes merge', async () => {
+  const initial = { ...sample(), read: { paper: 1 } }, { b, record, relay } = savedBackend(initial);
+  const local = { ...initial, w: '', read: {} }, remote = { ...initial, hopes: 'Remote hopes' };
+  b.post({ action: 'put', sub: remote, pin: 'org:testmodel', ifMatch: record.rev });
+  const a = app({ bridge: true, storage: localRecord(local, { pin: '', rev: record.rev, base: { sub: initial, rev: record.rev } }), relay });
+  a.t.set({ pin: 'TestModel' });
+  await a.t.saveDraftNow();
+  const saved = b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row;
+  assert.equal(saved.w, ''); assert.deepEqual(saved.read, {}); assert.equal(saved.hopes, remote.hopes);
+});
+
+for (const useSheet of [false, true]) {
+  test(`Load my reading preserves an old unsent draft and review can save the ${useSheet ? 'sheet' : 'device'} answer`, async () => {
+    const { b, record, relay } = savedBackend();
+    const local = sample(); local.q.T1 = 'Local-only answer that must survive';
+    const storage = localRecord(local, { pin: '', rev: 'older-revision', step: 0 });
+    const a = app({ bridge: true, storage, relay });
+    a.nodes.fpin.value = 'TestModel'; a.nodes.fpin.listeners.input();
+    const before = JSON.stringify(b.tabs.Submissions.rows);
+    a.nodes.loadMine.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().S.q.T1, local.q.T1);
+    assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+    assert.match(a.nodes.view.innerHTML, /Review your answers/);
+    assert.match(a.nodes.view.innerHTML, /Local-only answer that must survive/);
+    assert.doesNotMatch(a.nodes.view.innerHTML, /Question: undefined/);
+    a.nodes[useSheet ? 'resolveSheet' : 'resolveDevice'].onclick();
+    await new Promise(setImmediate);
+    const saved = b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row;
+    assert.equal(saved.q.T1, useSheet ? sample().q.T1 : local.q.T1);
+    assert.equal(a.t.state().syncState.state, 'ok');
+    assert.equal(JSON.parse(storage['eai.recovery.v1']).device.q.T1, local.q.T1);
+    assert.equal(JSON.parse(storage['eai.recovery.v1']).sheet.q.T1, sample().q.T1);
+  });
+}
+
+test('review keeps unrelated remote edits when the attendee selects their local conflicting answer', async () => {
+  const initial = sample(), { b, record, relay } = savedBackend(initial);
+  const local = sample(); local.q.T1 = 'Local answer';
+  const remote = sample(); remote.q.T1 = 'Conflicting remote answer'; remote.q.T2 = 'Unrelated remote answer';
+  b.post({ action: 'put', sub: remote, pin: 'org:testmodel', ifMatch: record.rev });
+  const a = app({ bridge: true, storage: localRecord(local, { rev: record.rev, base: { sub: initial, rev: record.rev } }), relay });
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.code, 'conflict');
+  a.nodes.resolveDevice.onclick(); await new Promise(setImmediate);
+  const saved = b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row;
+  assert.equal(saved.q.T1, local.q.T1); assert.equal(saved.q.T2, remote.q.T2);
+});
+
+test('a row changed again during conflict review is protected and requires another review', async () => {
+  const { b, relay } = savedBackend();
+  const local = sample(); local.q.T1 = 'Unsent device answer';
+  const a = app({ bridge: true, storage: localRecord(local, { rev: 'old-revision' }), relay });
+  await a.t.saveDraftNow();
+  const latest = sample(); latest.q.T1 = 'Changed again during review';
+  b.post({ action: 'put', sub: latest, pin: 'org:testmodel' });
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  a.nodes.resolveDevice.onclick(); await new Promise(setImmediate);
+  assert.equal(a.t.state().syncState.code, 'conflict');
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+  assert.equal(a.t.state().S.q.T1, local.q.T1);
+  assert.match(a.nodes.readingSync.innerHTML, /Changed again during review/);
+});
+
+test('review refreshes if the local draft changed before a resolution button was clicked', async () => {
+  const { b, relay } = savedBackend();
+  const local = sample(); local.q.T1 = 'Original local answer';
+  const a = app({ bridge: true, storage: localRecord(local, { rev: 'old-revision' }), relay });
+  await a.t.saveDraftNow();
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  a.t.state().S.q.T1 = 'Newer local answer during review';
+  a.nodes.resolveDevice.onclick(); await new Promise(setImmediate);
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+  assert.equal(a.t.state().S.q.T1, 'Newer local answer during review');
+  assert.match(a.nodes.view.innerHTML, /Newer local answer during review/);
+  a.nodes.resolveDevice.onclick(); await new Promise(setImmediate);
+  assert.equal(b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row.q.T1, 'Newer local answer during review');
+});
+
+test('changing topic selections on one device and questions on another requires review', async () => {
+  const initial = sample(), { b, record, relay } = savedBackend(initial);
+  const local = sample(); local.q.T1 = 'Local question';
+  const remote = sample(); remote.r = ['T4', 'T5', 'T6']; remote.q = { T4: 'Remote question' };
+  b.post({ action: 'put', sub: remote, pin: 'org:testmodel', ifMatch: record.rev });
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  const a = app({ bridge: true, storage: localRecord(local, { rev: record.rev, base: { sub: initial, rev: record.rev } }), relay });
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.code, 'conflict');
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+  assert.match(a.nodes.readingSync.innerHTML, /Topic choices and questions/);
+});
+
+test('a known unsent draft survives loading a reading even when its Sheet revision is current', async () => {
+  const { b, record, relay } = savedBackend();
+  const local = sample(); local.q.T1 = 'Not yet submitted';
+  const a = app({ bridge: true, storage: localRecord(local, { rev: record.rev, step: 0 }), relay });
+  a.nodes.loadMine.listeners.click(); await new Promise(setImmediate);
+  assert.equal(a.t.state().S.q.T1, local.q.T1);
+  assert.equal(a.t.state().step, 3);
+  assert.equal(a.t.state().syncState.state, 'local');
+  assert.equal(b.get({ action: 'get', email: local.e, pin: 'org:testmodel' }).row.q.T1, sample().q.T1);
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.state, 'ok');
+});
+
+test('Load my reading restores an email-only login retained from a previous reload', async () => {
+  const { b, relay } = savedBackend();
+  const a = app({ bridge: true, storage: localRecord({ e: sample().e }, { saved: false, step: 0 }), relay });
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  a.nodes.loadMine.listeners.click(); await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 3);
+  assert.equal(a.t.state().syncState.state, 'ok');
+  assert.ok(a.t.sameSubmission(a.t.state().S, sample()));
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
 });

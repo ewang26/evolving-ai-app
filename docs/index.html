@@ -275,6 +275,10 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .btn-out:hover{border-color:var(--accent);color:var(--accent)}
   .btn-sm{padding:.7rem .95rem;font-size:calc(.82rem * var(--text-scale) + var(--text-add))}
   .btnrow{display:flex;flex-wrap:wrap;gap:.55rem}
+  .conflict-review{margin:1rem 0;padding:1rem;border:1px solid var(--warn);border-radius:8px;font-family:var(--sans)}
+  .conflict-review p{margin:.6rem 0;line-height:1.5}
+  .conflict-field{margin:1rem 0;padding-top:1rem;border-top:1px solid var(--line-soft)}
+  .conflict-field pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:.6rem;background:var(--surface)}
   .reading-actions{margin-top:0}
   .stepcount{font-family:var(--mono);font-size:calc(.6rem * var(--text-scale) + var(--text-add));letter-spacing:.11em;color:var(--faint);
     text-transform:uppercase;white-space:nowrap}
@@ -767,7 +771,15 @@ window.EAI_CONFIG = {
     });
   }
 
-  var revisionByEmail = {};
+  var revisionByEmail = {}, baseByEmail = {}, pendingSaveByEmail = {};
+  var syncConflict = null;
+  var CONFLICT_MSG = "The sheet and this device have different answers. Your draft is preserved. Review the differences below to finish saving.";
+  function rememberRecord(email, res){
+    revisionByEmail[email] = res.rev || "";
+    baseByEmail[email] = res.row ? {sub:normalize(res.row), rev:res.rev || ""} : null;
+    if(res.row && pendingSaveByEmail[email] && sameSubmission(res.row, pendingSaveByEmail[email].sub))
+      delete pendingSaveByEmail[email];
+  }
   function cloudLookupRecord(email, code){
     return jsonp({action:"get", email:String(email||"").trim().toLowerCase(), pin:String(code||"")})
       .then(function(res){
@@ -777,7 +789,7 @@ window.EAI_CONFIG = {
   }
   function cloudLookup(email, code){
     return cloudLookupRecord(email, code).then(function(res){
-      revisionByEmail[String(email||"").trim().toLowerCase()] = res.rev || "";
+      rememberRecord(String(email||"").trim().toLowerCase(), res);
       return res.row || null;
     });
   }
@@ -788,15 +800,20 @@ window.EAI_CONFIG = {
     var sent = normalize(sub);
     var email = String(sent.e || "").trim().toLowerCase();
     var baseRev = revisionByEmail[email] || "absent";
+    // Keep the write intent before sending: a committed write can lose its reply.
+    // Its exact snapshot lets the next authenticated read recover our own save.
+    pendingSaveByEmail[email] = {sub:sent, rev:baseRev};
+    saveLocal();
     return uploadSubmission(JSON.stringify({action:"put", sub:sent, pin:String(code||""), gate:gate,
       ifMatch:baseRev}))
     .then(function(){ return wait(1400); })
-    // the POST response is unreadable by design, so the read-back IS the result:
-    // a wrong passcode surfaces here as bad_pin instead of a false success
+    // Legacy POST replies are opaque. Confirm both transports against the row
+    // before reporting success, and retain the write intent if confirmation fails.
     .then(function(){ return cloudLookupRecord(sent.e, code); })
     .then(function(res){
       if(res.row && sameSubmission(res.row, sent)){
-        revisionByEmail[email] = res.rev || "";
+        rememberRecord(email, res);
+        saveLocal();
         gate = ""; gateOk = true; lsDel(LS_GATE);
         return res.row;
       }
@@ -951,7 +968,9 @@ window.EAI_CONFIG = {
       syncState = {state:"local", msg:"Your latest changes have not reached the sheet yet. Try again below."};
     }
     lsSet(LS_ME, {sub:S, saved:saved, step:step, editing:editing,
-      rev:revisionByEmail[String(S.e || "").trim().toLowerCase()] || ""});
+      rev:revisionByEmail[String(S.e || "").trim().toLowerCase()] || "",
+      base:baseByEmail[String(S.e || "").trim().toLowerCase()] || null,
+      pending:pendingSaveByEmail[String(S.e || "").trim().toLowerCase()] || null});
   }
 
   function clearPersonalLink(){
@@ -976,7 +995,12 @@ window.EAI_CONFIG = {
       String(fromHash.e).trim().toLowerCase() === String(mine.sub.e || "").trim().toLowerCase();
     if(mine && mine.sub && (!fromHash || samePerson)){
       S = normalize(mine.sub);
-      if(mine.rev) revisionByEmail[String(S.e || "").trim().toLowerCase()] = mine.rev;
+      var email = String(S.e || "").trim().toLowerCase();
+      if(mine.rev) revisionByEmail[email] = mine.rev;
+      if(mine.base && mine.base.sub && String(mine.base.sub.e || "").trim().toLowerCase() === email)
+        baseByEmail[email] = {sub:normalize(mine.base.sub), rev:mine.base.rev || ""};
+      if(mine.pending && mine.pending.sub && String(mine.pending.sub.e || "").trim().toLowerCase() === email)
+        pendingSaveByEmail[email] = {sub:normalize(mine.pending.sub), rev:mine.pending.rev || "absent"};
       pin = mine.pin || ""; // old releases stored this; saveLocal removes it
       saved = !!mine.saved && chosen().length === 3;
       editing = !!mine.editing;
@@ -1098,6 +1122,87 @@ window.EAI_CONFIG = {
     readSavePending = true;
     return flushReadSave();
   }
+  // Merge changes only against a known saved base. Unknown older drafts require
+  // review; neither a newer revision nor an empty field proves which version wins.
+  function mergeDraft(local, base, remote){
+    local = normalize(local); remote = normalize(remote); base = base ? normalize(base) : null;
+    var sub = normalize(local), conflicts = [];
+    function value(d, path){
+      if(path === "topics") return {r:d.r, q:d.q};
+      var bits = path.split("|"); return bits.length === 1 ? d[path] : d[bits[0]][bits[1]];
+    }
+    function assign(path, v){
+      if(path === "topics"){ sub.r = v.r.slice(); sub.q = JSON.parse(JSON.stringify(v.q)); return; }
+      var bits = path.split("|");
+      if(bits.length === 1) sub[path] = v;
+      else if(v === undefined) delete sub[bits[0]][bits[1]];
+      else sub[bits[0]][bits[1]] = v;
+    }
+    function field(path){
+      var l = value(local, path), r = value(remote, path), b = base && value(base, path);
+      if(canonical(l) === canonical(r)) return;
+      if(base && canonical(l) === canonical(b)){ assign(path, r); return; }
+      if(base && canonical(r) === canonical(b)) return;
+      conflicts.push({path:path, local:l, remote:r});
+    }
+    ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(field);
+    if(canonical(local.r) !== canonical(remote.r)) field("topics");
+    else {
+      field("r");
+      Array.from(new Set(Object.keys(local.q).concat(Object.keys(remote.q), base ? Object.keys(base.q) : [])))
+        .forEach(function(k){ field("q|" + k); });
+    }
+    Array.from(new Set(Object.keys(local.read).concat(Object.keys(remote.read), base ? Object.keys(base.read) : [])))
+      .forEach(function(k){ field("read|" + k); });
+    return {sub:sub, conflicts:conflicts};
+  }
+  function renderSyncConflict(){
+    var conflict = syncConflict;
+    if(!conflict || conflict.identity !== draftIdentity()) return "";
+    var labels = {n:"Name", a:"Affiliation", w:"Your work", c:"Work link", hopes:"What you hope to contribute",
+      moreWork:"More about your work", t:"Suggested topic", topics:"Topic choices and questions", r:"Topic choices"};
+    function text(value){ return value === undefined || value === "" ? "(empty)" :
+      typeof value === "string" ? value : JSON.stringify(value); }
+    return '<section class="conflict-review" aria-label="Review unsaved answers"><h3>Review your answers</h3>'
+      + '<p>Your device draft is still here. Compare the differing fields, then choose which version to save. Other changes are kept.</p>'
+      + conflict.fields.map(function(f){
+        var bits = f.path.split("|"), topic = bits[0] === "q" && T(bits[1]);
+        var label = labels[f.path] || (topic ? "Question: " + topic.title : "Reading progress");
+        return '<div class="conflict-field"><h4>' + esc(label) + '</h4><p><b>This device</b></p><pre>'
+          + esc(text(f.local)) + '</pre><p><b>Organizers’ sheet</b></p><pre>' + esc(text(f.remote)) + '</pre></div>';
+      }).join("")
+      + '<div class="btnrow"><button class="btn btn-accent" type="button" id="resolveDevice">Save device answers for these fields</button>'
+      + '<button class="btn btn-out" type="button" id="resolveSheet">Use sheet answers for these fields</button></div>'
+      + '<p class="note">A recovery copy of both versions stays on this device.</p></section>';
+  }
+  function resolveSyncConflict(useRemote){
+    var conflict = syncConflict;
+    if(!conflict || conflict.identity !== draftIdentity() || readSaveInFlight) return;
+    // If the attendee edited during review, rebuild it before accepting a choice.
+    if(!sameSubmission(S, conflict.local)){
+      var email = String(S.e).trim().toLowerCase(), base = baseByEmail[email];
+      var merged = mergeDraft(S, base && base.rev === revisionByEmail[email] ? base.sub : null, conflict.row);
+      conflict.local = normalize(S); conflict.merged = merged.sub; conflict.fields = merged.conflicts;
+      render(); return;
+    }
+    lsSet("eai.recovery.v1", {email:S.e, at:Date.now(), device:normalize(S), sheet:conflict.row});
+    var resolved = normalize(conflict.merged);
+    if(useRemote) conflict.fields.forEach(function(f){
+      var bits = f.path.split("|");
+      if(f.path === "topics"){ resolved.r = f.remote.r.slice(); resolved.q = JSON.parse(JSON.stringify(f.remote.q)); }
+      else if(bits.length === 1) resolved[f.path] = f.remote;
+      else if(f.remote === undefined) delete resolved[bits[0]][bits[1]];
+      else resolved[bits[0]][bits[1]] = f.remote;
+    });
+    var email = String(S.e).trim().toLowerCase();
+    rememberRecord(email, {row:conflict.row, rev:conflict.rev});
+    delete pendingSaveByEmail[email];
+    S = resolved; syncConflict = null; autoSaveBlocked = "";
+    preparedIdentity = draftIdentity(); localDraftIdentity = draftIdentity(); needsPin = false;
+    saved = chosen().length === 3; editing = false;
+    if(step === 0) step = saved ? READING : S.w ? STEP_TOPICS : WORK;
+    saveLocal(); render(); saveDraftNow();
+  }
   function prepareDraft(identity, force, record){
     // Authenticate before the first write. A returning attendee entering their
     // details must not overwrite existing topics/questions with a blank form.
@@ -1111,13 +1216,27 @@ window.EAI_CONFIG = {
       var email = String(S.e || "").trim().toLowerCase();
       var localRev = revisionByEmail[email] || "";
       var remoteRev = res.rev || "";
-      // Re-entering a code after reload does not make an old local revision new.
-      if(row && (localRev && remoteRev ? localRev !== remoteRev
-          : localDraftIdentity === identity && !sameSubmission(row, S)))
-        throw {code:"conflict"};
+      var pending = pendingSaveByEmail[email], base = baseByEmail[email];
+      // A lost confirmation must not make this device conflict with its own write.
+      if(row && pending && pending.rev === (localRev || "absent") && sameSubmission(row, pending.sub)){
+        base = {sub:normalize(row), rev:remoteRev};
+        baseByEmail[email] = base;
+        delete pendingSaveByEmail[email];
+      }
+      if(row && !sameSubmission(row, S) && (localRev && remoteRev ? localRev !== remoteRev
+          : localDraftIdentity.indexOf(email + "|") === 0)){
+        var merged = mergeDraft(S, base && (base.rev === localRev || base.rev === remoteRev) ? base.sub : null, row);
+        if(merged.conflicts.length){
+          syncConflict = {identity:identity, row:normalize(row), rev:remoteRev,
+            local:normalize(S), merged:merged.sub, fields:merged.conflicts};
+          throw {code:"conflict"};
+        }
+        S = merged.sub;
+      }
       if(localRev && !row) throw {code:"conflict"};
-      revisionByEmail[email] = remoteRev;
-      if(row && localDraftIdentity !== identity && (!confirmedSub || confirmedSub.e !== S.e)){
+      rememberRecord(email, res);
+      syncConflict = null;
+      if(row && localDraftIdentity.indexOf(email + "|") !== 0 && (!confirmedSub || confirmedSub.e !== S.e)){
         var remote = normalize(row);
         ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
         if(!chosen().length) S.r = remote.r;
@@ -1139,7 +1258,7 @@ window.EAI_CONFIG = {
     if(autoSaveBlocked === identity) return Promise.resolve();
     syncState = {state:"saving", msg:""}; updateReadControls();
     var succeeded = false;
-    readSaveInFlight = prepareDraft(identity).then(function(){
+    readSaveInFlight = prepareDraft(identity, true).then(function(){
       if(identityEditing || identity !== draftIdentity()) throw {code:"identity_changed"};
       sent = normalize(S);
       return withKey(function(k){ return cloudPush(sent, k); });
@@ -1158,7 +1277,7 @@ window.EAI_CONFIG = {
       if(err && (err.code === "bad_pin" || err.code === "locked" || err.code === "conflict")) autoSaveBlocked = draftIdentity();
       syncState = {state:"local", code:err && err.code, msg:err && err.code === "locked" ? LOCK_MSG
         : err && err.code === "bad_pin" ? "Could not verify this email and favorite AI model. Use the same email and model you originally submitted. Your draft is preserved."
-        : err && err.code === "conflict" ? "The sheet changed on another device. Your edits remain here. Copy them before loading the latest reading, which replaces this draft."
+        : err && err.code === "conflict" ? (syncConflict ? CONFLICT_MSG : "The sheet changed while saving. Your draft is preserved. Select Save my progress to compare the latest answers.")
         : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
         : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
         : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
@@ -1211,8 +1330,6 @@ window.EAI_CONFIG = {
         if(returnAfterAccess === null && (!knownDraft || sameSubmission(res.row, S))){
           restore = true; return;
         }
-        if(knownDraft && !revisionByEmail[email] && !knownConfirmed && !sameSubmission(res.row, S))
-          throw {code:"conflict"};
         return prepareDraft(identity, true, res);
       }
       if(revisionByEmail[email]) throw {code:"conflict"};
@@ -1244,13 +1361,14 @@ window.EAI_CONFIG = {
         else errs.pin = err.code === "bad_pin" ? keyErrMsg()
           : err.code === "locked" ? LOCK_MSG
           : err.code === "key_reset" || err.code === "corrupt_payload" ? RESET_MSG
-          : err.code === "conflict" ? "This device and the sheet have different answers. Your current draft is still on this device. Copy any unsaved edits before using Load my reading to replace it."
+          : err.code === "conflict" ? CONFLICT_MSG
           : err.code === "identity_changed" ? "Your access details changed while checking. Select Continue again."
           : "Could not verify access right now. Please try again. Your draft is preserved.";
+        if(err.code === "conflict") syncState = {state:"local", code:"conflict", msg:CONFLICT_MSG};
         saveLocal(); render(); return;
       }
       if(restore){
-        revisionByEmail[String(S.e).trim().toLowerCase()] = matched.rev || "";
+        rememberRecord(String(S.e).trim().toLowerCase(), matched);
         resumeSavedSubmission(matched.row, identity); return;
       }
       autoSaveBlocked = ""; needsPin = false;
@@ -1344,7 +1462,7 @@ window.EAI_CONFIG = {
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Returning? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> replaces this device’s draft.</span>'
+        ? '<span class="note">Returning? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> checks saved answers without discarding this device’s draft.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -1464,7 +1582,7 @@ window.EAI_CONFIG = {
              : 'Saved on this device only. Online saving is unavailable.')
       + (step > 0 && (s.code === "bad_pin" || s.code === "locked")
           ? '<br><button class="linkish" id="checkAccess" type="button">Check email and personal code</button>' : '')
-      + '</span></div>';
+      + '</span></div>' + renderSyncConflict();
     if(s.state === "error")   return '<div class="sync warn">'+esc(s.msg||"Could not reach the sheet.")+'</div>';
     return "";
   }
@@ -2227,7 +2345,7 @@ window.EAI_CONFIG = {
     }
     syncState = {state:"local",
       msg: code === "conflict"
-        ? "The sheet changed on another device. Your edits remain here. Copy them before loading the latest reading, which replaces this draft."
+        ? CONFLICT_MSG
         : code === "unconfirmed"
         ? "The sheet did not confirm your row — try again below."
         : "The sheet could not be reached — try again below."};
@@ -2435,19 +2553,37 @@ window.EAI_CONFIG = {
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
       if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
       var identity = draftIdentity(), next = document.getElementById("next");
-      checkingDetails = true; clearTimeout(readTimer);
+      checkingDetails = true; identityEditing = false; clearTimeout(readTimer);
       lm.disabled = true; if(next) next.disabled = true;
       msg.textContent = "Looking…";
       Promise.resolve(readSaveInFlight).then(function(){
         if(identity !== draftIdentity()) throw {code:"identity_changed"};
-        return withKey(function(k){ return cloudLookup(S.e, k); });
-      }).then(function(row){
+        return withKey(function(k){ return cloudLookupRecord(S.e, k); });
+      }).then(function(res){
         checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
         if(step !== 0 || mode !== "form") return;
-        if(!row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
-        resumeSavedSubmission(row, identity);
-      }, function(err){
+        if(!res.row){ msg.innerHTML = '<span class="warnt">Nothing found for that email yet.</span>'; return; }
+        var email = String(S.e || "").trim().toLowerCase();
+        var hasAnswers = chosen().length || ["w", "c", "hopes", "moreWork", "t"].some(function(k){ return !!S[k]; }) ||
+          Object.keys(S.q).some(function(k){ return !!S.q[k]; }) || Object.keys(S.read).length;
+        var knownDraft = (hasAnswers || revisionByEmail[email]) && localDraftIdentity.indexOf(email + "|") === 0 ||
+          confirmedSub && String(confirmedSub.e).trim().toLowerCase() === email;
+        if(!knownDraft){
+          rememberRecord(email, res); resumeSavedSubmission(res.row, identity); return;
+        }
+        return prepareDraft(identity, true, res).then(function(){
+          saved = chosen().length === 3; editing = false; needsPin = false;
+          step = saved ? READING : S.w ? STEP_TOPICS : WORK;
+          syncState = sameSubmission(S, res.row) ? {state:"ok", msg:""} :
+            {state:"local", msg:"Your unsaved answers are preserved. Select Save my progress to save them."};
+          saveLocal(); render();
+        });
+      }).catch(function(err){
         checkingDetails = false; lm.disabled = false; if(next) next.disabled = false;
+        if(err && err.code === "conflict"){
+          syncState = {state:"local", code:"conflict", msg:CONFLICT_MSG};
+          saveLocal(); render(); return;
+        }
         var code = err && err.code;
         msg.innerHTML = '<span class="warnt">' + (
           code === "identity_changed" ? "Your access details changed while loading. Select Load my reading again."
@@ -2460,6 +2596,10 @@ window.EAI_CONFIG = {
     });
   }
   function wireSyncActions(){
+    ["resolveDevice", "resolveSheet"].forEach(function(id){
+      var button = document.getElementById(id);
+      if(button) button.onclick = function(){ resolveSyncConflict(id === "resolveSheet"); };
+    });
     var access = document.getElementById("checkAccess");
     if(access) access.onclick = function(){
       returnAfterAccess = step;
