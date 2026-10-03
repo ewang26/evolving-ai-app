@@ -2530,6 +2530,12 @@ window.EAI_CONFIG = {
   function wireForm(){
     wireSyncActions();
     if(step === ONE_ON_ONE){ wireOneOnOne(); loadParticipants(false); }
+    else if(API && (step === WORK || step === STEP_TOPICS || step === READING) &&
+      (gateOk || verifiedKeyIdentity === draftIdentity()) && emailOk(S.e) && normKey(pin).length >= 2){
+      // Start after verified access, while the attendee uses the earlier pages.
+      // loadParticipants reuses the same in-flight request and session result.
+      loadParticipants(false);
+    }
     Array.prototype.forEach.call(view.querySelectorAll("[data-k]"), function(inp){
       inp.addEventListener("input", function(){
         var k = inp.getAttribute("data-k");

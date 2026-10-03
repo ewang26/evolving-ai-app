@@ -1574,3 +1574,32 @@ test('directory description corrections confirm saves without changing the selec
   assert.equal(merged.sub.oneOnOne.affiliation,'Correct Institute');
   assert.equal(a.t.sameSubmission(saved,{...local,oneOnOne:{...pick,id:'b'.repeat(43)}}),false);
 });
+
+
+test('participant loading starts after sign-in and finishes on the 1-on-1 page without a second request', async () => {
+  const b=backend(), self={...sample(),hopes:'Share research approaches'}, peer={...sample(),e:'peer@example.invalid',n:'Research Partner'};
+  b.post({action:'put',sub:peer,pin:'org:testmodel',gate:'synthetic-gate'});
+  let finishParticipants;
+  const a=app({bridge:true,relay:req=>{
+    if(req.action==='participants') return new Promise(resolve=>{finishParticipants=()=>resolve(b.get(req));});
+    return req.action==='put'?b.post(req):b.get(req);
+  }});
+  a.t.set({S:self,pin:'TestModel',step:2});a.t.wireForm();
+  await new Promise(setImmediate);
+  assert.equal(a.requests.filter(r=>JSON.parse(r.options.body).request.action==='participants').length,0);
+  a.t.set({step:0});a.t.wireForm();
+  a.nodes.fgate.value='synthetic-gate';a.nodes.fgate.listeners.input();
+  a.nodes.next.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,1);
+  assert.equal(typeof finishParticipants,'function');
+  const requests=()=>a.requests.filter(r=>JSON.parse(r.options.body).request.action==='participants').length;
+  assert.equal(requests(),1);
+  a.nodes.next.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,2);
+  a.nodes.next.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,5);assert.equal(requests(),1);
+  finishParticipants();await new Promise(setImmediate);
+  assert.match(a.t.renderOneOnOne(),/Research Partner/);
+  assert.doesNotMatch(a.t.renderOneOnOne(),/Loading participants/);
+  a.t.wireForm();await new Promise(setImmediate);assert.equal(requests(),1);
+});
