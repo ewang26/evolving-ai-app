@@ -2,7 +2,7 @@
 
 The pre-gathering app for **Evolving AI**, Harvard University, October 8–10, 2026.
 
-A participant enters their details, ranks three of the six focus areas, chooses a preferred 1-on-1 partner on a separate page, reads the pre-read
+A participant enters their details, ranks three of the six focus areas, chooses a preferred 1-on-1 partner at the top of their readings, reads the pre-read
 assembled from those choices, then writes one question per topic plus an optional proposal
 for another. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
@@ -218,8 +218,9 @@ The organizer key is held in memory while the console is open.
 
 ## 1-on-1 preferences
 
-After topic choices, a separate 1-on-1 page immediately before readings contains a
-participant dropdown with the full list and no search field. Labels use
+At the top of the readings page, a participant dropdown shows the full list with no
+search field. Returning attendees see it alongside their readings and can save a choice
+without revisiting earlier steps. Labels use
 `Name: Position, Institution`, with positions limited to one or two words. Its
 organizer-reviewed directory combines reliable submission affiliations with confirmed
 attendees from the travel tracking roster, including people who have not submitted.

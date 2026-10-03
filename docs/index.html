@@ -104,6 +104,9 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
     font-family:var(--sans);font-size:.8rem;color:var(--muted);
   }
   .step{display:flex;flex-direction:column;gap:1.55rem}
+  .stack.one-on-one-panel{gap:.75rem}
+  .one-on-one-panel h2{font-family:var(--sans);font-size:calc(1.2rem * var(--text-scale) + var(--text-add));font-weight:600;line-height:1.3}
+  .one-on-one-panel .intro{margin-top:0}
 
   .eyebrow{
     font-family:var(--mono);font-size:calc(.76rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.11em;
@@ -933,10 +936,10 @@ window.EAI_CONFIG = {
     return "p" + Array.prototype.map.call(bytes, function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
   }
 
-  var STEPS = ["You", "Work", "Topics", "1-on-1", "Reading", "Questions"];
+  var STEPS = ["You", "Work", "Topics", "Reading", "Questions"];
   // Preserve saved step IDs from previous releases; display order is independent.
-  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4, ONE_ON_ONE = 5;
-  var STEP_ORDER = [0, WORK, STEP_TOPICS, ONE_ON_ONE, READING, QUESTIONS];
+  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4;
+  var STEP_ORDER = [0, WORK, STEP_TOPICS, READING, QUESTIONS];
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
@@ -1015,7 +1018,8 @@ window.EAI_CONFIG = {
       pin = mine.pin || ""; // old releases stored this; saveLocal removes it
       saved = !!mine.saved && chosen().length === 3;
       editing = !!mine.editing;
-      step = Number.isInteger(mine.step) && STEP_ORDER.indexOf(mine.step) >= 0
+      // Previous releases used step 5 for the separate 1-on-1 page.
+      step = mine.step === 5 ? READING : Number.isInteger(mine.step) && STEP_ORDER.indexOf(mine.step) >= 0
         ? mine.step : saved ? READING : 0;
     } else if(fromHash){
       S = normalize(fromHash); saved = chosen().length === 3; step = saved ? READING : 0;
@@ -1447,7 +1451,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">01 / 06 · Seminar prep</div>'
+    + '    <div class="eyebrow">01 / 05 · Seminar prep</div>'
     + '    <h1>Prepare for <em>Evolving AI.</em></h1>'
     + '    <p class="lede">Choose three topics, read the essentials, and bring your questions.</p>'
     + '  </div>'
@@ -1498,7 +1502,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step work-step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">02 / 06 · About you</div>'
+    + '    <div class="eyebrow">02 / 05 · About you</div>'
     + '    <h2>Your <em>work.</em></h2>'
     + '    <p class="intro">Help your subgroup get to know you. Shared only at this gathering.</p>'
     + '  </div>'
@@ -1557,9 +1561,9 @@ window.EAI_CONFIG = {
     var ready = status === "ready", empty = ready && !participantState.items.length;
     var message = status === "error" ? participantState.message : empty ? 'No other participants are listed yet. You can return here later.'
       : ready ? '' : 'Loading participants…';
-    return '<h2>Choose a 1-on-1</h2><p class="intro">Who would you most like to meet?</p>'
-      + '<div class="f' + (errs.oneOnOne ? ' bad' : '') + '"><label for="oneOnOne">Your preferred person</label>'
-      + '<select id="oneOnOne"' + (message ? ' aria-describedby="participantStatus"' : '') + (ready && !empty ? '' : ' disabled') + '>' + participantOptions() + '</select>'
+    return '<h2 id="oneOnOneHeading">Choose a 1-on-1</h2><p id="oneOnOneDescription" class="intro">Who would you like to meet? Choose one participant. The organizers will use everyone’s preferences to arrange pairs.</p>'
+      + '<div class="f' + (errs.oneOnOne ? ' bad' : '') + '">'
+      + '<select id="oneOnOne" aria-labelledby="oneOnOneHeading" aria-describedby="oneOnOneDescription' + (message ? ' participantStatus' : '') + '"' + (ready && !empty ? '' : ' disabled') + '>' + participantOptions() + '</select>'
       + (message ? '<p id="participantStatus" class="hint" role="status">' + esc(message) + '</p>' : '')
       + (errs.oneOnOne ? '<div class="err">' + esc(errs.oneOnOne) + '</div>' : '')
       + '</div>'
@@ -1578,7 +1582,7 @@ window.EAI_CONFIG = {
   }
   function updateOneOnOne(){
     var panel = document.getElementById("oneOnOnePanel");
-    if(mode === "form" && step === ONE_ON_ONE && panel){ panel.innerHTML = renderOneOnOne(); wireOneOnOne(); }
+    if(mode === "form" && step === READING && panel){ panel.innerHTML = renderOneOnOne(); wireOneOnOne(); }
   }
   function loadParticipants(force){
     var identity = draftIdentity();
@@ -1603,9 +1607,6 @@ window.EAI_CONFIG = {
       });
   }
 
-  function renderOneOnOneStep(){
-    return '<section class="step"><div id="oneOnOnePanel" class="stack">' + renderOneOnOne() + '</div></section>';
-  }
   function renderStep1(){
     var rows = S.r.map(function(id, i){
       var t = id ? T(id) : null;
@@ -1619,7 +1620,7 @@ window.EAI_CONFIG = {
 
     return ''
     + '<section class="step">'
-    + '  <div class="head thin"><div class="eyebrow">03 / 06 · Your focus</div><h2>Choose three <em>topics.</em></h2>'
+    + '  <div class="head thin"><div class="eyebrow">03 / 05 · Your focus</div><h2>Choose three <em>topics.</em></h2>'
     + '    <p class="intro">Pick the conversations you most want to join.</p></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
@@ -1644,7 +1645,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">06 / 06 · Final step</div>'
+    + '    <div class="eyebrow">05 / 05 · Final step</div>'
     + '    <h2>Your <em>questions.</em></h2>'
     + '    <p class="intro">Bring one question to each seminar. We’ll share these with your subgroup on Thursday night.</p>'
     + '  </div>'
@@ -1774,8 +1775,9 @@ window.EAI_CONFIG = {
 
     return ''
     + '<section class="step reading-step">'
+    + '<div id="oneOnOnePanel" class="stack one-on-one-panel">' + renderOneOnOne() + '</div>'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">05 / 06 · Reading list</div>'
+    + '    <div class="eyebrow">04 / 05 · Reading list</div>'
     + '    <h2>Your <em>seminar prep.</em></h2>'
     +      (done ? '<div id="readingSync">' + syncLine() + '</div>'
             : '<p class="intro">Read the essentials before writing your questions.'
@@ -1784,8 +1786,7 @@ window.EAI_CONFIG = {
     +      (done ? '<div id="readingProgress">' + renderProgress() + '</div>' : '')
     + commonBlock
     + blocks
-    + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topics</button><button class="btn btn-out btn-sm" id="editOneOnOne" type="button">Edit 1-on-1</button></div>'
-    + '  <p class="note">1-on-1 preference: ' + (S.oneOnOne ? esc(participantLabel(S.oneOnOne)) : 'Choose a person using Edit 1-on-1.') + '</p>'
+    + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topics</button></div>'
     + (otherTopics.length ? '<div class="topicblock other-topics"><div class="eyebrow">Topics not selected</div><details>'
       + '<summary><span>See <strong>optional</strong> readings from other topics</span></summary>'
       + '<div class="body"><p class="note">These do not count toward progress.</p>'
@@ -1993,12 +1994,6 @@ window.EAI_CONFIG = {
     if(n===STEP_TOPICS){
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
       if(c.length < 3 || uniq.length < 3) errs.r = "Choose three different focus areas.";
-    }
-    if(n===ONE_ON_ONE){
-      if(participantState.identity !== draftIdentity() || participantState.status !== "ready")
-        errs.oneOnOne = "Load the participant list before continuing.";
-      else if(participantState.items.length && !participantState.items.some(function(p){ return S.oneOnOne && p.id === S.oneOnOne.id; }))
-        errs.oneOnOne = "Choose someone for your 1-on-1.";
     }
     // step READING has nothing to validate
     if(n===QUESTIONS){
@@ -2395,7 +2390,7 @@ window.EAI_CONFIG = {
         return '<i class="'+(id===step?"on":i<STEP_ORDER.indexOf(step)?"done":"")+'"></i>';
       }).join("");
       view.innerHTML = (step !== READING || !saved ? '<div id="formSync">' + syncLine() + '</div>' : "")
-        + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions, renderOneOnOneStep][step]();
+        + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
       if(step === READING && saved && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
       } else {
@@ -2529,8 +2524,8 @@ window.EAI_CONFIG = {
 
   function wireForm(){
     wireSyncActions();
-    if(step === ONE_ON_ONE){ wireOneOnOne(); loadParticipants(false); }
-    else if(API && (step === WORK || step === STEP_TOPICS || step === READING) &&
+    if(step === READING){ wireOneOnOne(); loadParticipants(false); }
+    else if(API && (step === WORK || step === STEP_TOPICS) &&
       (gateOk || verifiedKeyIdentity === draftIdentity()) && emailOk(S.e) && normKey(pin).length >= 2){
       // Start after verified access, while the attendee uses the earlier pages.
       // loadParticipants reuses the same in-flight request and session result.
@@ -2582,7 +2577,7 @@ window.EAI_CONFIG = {
       needsPin = false;
       if(step === 0 && API){ checkDetailsAndContinue(); return; }
       if(step === QUESTIONS){ submit(); return; }
-      if(step === ONE_ON_ONE){ holdPlace(); return; }   // save first, read at leisure
+      if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
       if(step === WORK){                                 // and save here too
         S.c = tidyLink(S.c); saveLocal();
         if(!saved){ holdWork(); return; }
@@ -2601,11 +2596,6 @@ window.EAI_CONFIG = {
     var editTopics = document.getElementById("editTopics");
     if(editTopics) editTopics.addEventListener("click", function(){
       editing = true; step = STEP_TOPICS; errs = {}; saveLocal(); render();
-    });
-
-    var editOneOnOne = document.getElementById("editOneOnOne");
-    if(editOneOnOne) editOneOnOne.addEventListener("click", function(){
-      editing = true; step = ONE_ON_ONE; errs = {}; saveLocal(); render();
     });
 
     var edit = document.getElementById("editMine");
