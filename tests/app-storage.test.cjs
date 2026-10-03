@@ -1520,7 +1520,7 @@ test('the seminar heading and progress precede the full dropdown, which saves wi
   assert.ok(reading.indexOf('id="oneOnOnePanel"') < reading.indexOf('class="topicblock common"'));
   assert.match(a.t.renderOneOnOne(),/Alex: Researcher, Institute 0/);
   assert.match(a.t.renderOneOnOne(),/Blair: Researcher, Institute 1/);
-  assert.match(reading,/Who would you like to meet\? Choose one participant\. The organizers will use everyone’s preferences to arrange pairs\./);
+  assert.match(reading,/Who would you like to meet\? The organizers will use everyone’s preferences to arrange pairs\./);
   assert.doesNotMatch(reading,/participantSearch|Search participants|Your preferred person|editOneOnOne|1-on-1 preference:/);
   assert.match(reading,/aria-labelledby="oneOnOneHeading"/);
   const pick=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants[0];

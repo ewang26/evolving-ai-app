@@ -1611,7 +1611,7 @@ window.EAI_CONFIG = {
     var ready = status === "ready", empty = ready && !participantState.items.length;
     var message = status === "error" ? participantState.message : empty ? 'No other participants are listed yet. You can return here later.'
       : ready ? '' : 'Loading participants…';
-    return '<h2 id="oneOnOneHeading">Choose a 1-on-1</h2><p id="oneOnOneDescription" class="intro">Who would you like to meet? Choose one participant. The organizers will use everyone’s preferences to arrange pairs.</p>'
+    return '<h2 id="oneOnOneHeading">Choose a 1-on-1</h2><p id="oneOnOneDescription" class="intro">Who would you like to meet? The organizers will use everyone’s preferences to arrange pairs.</p>'
       + '<div class="f' + (errs.oneOnOne ? ' bad' : '') + '">'
       + '<select id="oneOnOne" aria-labelledby="oneOnOneHeading" aria-describedby="oneOnOneDescription' + (message ? ' participantStatus' : '') + '"' + (ready && !empty ? '' : ' disabled') + '>' + participantOptions() + '</select>'
       + (message ? '<p id="participantStatus" class="hint" role="status">' + esc(message) + '</p>' : '')
