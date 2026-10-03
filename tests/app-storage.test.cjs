@@ -81,7 +81,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,identityEditing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;if('identityEditing'in s)identityEditing=s.identityEditing;},
-    cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
+    loadParticipants,participantOptions,renderOneOnOne,mergeDraft,cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -607,7 +607,7 @@ for (const complete of [true, false]) {
 
     assert.equal(a.t.state().step, 3);
     assert.equal(a.nodes.bar.hidden, complete);
-    assert.match(a.nodes.view.innerHTML, /id="editTopics"[^>]*>Edit topic selections<\/button>/);
+    assert.match(a.nodes.view.innerHTML, /id="editTopics"[^>]*>Edit topics<\/button>/);
     a.nodes.editTopics.listeners.click();
     assert.equal(a.t.state().step, 2);
     assert.equal(a.t.state().editing, true);
@@ -1058,6 +1058,9 @@ for (const storedKey of [null, 'org:testmodel', 'TestModel']) {
     a.t.state().S.r = ['T1', 'T2', 'T3'];
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 5);
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
     assert.equal(a.t.state().step, 3);
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
@@ -1082,6 +1085,9 @@ for (const code of ['org:testmodel', 'TestModel']) {
     assert.equal(a.t.state().step, 3);
     a.nodes.editTopics.listeners.click();
     a.t.state().S.r = ['T1', 'T2', 'T4'];
+    a.nodes.next.listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 5);
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
     a.nodes.next.listeners.click();
@@ -1182,7 +1188,7 @@ test('copied roster cannot create spreadsheet formulas or extra cells', () => {
   const lines = a.t.rosterTsv().split('\n');
   assert.equal(lines.length, 2);
   const cells = lines[1].split('\t');
-  assert.equal(cells.length, 14);
+  assert.equal(cells.length, 16);
   assert.equal(cells[0], "'=HYPERLINK(\"https://example.invalid\")");
   assert.equal(cells[2], "'+1+1");
   assert.equal(cells[3], 'Research =2+2');
@@ -1481,4 +1487,90 @@ test('Load my reading restores an email-only login retained from a previous relo
   assert.equal(a.t.state().syncState.state, 'ok');
   assert.ok(a.t.sameSubmission(a.t.state().S, sample()));
   assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+});
+
+test('1-on-1 dropdown lists all participants and selects only listed people, saves to the Sheet, and restores on another device', async () => {
+  const b=backend(), self=sample(), other={...sample(),e:'other@example.invalid',n:'Research Partner',a:'Institute of Cooperation'};
+  for(const s of [self,other]) assert.equal(b.post({action:'put',sub:s,pin:'org:testmodel',gate:'synthetic-gate'}).ok,true);
+  const a=app({bridge:true,relay:req=>req.action==='put'?b.post(req):b.get(req)});
+  a.t.set({S:self,pin:'TestModel',step:5}); a.t.wireForm(); await new Promise(setImmediate);
+  assert.match(a.t.participantOptions(),/Research Partner: Institute of Cooperation/);
+  assert.doesNotMatch(a.t.participantOptions(),/Test Attendee/);
+  assert.doesNotMatch(a.t.renderOneOnOne(),/participantSearch|Search participants/);
+  assert.equal(a.t.validate(5),false);
+  const pick=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants[0];
+  a.nodes.oneOnOne.value=pick.id; a.nodes.oneOnOne.listeners.change();
+  assert.equal(a.t.validate(5),true);
+  await a.t.saveDraftNow();
+  assert.equal(a.t.state().syncState.state,'ok');
+  const record=b.get({action:'get',email:self.e,pin:'org:testmodel'});
+  assert.deepEqual(record.row.oneOnOne,pick);
+  const restored=app({storage:localRecord(record.row)});
+  assert.equal(restored.t.state().S.oneOnOne.id,pick.id);
+  assert.match(restored.t.renderReading(),/1-on-1 preference: Research Partner: Institute of Cooperation/);
+  a.t.setRoster([record.row]); assert.match(a.t.rosterTsv(),/Research Partner: Institute of Cooperation/);
+});
+
+test('the full dropdown is on its own page between topics and readings, with independent edit navigation', async () => {
+  const b=backend(), self=sample();
+  b.post({action:'put',sub:self,pin:'org:testmodel',gate:'synthetic-gate'});
+  for(const [i,name] of ['Alex','Blair'].entries())
+    b.post({action:'put',sub:{...self,e:'partner'+i+'@example.invalid',n:name,a:'Researcher, Institute '+i},pin:'org:testmodel',gate:'synthetic-gate'});
+  const a=app({bridge:true,relay:req=>req.action==='put'?b.post(req):b.get(req)});
+  a.t.set({S:self,pin:'TestModel',step:2});a.t.wireForm();
+  assert.equal(a.t.validate(2),true);
+  a.nodes.next.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,5);
+  assert.match(a.t.renderOneOnOne(),/Alex: Researcher, Institute 0/);
+  assert.match(a.t.renderOneOnOne(),/Blair: Researcher, Institute 1/);
+  assert.doesNotMatch(a.nodes.view.innerHTML,/participantSearch|Search participants|Choose three topics/);
+  a.nodes.next.listeners.click();assert.equal(a.t.state().step,5);
+  const pick=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants[0];
+  a.nodes.oneOnOne.value=pick.id;a.nodes.oneOnOne.listeners.change();
+  a.nodes.next.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,3);
+  assert.match(a.nodes.view.innerHTML,/1-on-1 preference: Alex: Researcher, Institute 0/);
+  a.nodes.editOneOnOne.listeners.click();assert.equal(a.t.state().step,5);
+  a.nodes.back.listeners.click();assert.equal(a.t.state().step,2);
+});
+
+test('1-on-1 directory failures block proceeding and preserve the saved choice for retry', async () => {
+  const s={...sample(),oneOnOne:{id:'a'.repeat(43),name:'Saved choice',affiliation:'Institute'}};
+  const a=app({bridge:true,reply:()=>({ok:false,error:'backend_error'})});
+  a.t.set({S:s,pin:'TestModel',step:5});a.t.wireForm();await new Promise(setImmediate);
+  assert.match(a.t.renderOneOnOne(),/Try loading participants again/);
+  assert.equal(a.t.validate(5),false);
+  assert.equal(a.t.state().S.oneOnOne.name,'Saved choice');
+});
+
+test('an empty synthetic directory allows access to readings without inventing a partner', async () => {
+  const a=app({bridge:true,reply:()=>({ok:true,participants:[]})});
+  a.t.set({S:sample(),pin:'TestModel',step:5});a.t.wireForm();await new Promise(setImmediate);
+  assert.equal(a.t.validate(5),true);
+  assert.match(a.t.renderOneOnOne(),/No other participants are listed yet/);
+});
+
+test('simultaneous 1-on-1 edits require conflict review while independent answers merge', () => {
+  const base={...sample(),oneOnOne:null};
+  const local={...base,oneOnOne:{id:'a'.repeat(43),name:'Alice',affiliation:'Institute A'}};
+  const remote={...base,oneOnOne:{id:'b'.repeat(43),name:'Bob',affiliation:'Institute B'},hopes:'New contribution'};
+  const a=app(), merged=a.t.mergeDraft(local,base,remote);
+  assert.equal(merged.conflicts.length,1);assert.equal(merged.conflicts[0].path,'oneOnOne');
+  assert.equal(merged.sub.hopes,'New contribution');
+});
+
+test('directory description corrections confirm saves without changing the selected person', async () => {
+  const b=backend(), self=sample(), other={...sample(),e:'other@example.invalid',n:'Research Partner',a:'Correct Institute'};
+  for(const s of [self,other]) b.post({action:'put',sub:s,pin:'org:testmodel',gate:'synthetic-gate'});
+  const pick=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants[0];
+  const local={...self,oneOnOne:{...pick,affiliation:'Old Institute'}};
+  const a=app({bridge:true,relay:req=>req.action==='put'?b.post(req):b.get(req)});
+  await a.t.cloudLookup(self.e,'org:testmodel');
+  const saved=await a.t.cloudPush(local,'org:testmodel');
+  assert.equal(saved.oneOnOne.affiliation,'Correct Institute');
+  assert.equal(a.t.sameSubmission(saved,local),true);
+  const merged=a.t.mergeDraft(local,self,saved);
+  assert.equal(merged.conflicts.length,0);
+  assert.equal(merged.sub.oneOnOne.affiliation,'Correct Institute');
+  assert.equal(a.t.sameSubmission(saved,{...local,oneOnOne:{...pick,id:'b'.repeat(43)}}),false);
 });

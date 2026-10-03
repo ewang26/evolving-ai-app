@@ -876,7 +876,7 @@ window.EAI_CONFIG = {
   /* ==================================================================
      STATE
      ================================================================== */
-  var blank = { n:"", e:"", a:"", w:"", c:"", hopes:"", moreWork:"", r:["","",""], q:{}, t:"", read:{} };
+  var blank = { n:"", e:"", a:"", w:"", c:"", hopes:"", moreWork:"", oneOnOne:null, r:["","",""], q:{}, t:"", read:{} };
   var S = JSON.parse(JSON.stringify(blank));
   // The invitation code is checked by Apps Script, never published in this page.
 
@@ -933,8 +933,10 @@ window.EAI_CONFIG = {
     return "p" + Array.prototype.map.call(bytes, function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
   }
 
-  var STEPS = ["You", "Work", "Topics", "Reading", "Questions"];
-  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4;   // TOPICS is the focus-area data
+  var STEPS = ["You", "Work", "Topics", "1-on-1", "Reading", "Questions"];
+  // Preserve saved step IDs from previous releases; display order is independent.
+  var WORK = 1, STEP_TOPICS = 2, READING = 3, QUESTIONS = 4, ONE_ON_ONE = 5;
+  var STEP_ORDER = [0, WORK, STEP_TOPICS, ONE_ON_ONE, READING, QUESTIONS];
 
   function normalize(o){
     var d = JSON.parse(JSON.stringify(blank));
@@ -942,6 +944,8 @@ window.EAI_CONFIG = {
     d.n = o.n || ""; d.e = o.e || ""; d.a = o.a || "";
     d.w = o.w || ""; d.c = o.c || "";
     d.hopes = o.hopes || ""; d.moreWork = o.moreWork || "";
+    d.oneOnOne = o.oneOnOne && typeof o.oneOnOne.id === "string"
+      ? {id:o.oneOnOne.id, name:String(o.oneOnOne.name || ""), affiliation:String(o.oneOnOne.affiliation || "")} : null;
     d.r = (Array.isArray(o.r) ? o.r : []).filter(function(t){ return !!T(t); }).slice(0,3);
     while(d.r.length < 3) d.r.push("");
     d.q = (o.q && typeof o.q === "object") ? JSON.parse(JSON.stringify(o.q)) : {};
@@ -956,7 +960,14 @@ window.EAI_CONFIG = {
     }).join(",") + "}";
     return JSON.stringify(value);
   }
-  function sameSubmission(a, b){ return canonical(normalize(a)) === canonical(normalize(b)); }
+  function sameSubmission(a, b){
+    a = normalize(a); b = normalize(b);
+    // The selected ID is the answer. Directory labels are maintained by organizers
+    // and may be corrected by the backend while a save is in flight.
+    a.oneOnOne = a.oneOnOne ? a.oneOnOne.id : null;
+    b.oneOnOne = b.oneOnOne ? b.oneOnOne.id : null;
+    return canonical(a) === canonical(b);
+  }
   var MIN_Q = 5;   // also used by validate(): keep them in step
   function isComplete(d){
     var picks = d.r.filter(function(x){ return x; });
@@ -1004,7 +1015,7 @@ window.EAI_CONFIG = {
       pin = mine.pin || ""; // old releases stored this; saveLocal removes it
       saved = !!mine.saved && chosen().length === 3;
       editing = !!mine.editing;
-      step = Number.isInteger(mine.step) && mine.step >= 0 && mine.step <= QUESTIONS
+      step = Number.isInteger(mine.step) && STEP_ORDER.indexOf(mine.step) >= 0
         ? mine.step : saved ? READING : 0;
     } else if(fromHash){
       S = normalize(fromHash); saved = chosen().length === 3; step = saved ? READING : 0;
@@ -1140,12 +1151,13 @@ window.EAI_CONFIG = {
     }
     function field(path){
       var l = value(local, path), r = value(remote, path), b = base && value(base, path);
-      if(canonical(l) === canonical(r)) return;
-      if(base && canonical(l) === canonical(b)){ assign(path, r); return; }
-      if(base && canonical(r) === canonical(b)) return;
+      function comparable(v){ return canonical(path === "oneOnOne" ? v && v.id : v); }
+      if(comparable(l) === comparable(r)){ if(path === "oneOnOne") assign(path, r); return; }
+      if(base && comparable(l) === comparable(b)){ assign(path, r); return; }
+      if(base && comparable(r) === comparable(b)) return;
       conflicts.push({path:path, local:l, remote:r});
     }
-    ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(field);
+    ["n", "a", "w", "c", "hopes", "moreWork", "t", "oneOnOne"].forEach(field);
     if(canonical(local.r) !== canonical(remote.r)) field("topics");
     else {
       field("r");
@@ -1160,7 +1172,7 @@ window.EAI_CONFIG = {
     var conflict = syncConflict;
     if(!conflict || conflict.identity !== draftIdentity()) return "";
     var labels = {n:"Name", a:"Affiliation", w:"Your work", c:"Work link", hopes:"What you hope to contribute",
-      moreWork:"More about your work", t:"Suggested topic", topics:"Topic choices and questions", r:"Topic choices"};
+      moreWork:"More about your work", oneOnOne:"1-on-1 preference", t:"Suggested topic", topics:"Topic choices and questions", r:"Topic choices"};
     function text(value){ return value === undefined || value === "" ? "(empty)" :
       typeof value === "string" ? value : JSON.stringify(value); }
     return '<section class="conflict-review" aria-label="Review unsaved answers"><h3>Review your answers</h3>'
@@ -1238,7 +1250,7 @@ window.EAI_CONFIG = {
       syncConflict = null;
       if(row && localDraftIdentity.indexOf(email + "|") !== 0 && (!confirmedSub || confirmedSub.e !== S.e)){
         var remote = normalize(row);
-        ["n", "a", "w", "c", "hopes", "moreWork", "t"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
+        ["n", "a", "w", "c", "hopes", "moreWork", "t", "oneOnOne"].forEach(function(k){ if(!S[k]) S[k] = remote[k]; });
         if(!chosen().length) S.r = remote.r;
         S.q = Object.assign({}, remote.q, S.q);
         S.read = Object.assign({}, remote.read, S.read);
@@ -1280,6 +1292,7 @@ window.EAI_CONFIG = {
         : err && err.code === "conflict" ? (syncConflict ? CONFLICT_MSG : "The sheet changed while saving. Your draft is preserved. Select Save my progress to compare the latest answers.")
         : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
         : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
+        : err && err.code === "invalid_preference" ? "That 1-on-1 choice is no longer available. Edit your 1-on-1 to choose another participant."
         : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
         : "Could not confirm this save. Select Save my progress to retry."};
       saveLocal(); updateReadControls();
@@ -1434,7 +1447,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">01 / 05 · Seminar prep</div>'
+    + '    <div class="eyebrow">01 / 06 · Seminar prep</div>'
     + '    <h1>Prepare for <em>Evolving AI.</em></h1>'
     + '    <p class="lede">Choose three topics, read the essentials, and bring your questions.</p>'
     + '  </div>'
@@ -1485,7 +1498,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step work-step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">02 / 05 · About you</div>'
+    + '    <div class="eyebrow">02 / 06 · About you</div>'
     + '    <h2>Your <em>work.</em></h2>'
     + '    <p class="intro">Help your subgroup get to know you. Shared only at this gathering.</p>'
     + '  </div>'
@@ -1527,6 +1540,72 @@ window.EAI_CONFIG = {
     return h;
   }
 
+  var participantState = {identity:"", status:"idle", items:[], message:""};
+  function participantLabel(p){ return p.name + (p.affiliation ? ": " + p.affiliation : ""); }
+  function participantOptions(){
+    var items = participantState.items;
+    var h = '<option value="">Choose a participant…</option>';
+    if(S.oneOnOne && !items.some(function(p){ return p.id === S.oneOnOne.id; }))
+      h += '<option value="' + esc(S.oneOnOne.id) + '" selected disabled>' + esc(participantLabel(S.oneOnOne)) + ' (previous choice)</option>';
+    return h + items.map(function(p){
+      return '<option value="' + esc(p.id) + '"' + (S.oneOnOne && S.oneOnOne.id === p.id ? ' selected' : '') + '>'
+        + esc(participantLabel(p)) + '</option>';
+    }).join("");
+  }
+  function renderOneOnOne(){
+    var status = participantState.identity === draftIdentity() ? participantState.status : "idle";
+    var ready = status === "ready", empty = ready && !participantState.items.length;
+    var message = status === "error" ? participantState.message : empty ? 'No other participants are listed yet. You can return here later.'
+      : ready ? '' : 'Loading participants…';
+    return '<h2>Choose a 1-on-1</h2><p class="intro">Who would you most like to meet?</p>'
+      + '<div class="f' + (errs.oneOnOne ? ' bad' : '') + '"><label for="oneOnOne">Your preferred person</label>'
+      + '<select id="oneOnOne"' + (message ? ' aria-describedby="participantStatus"' : '') + (ready && !empty ? '' : ' disabled') + '>' + participantOptions() + '</select>'
+      + (message ? '<p id="participantStatus" class="hint" role="status">' + esc(message) + '</p>' : '')
+      + (errs.oneOnOne ? '<div class="err">' + esc(errs.oneOnOne) + '</div>' : '')
+      + '</div>'
+      + (status === "error" ? '<button class="btn btn-out btn-sm" type="button" id="refreshParticipants">Try loading participants again</button>' : '');
+  }
+  function wireOneOnOne(){
+    var select = document.getElementById("oneOnOne");
+    if(!select) return;
+    select.addEventListener("change", function(){
+      var picked = participantState.items.filter(function(p){ return p.id === select.value; })[0];
+      S.oneOnOne = picked ? {id:picked.id, name:picked.name, affiliation:picked.affiliation} : null;
+      delete errs.oneOnOne; saveLocal(); queueDraftSave();
+    });
+    var retry = document.getElementById("refreshParticipants");
+    if(retry) retry.onclick = function(){ loadParticipants(true); };
+  }
+  function updateOneOnOne(){
+    var panel = document.getElementById("oneOnOnePanel");
+    if(mode === "form" && step === ONE_ON_ONE && panel){ panel.innerHTML = renderOneOnOne(); wireOneOnOne(); }
+  }
+  function loadParticipants(force){
+    var identity = draftIdentity();
+    if(!force && participantState.identity === identity && participantState.status !== "idle") return;
+    var current = participantState = {identity:identity, status:"loading", items:[], message:""};
+    if(!API || !emailOk(S.e) || normKey(pin).length < 2){
+      current.status = "error"; current.message = "Enter your email and favorite AI model in Your details to load participants.";
+      updateOneOnOne(); return;
+    }
+    updateOneOnOne();
+    withKey(function(k){ return jsonp({action:"participants", email:S.e, pin:k, gate:gate, name:S.n}, 20000); })
+      .then(function(res){
+        if(participantState !== current || draftIdentity() !== identity) return;
+        if(!res || !res.ok || !Array.isArray(res.participants)) throw {code:res && res.error};
+        current.items = res.participants; current.status = "ready";
+        updateOneOnOne();
+      }).catch(function(){
+        if(participantState !== current || draftIdentity() !== identity) return;
+        current.status = "error";
+        current.message = "The participant list could not be loaded. Try again to choose your 1-on-1.";
+        updateOneOnOne();
+      });
+  }
+
+  function renderOneOnOneStep(){
+    return '<section class="step"><div id="oneOnOnePanel" class="stack">' + renderOneOnOne() + '</div></section>';
+  }
   function renderStep1(){
     var rows = S.r.map(function(id, i){
       var t = id ? T(id) : null;
@@ -1540,7 +1619,7 @@ window.EAI_CONFIG = {
 
     return ''
     + '<section class="step">'
-    + '  <div class="head thin"><div class="eyebrow">03 / 05 · Your focus</div><h2>Choose three <em>topics.</em></h2>'
+    + '  <div class="head thin"><div class="eyebrow">03 / 06 · Your focus</div><h2>Choose three <em>topics.</em></h2>'
     + '    <p class="intro">Pick the conversations you most want to join.</p></div>'
     + '  <div class="pick">' + rows + '</div>'
     +    (errs.r?'<div class="err">'+errs.r+'</div>':'')
@@ -1565,7 +1644,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">05 / 05 · Final step</div>'
+    + '    <div class="eyebrow">06 / 06 · Final step</div>'
     + '    <h2>Your <em>questions.</em></h2>'
     + '    <p class="intro">Bring one question to each seminar. We’ll share these with your subgroup on Thursday night.</p>'
     + '  </div>'
@@ -1696,7 +1775,7 @@ window.EAI_CONFIG = {
     return ''
     + '<section class="step reading-step">'
     + '  <div class="head thin">'
-    + '    <div class="eyebrow">04 / 05 · Reading list</div>'
+    + '    <div class="eyebrow">05 / 06 · Reading list</div>'
     + '    <h2>Your <em>seminar prep.</em></h2>'
     +      (done ? '<div id="readingSync">' + syncLine() + '</div>'
             : '<p class="intro">Read the essentials before writing your questions.'
@@ -1705,7 +1784,8 @@ window.EAI_CONFIG = {
     +      (done ? '<div id="readingProgress">' + renderProgress() + '</div>' : '')
     + commonBlock
     + blocks
-    + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topic selections</button></div>'
+    + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topics</button><button class="btn btn-out btn-sm" id="editOneOnOne" type="button">Edit 1-on-1</button></div>'
+    + '  <p class="note">1-on-1 preference: ' + (S.oneOnOne ? esc(participantLabel(S.oneOnOne)) : 'Choose a person using Edit 1-on-1.') + '</p>'
     + (otherTopics.length ? '<div class="topicblock other-topics"><div class="eyebrow">Topics not selected</div><details>'
       + '<summary><span>See <strong>optional</strong> readings from other topics</span></summary>'
       + '<div class="body"><p class="note">These do not count toward progress.</p>'
@@ -1914,6 +1994,12 @@ window.EAI_CONFIG = {
       var c = chosen(), uniq = c.filter(function(v,i,a){ return a.indexOf(v)===i; });
       if(c.length < 3 || uniq.length < 3) errs.r = "Choose three different focus areas.";
     }
+    if(n===ONE_ON_ONE){
+      if(participantState.identity !== draftIdentity() || participantState.status !== "ready")
+        errs.oneOnOne = "Load the participant list before continuing.";
+      else if(participantState.items.length && !participantState.items.some(function(p){ return S.oneOnOne && p.id === S.oneOnOne.id; }))
+        errs.oneOnOne = "Choose someone for your 1-on-1.";
+    }
     // step READING has nothing to validate
     if(n===QUESTIONS){
       chosen().forEach(function(id){
@@ -2107,7 +2193,7 @@ window.EAI_CONFIG = {
     }).length;
 
     h += '<div class="scroll"><table><thead><tr>'
-      + '<th>Name</th><th>1 · 2 · 3</th><th>Q</th><th></th>'
+      + '<th>Name</th><th>1 · 2 · 3</th><th>Q</th><th>1-on-1 preference</th><th></th>'
       + '</tr></thead><tbody>'
       + roster.map(function(p, i){
           var qn = p.r.filter(function(id){ return String(p.q[id]||"").trim(); }).length;
@@ -2115,6 +2201,7 @@ window.EAI_CONFIG = {
             + '<td>'+esc(p.n)+'<div style="color:var(--faint);font-size:calc(.72rem * var(--text-scale) + var(--text-add))">'+esc(p.a||p.e||"")+'</div></td>'
             + '<td class="mono" style="color:var(--accent);letter-spacing:.06em">'+p.r.map(function(id){return T(id).rn.toUpperCase();}).join(" · ")+'</td>'
             + '<td class="mono" style="color:'+(qn<p.r.length?"var(--warn)":"var(--ok)")+'">'+qn+'/'+p.r.length+'</td>'
+            + '<td>' + (p.oneOnOne ? esc(participantLabel(p.oneOnOne)) : '—') + '</td>'
             + '<td><button class="ghost" data-del="'+i+'" type="button" style="padding:.25rem .45rem">Remove</button></td>'
             + '</tr>';
         }).join("")
@@ -2215,7 +2302,7 @@ window.EAI_CONFIG = {
   }
 
   function rosterTsv(){
-    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic\tGathering goals and contribution\tMore work details (optional)"];
+    var L = ["Name\tEmail\tAffiliation\tWork\tLink\t1st\t2nd\t3rd\tQ1\tQ2\tQ3\tNew topic\tGathering goals and contribution\tMore work details (optional)\t1-on-1 preference\t1-on-1 participant ID"];
     // A copied roster is commonly pasted into a spreadsheet. Flatten every
     // attendee-authored cell before joining tabs, then keep formula prefixes
     // literal just as the backend does when it writes to the Google Sheet.
@@ -2229,7 +2316,7 @@ window.EAI_CONFIG = {
       var rs = p.r.map(function(id){ return T(id).title; });
       while(rs.length < 3) rs.push("");
       L.push([p.n, p.e, p.a, p.w, p.c,
-              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], p.t, p.hopes, p.moreWork].map(cell).join("\t"));
+              rs[0], rs[1], rs[2], qs[0], qs[1], qs[2], p.t, p.hopes, p.moreWork, p.oneOnOne ? participantLabel(p.oneOnOne) : "", p.oneOnOne ? p.oneOnOne.id : ""].map(cell).join("\t"));
     });
     return L.join("\n");
   }
@@ -2304,11 +2391,11 @@ window.EAI_CONFIG = {
       wireSheet();
       wireReports();
     } else {
-      rail.innerHTML = STEPS.map(function(_, i){
-        return '<i class="'+(i===step?"on":i<step?"done":"")+'"></i>';
+      rail.innerHTML = STEP_ORDER.map(function(id, i){
+        return '<i class="'+(id===step?"on":i<STEP_ORDER.indexOf(step)?"done":"")+'"></i>';
       }).join("");
       view.innerHTML = (step !== READING || !saved ? '<div id="formSync">' + syncLine() + '</div>' : "")
-        + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions][step]();
+        + [renderStep0, renderWork, renderStep1, renderReading, renderQuestions, renderOneOnOneStep][step]();
       if(step === READING && saved && questionsDone() === 3){
         barIn.innerHTML = "";     // nothing left to do
       } else {
@@ -2442,6 +2529,7 @@ window.EAI_CONFIG = {
 
   function wireForm(){
     wireSyncActions();
+    if(step === ONE_ON_ONE){ wireOneOnOne(); loadParticipants(false); }
     Array.prototype.forEach.call(view.querySelectorAll("[data-k]"), function(inp){
       inp.addEventListener("input", function(){
         var k = inp.getAttribute("data-k");
@@ -2488,16 +2576,16 @@ window.EAI_CONFIG = {
       needsPin = false;
       if(step === 0 && API){ checkDetailsAndContinue(); return; }
       if(step === QUESTIONS){ submit(); return; }
-      if(step === STEP_TOPICS){ holdPlace(); return; }   // save first, read at leisure
+      if(step === ONE_ON_ONE){ holdPlace(); return; }   // save first, read at leisure
       if(step === WORK){                                 // and save here too
         S.c = tidyLink(S.c); saveLocal();
         if(!saved){ holdWork(); return; }
       }
-      step++; saveLocal(); render(); queueDraftSave();
+      step = STEP_ORDER[STEP_ORDER.indexOf(step) + 1]; saveLocal(); render(); queueDraftSave();
     });
     var back = document.getElementById("back");
     if(back) back.addEventListener("click", function(){
-      if(step>0) step--;
+      if(step>0) step = STEP_ORDER[STEP_ORDER.indexOf(step) - 1];
       if(step === READING) editing = false;
       errs={}; saveLocal(); render();
     });
@@ -2507,6 +2595,11 @@ window.EAI_CONFIG = {
     var editTopics = document.getElementById("editTopics");
     if(editTopics) editTopics.addEventListener("click", function(){
       editing = true; step = STEP_TOPICS; errs = {}; saveLocal(); render();
+    });
+
+    var editOneOnOne = document.getElementById("editOneOnOne");
+    if(editOneOnOne) editOneOnOne.addEventListener("click", function(){
+      editing = true; step = ONE_ON_ONE; errs = {}; saveLocal(); render();
     });
 
     var edit = document.getElementById("editMine");

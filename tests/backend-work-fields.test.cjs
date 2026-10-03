@@ -18,7 +18,7 @@ test('live backend code adds columns to an older sheet and saves/restores new fi
   const sh=b.c.sheet_();
   sh.rows[0]=sh.rows[0].slice(0,13); // Existing production schema.
   assert.equal(b.post({sub,pin,gate:'synthetic-gate'}).ok,true);
-  assert.deepEqual(sh.rows[0].slice(13), ['Work','Link','Gathering goals and contribution','More work details (optional)']);
+  assert.deepEqual(sh.rows[0].slice(13), ['Work','Link','Gathering goals and contribution','More work details (optional)','1-on-1 preference','1-on-1 participant ID']);
   assert.equal(sh.rows[1][15],sub.hopes); assert.equal(sh.rows[1][16],sub.moreWork);
   assert.deepEqual(b.get({action:'get',email:sub.e,pin}).row,sub);
   const oldClient={...sub};delete oldClient.hopes;delete oldClient.moreWork;

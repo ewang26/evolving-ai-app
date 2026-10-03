@@ -2,7 +2,7 @@
 
 The pre-gathering app for **Evolving AI**, Harvard University, October 8–10, 2026.
 
-A participant enters their details, ranks three of the six focus areas, reads the pre-read
+A participant enters their details, ranks three of the six focus areas, chooses a preferred 1-on-1 partner on a separate page, reads the pre-read
 assembled from those choices, then writes one question per topic plus an optional proposal
 for another. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
@@ -215,6 +215,37 @@ the participant's local draft. Current copied links contain only the public app 
 older `#s=` links may still contain a readable submission. There is no analytics SDK.
 The public `apiUrl` can receive unwanted requests, so organizers should monitor the Sheet.
 The organizer key is held in memory while the console is open.
+
+## 1-on-1 preferences
+
+After topic choices, a separate 1-on-1 page immediately before readings contains a
+participant dropdown with the full list and no search field. Labels use
+`Name: Position, Institution`, with positions limited to one or two words. Its
+organizer-reviewed directory combines reliable submission affiliations with confirmed
+attendees from the travel tracking roster, including people who have not submitted.
+Test rows, duplicates, mismatched descriptions, and attendees confirmed not to be coming
+are excluded. Only names, descriptions, and stable salted IDs reach fellow attendees;
+contact aliases and other attendees' preferences stay private. Known alternate email
+addresses and name aliases keep one person from appearing twice or choosing themselves.
+Reserved test accounts use a separate synthetic directory.
+
+Each attendee chooses one person. The choice is saved and restored with their existing
+submission, shown on the reading page, and available in the organizer roster and TSV
+export. Two appended Sheet columns hold the preference label and participant ID.
+Old clients that omit the new field preserve an existing choice. Organizers use the
+preferences to arrange final pairs; the app does not assign partners automatically.
+
+**Rollout:** the private reviewed directory, evidence CSV, and Apps Script installer
+are in ignored `output/one-on-one/`. Add `install-directory.gs` to the existing Apps
+Script project and run `installOneOnOneDirectory()` once. It stores the roster in the
+private `ONE_ON_ONE_DIRECTORY` Script Property. Do not copy the installer or directory
+into `docs/` or commit them to the public repository. Update that property after reviewing
+future roster changes; new submissions are not automatically added.
+
+Then deploy the updated `docs/sheet-backend.gs` as a new version of the existing Apps
+Script deployment, preserving its private settings, **before** publishing the website.
+The previous backend does not serve the attendee directory. Editing these files does
+not deploy either the backend or website.
 
 ## Reading lists
 

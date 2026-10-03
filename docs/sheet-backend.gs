@@ -30,7 +30,7 @@ var SALT        = "CHANGE-ME-to-a-second-long-random-string";
 
 var HEADERS = ["Timestamp", "Name", "Email", "Affiliation",
                "1st", "2nd", "3rd", "Q1", "Q2", "Q3", "Passcode", "Payload",
-               "New topic", "Work", "Link", "Gathering goals and contribution", "More work details (optional)"];
+               "New topic", "Work", "Link", "Gathering goals and contribution", "More work details (optional)", "1-on-1 preference", "1-on-1 participant ID"];
 
 var PASS_COL    = 11;   // 1-based column of the Passcode hash
 
@@ -212,6 +212,10 @@ function validSubmission_(sub) {
   for (var topic in sub.q || {}) {
     if (!/^T[1-6]$/.test(topic) || typeof sub.q[topic] !== "string" || sub.q[topic].length > MAX_BODY) return false;
   }
+  if (sub.oneOnOne != null && (typeof sub.oneOnOne !== "object" || Array.isArray(sub.oneOnOne) ||
+      typeof sub.oneOnOne.id !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(sub.oneOnOne.id) ||
+      typeof sub.oneOnOne.name !== "string" || sub.oneOnOne.name.length > 200 ||
+      typeof sub.oneOnOne.affiliation !== "string" || sub.oneOnOne.affiliation.length > 250)) return false;
   if (sub.read != null && (typeof sub.read !== "object" || Array.isArray(sub.read) ||
       Object.keys(sub.read).length > 100)) return false;
   return true;
@@ -323,6 +327,99 @@ function rowsOf_(sh, headers) {
   return sh.getRange(2, 1, last - 1, headers.length).getValues();
 }
 
+// Only the name and reviewed position/institution description are shared with fellow attendees.
+// Stable salted IDs distinguish duplicate names without returning email addresses.
+function participantId_(email) {
+  return revision_(SALT + "|one-on-one|" + String(email || "").trim().toLowerCase());
+}
+// Called by the private installer, never through the public endpoint.
+function installOneOnOneDirectory_(directory) {
+  if (!Array.isArray(directory) || !directory.length || directory.length > 300)
+    throw new Error("Invalid 1-on-1 directory");
+  var seen = {}, emails = {};
+  directory.forEach(function(p) {
+    if (!p || typeof p.key !== "string" || !p.key || seen[p.key] ||
+        typeof p.name !== "string" || !p.name.trim() || p.name.length > 200 ||
+        typeof p.affiliation !== "string" || p.affiliation.length > 250 ||
+        !Array.isArray(p.emails) || !p.emails.length || !Array.isArray(p.names))
+      throw new Error("Invalid 1-on-1 directory entry");
+    seen[p.key] = true;
+    p.emails.forEach(function(email) {
+      email = String(email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || emails[email] && emails[email] !== p.key)
+        throw new Error("Invalid or duplicate 1-on-1 contact alias");
+      emails[email] = p.key;
+    });
+  });
+  var props = PropertiesService.getScriptProperties(), version = Utilities.getUuid();
+  // Each property is capped at 9 KB; 2,000 UTF-16 units stay below that even
+  // for non-ASCII names. Publish the manifest last so a failed install leaves
+  // the previous directory available.
+  var data = JSON.stringify(directory), parts = Math.ceil(data.length / 2000);
+  for (var i = 0; i < parts; i++)
+    props.setProperty("ONE_ON_ONE_DIRECTORY:" + version + ":" + i, data.slice(i * 2000, (i + 1) * 2000));
+  props.setProperty("ONE_ON_ONE_DIRECTORY", JSON.stringify({version:version, parts:parts}));
+  return {participants:directory.length};
+}
+function approvedDirectory_() {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty("ONE_ON_ONE_DIRECTORY");
+  if (!raw) throw new Error("1-on-1 directory is not installed");
+  var manifest = JSON.parse(raw), data = "";
+  if (!manifest.version || !Number.isInteger(manifest.parts) || manifest.parts < 1 || manifest.parts > 100)
+    throw new Error("Invalid 1-on-1 directory manifest");
+  for (var i = 0; i < manifest.parts; i++) {
+    var part = props.getProperty("ONE_ON_ONE_DIRECTORY:" + manifest.version + ":" + i);
+    if (part === null) throw new Error("Incomplete 1-on-1 directory");
+    data += part;
+  }
+  var directory = JSON.parse(data);
+  if (!Array.isArray(directory)) throw new Error("Invalid 1-on-1 directory");
+  return directory;
+}
+function participantName_(name) {
+  return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+function participants_(viewerEmail, viewerName) {
+  var own = String(viewerEmail || "").trim().toLowerCase();
+  if (testAudience_(own)) {
+    // Test accounts exercise the same flow with synthetic participants only.
+    var seen = {};
+    return rowsOf_(sheet_(), HEADERS).filter(function(row) {
+      var email = String(row[2]).trim().toLowerCase();
+      if (!email || email === own || seen[email] || !sameAudience_(own, email) || !plain_(row[1]).trim()) return false;
+      seen[email] = true; return true;
+    }).map(function(row) {
+      return {id:participantId_(row[2]), name:plain_(row[1]), affiliation:plain_(row[3])};
+    }).sort(function(a, b) { return a.name.localeCompare(b.name) || a.affiliation.localeCompare(b.affiliation); });
+  }
+  // The organizer-reviewed directory includes confirmed attendees who have not
+  // submitted yet. It never promotes unreviewed submissions into the dropdown.
+  // Install via the private installer; names/contact aliases stay out of the repo.
+  var directory = approvedDirectory_();
+  var self = directory.filter(function(p) {
+    return (p.emails || []).some(function(email) { return String(email).trim().toLowerCase() === own; });
+  });
+  if (!self.length && viewerName) {
+    var matches = directory.filter(function(p) {
+      return [p.name].concat(p.names || []).some(function(name) {
+        return participantName_(name) === participantName_(viewerName);
+      });
+    });
+    if (matches.length === 1) self = matches;
+  }
+  var seenIds = {};
+  return directory.filter(function(p) {
+    if (!p.key || !p.name || typeof p.affiliation !== "string") throw new Error("Invalid 1-on-1 directory entry");
+    if (seenIds[p.key]) throw new Error("Duplicate 1-on-1 directory entry");
+    seenIds[p.key] = true;
+    return !self.some(function(ownEntry) { return ownEntry.key === p.key; });
+  }).map(function(p) {
+    return {id:participantId_(p.key), name:p.name, affiliation:p.affiliation};
+  }).sort(function(a, b) { return a.name.localeCompare(b.name) || a.affiliation.localeCompare(b.affiliation); });
+}
+
 function out_(obj, callback) {
   var body = JSON.stringify(obj);
   if (callback) {
@@ -376,7 +473,7 @@ function relay_(body) {
   var req = body.request;
   if (req.action === "relay" || req.action === "poll")
     return out_({ok:false, error:"bad_request"});
-  var reads = {get:1, gate:1, posts:1, topic:1, counts:1, mydebriefs:1, debriefs:1, reports:1, all:1};
+  var reads = {get:1, gate:1, posts:1, topic:1, counts:1, mydebriefs:1, participants:1, debriefs:1, reports:1, all:1};
   var response = reads[req.action]
     ? doGet({parameter:req})
     : doPost({postData:{contents:JSON.stringify(req)}});
@@ -536,9 +633,17 @@ function doPost(e) {
         return out_({ok: false, error: "conflict"});
       // A still-open older form must not erase fields it does not know about.
       var previous = rowToSub_(sh.getRange(existing, 1, 1, HEADERS.length).getValues()[0]);
-      ["hopes", "moreWork"].forEach(function(key) {
-        if (!Object.prototype.hasOwnProperty.call(sub, key) && previous) sub[key] = previous[key] || "";
+      ["hopes", "moreWork", "oneOnOne"].forEach(function(key) {
+        if (!Object.prototype.hasOwnProperty.call(sub, key) && previous) sub[key] = previous[key] || (key === "oneOnOne" ? null : "");
       });
+    }
+    if (sub.oneOnOne) {
+      var candidate = participants_(sub.e, sub.n).filter(function(p) { return p.id === sub.oneOnOne.id; })[0];
+      // An unrelated save can retain a historic preference if its target left.
+      // New choices must always belong to the current attendee directory.
+      if (!candidate && !(previous && previous.oneOnOne && previous.oneOnOne.id === sub.oneOnOne.id))
+        return out_({ok:false, error:"invalid_preference"});
+      sub.oneOnOne = candidate || previous.oneOnOne;
     }
     clearFails_(sub.e);
     var qs = sub.r.map(function (id) { return String((sub.q || {})[id] || ""); });
@@ -554,7 +659,9 @@ function doPost(e) {
       literal_(sub.w || ""),
       literal_(sub.c || ""),
       literal_(sub.hopes || ""),
-      literal_(sub.moreWork || "")
+      literal_(sub.moreWork || ""),
+      literal_(sub.oneOnOne ? sub.oneOnOne.name + (sub.oneOnOne.affiliation ? ": " + sub.oneOnOne.affiliation : "") : ""),
+      sub.oneOnOne ? sub.oneOnOne.id : ""
     ];
 
     if (existing > 0) sh.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
@@ -610,6 +717,20 @@ function doGet(e) {
       return restored
         ? out_({ok: true, row: restored, rev: revision_(vals[HEADERS.indexOf("Payload")])}, cb)
         : out_({ok: false, error: "corrupt_payload"}, cb);
+    }
+
+    if (p.action === "participants") {
+      // A new attendee can choose before their first submission, using the
+      // already-checked invitation. Existing accounts use their personal key.
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(p.email || "").trim()))
+        return out_({ok:false, error:"bad_request"}, cb);
+      if (findRow_(sh, p.email) > 0) {
+        var viewer = verify_(p.email, p.pin);
+        if (viewer === "locked") return out_({ok:false, error:"locked"}, cb);
+        if (viewer === "reset") return out_({ok:false, error:"key_reset"}, cb);
+        if (!viewer) return out_({ok:false, error:"bad_pin"}, cb);
+      } else if (!gateOpen_(p.gate)) return out_({ok:false, error:"bad_gate"}, cb);
+      return out_({ok:true, participants:participants_(p.email, viewer ? viewer.name : p.name)}, cb);
     }
 
     // Posts in one thread, oldest first.

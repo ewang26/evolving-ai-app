@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const source = fs.readFileSync(path.join(__dirname, '../../docs/sheet-backend.gs'), 'utf8');
 
 function backend() {
-  const tabs = {}, cache = new Map();
+  const tabs = {}, cache = new Map(), properties = new Map();
   let releaseCount = 0;
   const newSheet = name => tabs[name] = {
     rows: [],
@@ -33,6 +33,10 @@ function backend() {
   const c = {
     console: { error() {} }, Date, JSON,
     Logger: { log() {} },
+    PropertiesService: { getScriptProperties: () => ({
+      getProperty: key => properties.get(key) ?? null,
+      setProperty: (key, value) => { properties.set(key, value); }
+    }) },
     LockService: { getScriptLock: () => lock },
     SpreadsheetApp: { openById: () => ({ getSheetByName: n => tabs[n], insertSheet: newSheet }) },
     CacheService: { getScriptCache: () => ({
@@ -54,7 +58,7 @@ function backend() {
   vm.runInNewContext(source, c);
   c.SALT = 'synthetic-salt'; c.ADMIN_KEY = 'synthetic-admin'; c.GATE_CODE = 'synthetic-gate';
   return {
-    c, tabs, lock,
+    c, tabs, lock, properties,
     releases: () => releaseCount,
     post: body => JSON.parse(c.doPost({ postData: { contents: JSON.stringify(body) } }).body),
     get: params => JSON.parse(c.doGet({ parameter: params }).body)

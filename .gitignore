@@ -12,3 +12,6 @@ ios/EvolvingAI/web/
 ios/**/xcuserdata/
 ios/**/*.xcuserstate
 ios/DerivedData/
+
+# Private attendee directory and contact aliases used by the 1-on-1 backend.
+output/one-on-one/
