@@ -16,7 +16,7 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now, relay,
+function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now, relay, autoDraftTimers = true,
   api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [], relayResponses = new Map(), listeners = {};
@@ -42,7 +42,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
     addEventListener(event, fn) { (listeners[event] ||= new Set()).add(fn); },
     removeEventListener(event, fn) { listeners[event]?.delete(fn); }, scrollTo() {},
     setTimeout(fn, delay) { const id = ++nextTimer; pending.set(id, { fn, delay });
-      if (delay < 2000) queueMicrotask(() => { if (pending.delete(id)) fn(); }); return id; },
+      if (delay < 2000 && (autoDraftTimers || delay !== 1800)) queueMicrotask(() => { if (pending.delete(id)) fn(); }); return id; },
     clearTimeout(id) { pending.delete(id); },
     fetch(url, options) {
       requests.push({ url, options });
@@ -81,7 +81,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,identityEditing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;if('identityEditing'in s)identityEditing=s.identityEditing;},
-    loadParticipants,participantOptions,renderOneOnOne,mergeDraft,cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
+    requiredReadings,renderProgress,wireProgress,loadParticipants,participantOptions,renderOneOnOne,mergeDraft,cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -438,8 +438,8 @@ test('seminar prep restores the overall progress percentage and navigation', () 
   const a = app({ api: '', storage: localRecord(sample()) });
   const reading = a.t.renderReading();
   assert.match(reading, /Your <em>seminar prep\.<\/em>/);
-  assert.match(reading, /<span class="pgpct">75<i>%<\/i><\/span>/);
-  assert.match(reading, /aria-label="Overall preparation complete"[^>]*aria-valuenow="75"/);
+  assert.match(reading, /<span class="pgpct">60<i>%<\/i><\/span>/);
+  assert.match(reading, /aria-label="Overall preparation complete"[^>]*aria-valuenow="60"/);
   for (const target of ['0', 'topics', 'reads', 'questions']) {
     assert.match(reading, new RegExp(`data-go="${target}"`));
   }
@@ -1505,7 +1505,7 @@ test('1-on-1 dropdown lists all participants and selects only listed people, sav
   a.t.setRoster([record.row]); assert.match(a.t.rosterTsv(),/Research Partner: Institute of Cooperation/);
 });
 
-test('the full dropdown is first on readings after topics and saves without an extra page', async () => {
+test('the seminar heading and progress precede the full dropdown, which saves without an extra page', async () => {
   const b=backend(), self=sample();
   b.post({action:'put',sub:self,pin:'org:testmodel',gate:'synthetic-gate'});
   for(const [i,name] of ['Alex','Blair'].entries())
@@ -1515,7 +1515,9 @@ test('the full dropdown is first on readings after topics and saves without an e
   a.nodes.next.listeners.click();await new Promise(setImmediate);
   assert.equal(a.t.state().step,3);
   const reading=a.nodes.view.innerHTML;
-  assert.ok(reading.indexOf('id="oneOnOnePanel"') < reading.indexOf('<div class="head thin">'));
+  assert.ok(reading.indexOf('<div class="head thin">') < reading.indexOf('id="readingProgress"'));
+  assert.ok(reading.indexOf('id="readingProgress"') < reading.indexOf('id="oneOnOnePanel"'));
+  assert.ok(reading.indexOf('id="oneOnOnePanel"') < reading.indexOf('class="topicblock common"'));
   assert.match(a.t.renderOneOnOne(),/Alex: Researcher, Institute 0/);
   assert.match(a.t.renderOneOnOne(),/Blair: Researcher, Institute 1/);
   assert.match(reading,/Who would you like to meet\? Choose one participant\. The organizers will use everyone’s preferences to arrange pairs\./);
@@ -1529,14 +1531,14 @@ test('the full dropdown is first on readings after topics and saves without an e
   a.nodes.back.listeners.click();assert.equal(a.t.state().step,2);
 });
 
-test('returning attendees with submitted questions see the picker first and retain their readings and answers', async () => {
+test('returning attendees with submitted questions see the picker below progress and retain their readings and answers', async () => {
   const b=backend(), self=sample(), peer={...sample(),e:'peer@example.invalid',n:'Peer'};
   self.read.paper=1;
   for(const sub of [self,peer]) b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
   const a=app({bridge:true,relay:req=>req.action==='put'?b.post(req):b.get(req)});
   a.t.set({S:self,pin:'TestModel'});a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
   assert.equal(a.t.state().step,3);
-  assert.ok(a.nodes.view.innerHTML.indexOf('oneOnOneHeading') < a.nodes.view.innerHTML.indexOf('<div class="head thin">'));
+  assert.ok(a.nodes.view.innerHTML.indexOf('id="readingProgress"') < a.nodes.view.innerHTML.indexOf('oneOnOneHeading'));
   const pick=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants[0];
   a.nodes.oneOnOne.value=pick.id;a.nodes.oneOnOne.listeners.change();await new Promise(setImmediate);
   const row=b.get({action:'get',email:self.e,pin:'org:testmodel'}).row;
@@ -1620,4 +1622,59 @@ test('participant loading starts after sign-in and finishes on readings without 
   assert.match(a.t.renderOneOnOne(),/Research Partner/);
   assert.doesNotMatch(a.t.renderOneOnOne(),/Loading participants/);
   a.t.wireForm();await new Promise(setImmediate);assert.equal(requests(),1);
+});
+
+
+test('progress requires a 1-on-1 choice for completion and updates immediately when selected or cleared', () => {
+  const a=app(), sub=sample();
+  a.t.set({S:sub,saved:true,step:3});
+  for(const reading of a.t.requiredReadings()) sub.read[reading.url]=1;
+  const progress=()=>a.t.renderProgress();
+  assert.match(progress(),/pgpct">80<i/);
+  assert.match(progress(),/1-on-1 choice left/);
+  assert.match(progress(),/data-go="one-on-one"[^]*?pgstate">Choose/);
+  sub.oneOnOne={id:'a'.repeat(43),name:'Peer',affiliation:'Institute'};
+  assert.match(progress(),/pgpct">100<i/);
+  assert.doesNotMatch(progress(),/1-on-1 choice left/);
+  assert.match(progress(),/<li class="done"><button class="pgrow" type="button" data-go="one-on-one"/);
+  sub.oneOnOne=null;
+  assert.match(progress(),/pgpct">80<i/);
+  assert.match(progress(),/1-on-1 choice left/);
+});
+
+test('a dropdown selection saves immediately without timers or Next and newer selections during a save also reach the Sheet', async () => {
+  const b=backend(), self=sample();
+  for(const [i,name] of ['Test Attendee','First peer','Second peer'].entries())
+    b.post({action:'put',sub:{...self,e:i ? 'peer'+i+'@example.invalid' : self.e,n:name},pin:'org:testmodel',gate:'synthetic-gate'});
+  let firstSave, releaseFirst;
+  const a=app({bridge:true,autoDraftTimers:false,relay:req=>{
+    if(req.action==='put' && !firstSave){
+      firstSave=req;
+      return new Promise(resolve=>{releaseFirst=()=>resolve(b.post(req));});
+    }
+    return req.action==='put'?b.post(req):b.get(req);
+  }});
+  a.t.set({S:self,pin:'TestModel'});a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
+  const picks=b.get({action:'participants',email:self.e,pin:'org:testmodel'}).participants;
+  a.nodes.oneOnOne.value=picks[0].id;a.nodes.oneOnOne.listeners.change();
+  assert.equal(a.t.state().syncState.state,'saving');
+  assert.match(a.nodes.readingProgress.innerHTML,/data-go="one-on-one"[^]*?pgstate">Done/);
+  await new Promise(setImmediate);
+  assert.equal(firstSave.sub.oneOnOne.id,picks[0].id,'Upload must start without advancing any debounce timer');
+  a.nodes.oneOnOne.value=picks[1].id;a.nodes.oneOnOne.listeners.change();
+  releaseFirst();await new Promise(setImmediate);
+  assert.equal(a.t.state().step,3);
+  assert.equal(a.t.state().syncState.state,'ok');
+  assert.equal(b.get({action:'get',email:self.e,pin:'org:testmodel'}).row.oneOnOne.id,picks[1].id);
+  assert.equal(a.requests.filter(r=>JSON.parse(r.options.body).request.action==='put').length,2);
+});
+
+test('the 1-on-1 progress item focuses the inline dropdown without changing pages', () => {
+  const a=app();a.t.set({step:3});
+  const button={listeners:{},getAttribute:()=> 'one-on-one',addEventListener:(event,fn)=>button.listeners[event]=fn};
+  a.nodes.view.querySelectorAll=selector=>selector==='[data-go]' ? [button] : [];
+  const select=a.context.document.getElementById('oneOnOne');let focused=false,scrolled=false;
+  select.focus=()=>focused=true;select.scrollIntoView=()=>scrolled=true;
+  a.t.wireProgress();button.listeners.click();
+  assert.equal(focused,true);assert.equal(scrolled,true);assert.equal(a.t.state().step,3);
 });

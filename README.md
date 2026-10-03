@@ -2,7 +2,7 @@
 
 The pre-gathering app for **Evolving AI**, Harvard University, October 8–10, 2026.
 
-A participant enters their details, ranks three of the six focus areas, chooses a preferred 1-on-1 partner at the top of their readings, reads the pre-read
+A participant enters their details, ranks three of the six focus areas, chooses a preferred 1-on-1 partner on their readings page, reads the pre-read
 assembled from those choices, then writes one question per topic plus an optional proposal
 for another. The organizer
 console turns the submissions into breakout subgroups and printable question sheets.
@@ -218,8 +218,8 @@ The organizer key is held in memory while the console is open.
 
 ## 1-on-1 preferences
 
-At the top of the readings page, a participant dropdown shows the full list with no
-search field. Returning attendees see it alongside their readings and can save a choice
+Below the seminar heading and progress on the readings page, a participant dropdown
+shows the full list with no search field. Returning attendees see it alongside their readings and can save a choice
 without revisiting earlier steps. Labels use
 `Name: Position, Institution`, with positions limited to one or two words. Its
 organizer-reviewed directory combines reliable submission affiliations with confirmed
@@ -230,8 +230,9 @@ contact aliases and other attendees' preferences stay private. Known alternate e
 addresses and name aliases keep one person from appearing twice or choosing themselves.
 Reserved test accounts use a separate synthetic directory.
 
-Each attendee chooses one person. The choice is saved and restored with their existing
-submission, shown on the reading page, and available in the organizer roster and TSV
+Each attendee chooses one person. Selecting someone starts an immediate save, without
+clicking Next, and updates the 1-on-1 item in overall preparation progress. The choice
+is saved and restored with their existing submission, shown on the reading page, and available in the organizer roster and TSV
 export. Two appended Sheet columns hold the preference label and participant ID.
 Old clients that omit the new field preserve an existing choice. Organizers use the
 preferences to arrange final pairs; the app does not assign partners automatically.

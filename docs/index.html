@@ -106,7 +106,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .step{display:flex;flex-direction:column;gap:1.55rem}
   .stack.one-on-one-panel{gap:.75rem}
   .one-on-one-panel h2{font-family:var(--sans);font-size:calc(1.2rem * var(--text-scale) + var(--text-add));font-weight:600;line-height:1.3}
-  .one-on-one-panel .intro{margin-top:0}
+  .one-on-one-panel .intro{margin-top:0;max-width:none}
 
   .eyebrow{
     font-family:var(--mono);font-size:calc(.76rem * var(--text-scale) + var(--text-add));font-weight:500;letter-spacing:.11em;
@@ -119,7 +119,7 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
   .head.thin h2 em{font-style:italic;color:var(--accent)}
   .reading-step .head.thin h2{
-    font-family:var(--sans);font-size:clamp(2.25rem,8.6vw,2.85rem);font-weight:600;
+    font-family:var(--sans);font-size:clamp(2.025rem,7.74vw,2.565rem);font-weight:600;
     line-height:1.04;letter-spacing:-.045em;text-transform:none;margin-top:.65rem;
   }
   .reading-step .head.thin h2 em{display:inline;font-style:normal;color:var(--accent)}
@@ -403,31 +403,33 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
 
   /* Overall progress sits above the reading list. */
   .progress{
-    display:flex;flex-direction:column;gap:.9rem;
+    display:flex;flex-direction:column;gap:.81rem;
     background:linear-gradient(145deg,#2c4e65,#223f56);
     border:1px solid rgba(236,193,135,.35);border-radius:18px;
-    padding:1.2rem 1.15rem .95rem;
+    padding:1.08rem 1.035rem .855rem;
     box-shadow:0 14px 30px rgba(5,20,33,.18);
   }
-  .pgtop{display:flex;align-items:center;gap:.95rem}
-  .pgpct{font-family:var(--serif);font-size:calc(3.1rem * var(--text-scale) + var(--text-add));font-style:italic;
+  .pgtop{display:flex;align-items:center;gap:.855rem}
+  .pgpct{font-family:var(--serif);font-size:calc(2.79rem * var(--text-scale) + var(--text-add));font-style:italic;
     color:var(--accent);line-height:.85;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
   .pgpct i{font-size:.44em;font-style:italic;margin-left:.06em}
-  .pgcap{display:flex;flex-direction:column;gap:.15rem}
-  .pgwhen{font-family:var(--sans);font-size:calc(.88rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.3}
+  .pgcap{display:flex;flex-direction:column;gap:.135rem}
+  .pgwhen{font-family:var(--sans);font-size:calc(.792rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.3}
   .pgtrack{height:6px;background:rgba(236,193,135,.2);border-radius:999px;overflow:hidden}
   .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
-  .pgitems{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.9rem}
+  .pgitems{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.81rem}
   .pgitems li{border-bottom:1px solid rgba(236,193,135,.14)}
-  .pgitems li:nth-last-child(-n+2){border-bottom:0}
+  .pgitems li:last-child{grid-column:1 / -1;border-bottom:0}
   .pgrow{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;gap:.35rem;
-    padding:.5rem 0;background:none;border:0;cursor:pointer;text-align:left;color:inherit}
+    padding:.45rem 0;background:none;border:0;cursor:pointer;text-align:left;color:inherit}
   .pgrow:hover .pgname,.pgrow:focus-visible .pgname{color:var(--accent)}
-  .pgname{font-family:var(--serif);font-size:calc(.95rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.15}
+  .pgname{font-family:var(--serif);font-size:calc(.855rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.15}
   .pgitems li.done .pgname{color:var(--text)}
-  .pgstate{font-family:var(--sans);font-size:calc(.68rem * var(--text-scale) + var(--text-add));font-weight:600;
+  .pgstate{font-family:var(--sans);font-size:calc(.612rem * var(--text-scale) + var(--text-add));font-weight:600;
     color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .pgitems li.done .pgstate{color:var(--accent)}
+
+  .progress .eyebrow{font-size:calc(.684rem * var(--text-scale) + var(--text-add))}
 
   .readtick{
     align-self:flex-start;display:flex;align-items:center;gap:.45rem;
@@ -1296,7 +1298,7 @@ window.EAI_CONFIG = {
         : err && err.code === "conflict" ? (syncConflict ? CONFLICT_MSG : "The sheet changed while saving. Your draft is preserved. Select Save my progress to compare the latest answers.")
         : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
         : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
-        : err && err.code === "invalid_preference" ? "That 1-on-1 choice is no longer available. Edit your 1-on-1 to choose another participant."
+        : err && err.code === "invalid_preference" ? "That 1-on-1 choice is no longer available. Choose another participant from the 1-on-1 dropdown."
         : err && err.code === "timeout" ? "The sheet did not respond in time. Your draft is preserved. Please try again."
         : "Could not confirm this save. Select Save my progress to retry."};
       saveLocal(); updateReadControls();
@@ -1575,7 +1577,7 @@ window.EAI_CONFIG = {
     select.addEventListener("change", function(){
       var picked = participantState.items.filter(function(p){ return p.id === select.value; })[0];
       S.oneOnOne = picked ? {id:picked.id, name:picked.name, affiliation:picked.affiliation} : null;
-      delete errs.oneOnOne; saveLocal(); queueDraftSave();
+      delete errs.oneOnOne; saveLocal(); updateReadControls(); saveDraftNow();
     });
     var retry = document.getElementById("refreshParticipants");
     if(retry) retry.onclick = function(){ loadParticipants(true); };
@@ -1678,31 +1680,33 @@ window.EAI_CONFIG = {
     }).length;
   }
 
-  function remaining(readsLeft, qsLeft){
+  function remaining(readsLeft, qsLeft, oneOnOneLeft){
     var bits = [];
+    if(oneOnOneLeft) bits.push("1-on-1 choice");
     if(readsLeft) bits.push(readsLeft + (readsLeft === 1 ? " reading" : " readings"));
     if(qsLeft) bits.push(qsLeft + (qsLeft === 1 ? " question" : " questions"));
-    return bits.length ? bits.join(" and ") + " left." : "All set for the seminar.";
+    return bits.length ? (bits.length > 2 ? bits.slice(0, -1).join(", ") + " and " + bits[bits.length - 1] : bits.join(" and ")) + " left." : "All set for the seminar.";
   }
 
   function renderProgress(){
-    var reads = readingCount(), read = readDone(), qs = questionsDone();
+    var reads = readingCount(), read = readDone(), qs = questionsDone(), oneOnOne = !!(S.oneOnOne && S.oneOnOne.id);
     var items = [
       {label:"Your details", done:!!(S.n && S.e && S.a), state:"Done", go:"0"},
       {label:"Topics chosen", done:chosen().length === 3, state:"Done", go:"topics"},
       {label:"Readings", done:reads > 0 && read === reads, state:read + " of " + reads, go:"reads"},
-      {label:"Questions", done:qs === 3, state:qs + " of 3", go:"questions"}
+      {label:"Questions", done:qs === 3, state:qs + " of 3", go:"questions"},
+      {label:"1-on-1", done:oneOnOne, state:oneOnOne ? "Done" : "Choose", go:"one-on-one"}
     ];
     var frac = ((!!(S.n && S.e && S.a) ? 1 : 0)
       + (chosen().length === 3 ? 1 : 0)
-      + (reads ? read / reads : 0) + qs / 3) / 4;
+      + (reads ? read / reads : 0) + qs / 3 + (oneOnOne ? 1 : 0)) / 5;
     var pct = Math.round(frac * 100);
 
     return ''
     + '<div class="progress">'
     + '  <div class="pgtop"><span class="pgpct">' + pct + '<i>%</i></span>'
     + '    <span class="pgcap"><span class="eyebrow">Your progress</span>'
-    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs)) + '</span></span></div>'
+    + '      <span class="pgwhen">' + remaining(Math.max(0, reads - read), Math.max(0, 3 - qs), !oneOnOne) + '</span></span></div>'
     + '  <div class="pgtrack" role="progressbar" aria-label="Overall preparation complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><span style="width:' + pct + '%"></span></div>'
     + '  <ul class="pgitems">' + items.map(function(x){
       return '<li class="' + (x.done ? "done" : "") + '"><button class="pgrow" type="button" data-go="' + x.go + '">'
@@ -1775,7 +1779,6 @@ window.EAI_CONFIG = {
 
     return ''
     + '<section class="step reading-step">'
-    + '<div id="oneOnOnePanel" class="stack one-on-one-panel">' + renderOneOnOne() + '</div>'
     + '  <div class="head thin">'
     + '    <div class="eyebrow">04 / 05 · Reading list</div>'
     + '    <h2>Your <em>seminar prep.</em></h2>'
@@ -1784,6 +1787,7 @@ window.EAI_CONFIG = {
               + '</p>')
     + '  </div>'
     +      (done ? '<div id="readingProgress">' + renderProgress() + '</div>' : '')
+    + '<div id="oneOnOnePanel" class="stack one-on-one-panel">' + renderOneOnOne() + '</div>'
     + commonBlock
     + blocks
     + '  <div class="btnrow reading-actions"><button class="btn btn-out btn-sm" id="editTopics" type="button">Edit topics</button></div>'
@@ -2503,6 +2507,11 @@ window.EAI_CONFIG = {
     Array.prototype.forEach.call(view.querySelectorAll("[data-go]"), function(b){
       b.addEventListener("click", function(){
         var to = b.getAttribute("data-go");
+        if(to === "one-on-one"){
+          var select = document.getElementById("oneOnOne");
+          if(select){ select.scrollIntoView({block:"center"}); select.focus(); }
+          return;
+        }
         if(to === "reads"){
           var first = view.querySelector(".read.req:not(.ticked)") || view.querySelector(".read.req");
           if(first){
