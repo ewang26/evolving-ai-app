@@ -403,10 +403,10 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
 
   /* Overall progress sits above the reading list. */
   .progress{
-    display:flex;flex-direction:column;gap:.81rem;
+    display:flex;flex-direction:column;gap:.65rem;
     background:linear-gradient(145deg,#2c4e65,#223f56);
     border:1px solid rgba(236,193,135,.35);border-radius:18px;
-    padding:1.08rem 1.035rem .855rem;
+    padding:.81rem 1.035rem .66rem;
     box-shadow:0 14px 30px rgba(5,20,33,.18);
   }
   .pgtop{display:flex;align-items:center;gap:.855rem}
@@ -417,10 +417,10 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   .pgwhen{font-family:var(--sans);font-size:calc(.792rem * var(--text-scale) + var(--text-add));color:var(--text);line-height:1.3}
   .pgtrack{height:6px;background:rgba(236,193,135,.2);border-radius:999px;overflow:hidden}
   .pgtrack span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
-  .pgitems{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.81rem}
+  .pgitems{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.65rem}
   .pgitems li{border-bottom:1px solid rgba(236,193,135,.14)}
   .pgitems li:last-child{grid-column:1 / -1;border-bottom:0}
-  .pgrow{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;gap:.35rem;
+  .pgrow{width:100%;min-height:40px;display:flex;justify-content:space-between;align-items:center;gap:.35rem;
     padding:.45rem 0;background:none;border:0;cursor:pointer;text-align:left;color:inherit}
   .pgrow:hover .pgname,.pgrow:focus-visible .pgname{color:var(--accent)}
   .pgname{font-family:var(--serif);font-size:calc(.855rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.15}
@@ -644,6 +644,7 @@ window.EAI_CONFIG = {
      reaches the shared sheet. Newly copied links contain only the app URL.
      ================================================================== */
   var LS_ME = "eai.me.v3", LS_ROSTER = "eai.roster.v3", LS_KEY = "eai.adminkey.v1";
+  var LS_ACCESS = "eai.access.v1"; // verified personal access, separate from drafts and links
   var LS_POST_PENDING = "eai.post.pending.v1";
   var LS_GATE = "eai.gate.v1";   // older releases stored the shared code here
 
@@ -776,6 +777,28 @@ window.EAI_CONFIG = {
     });
   }
 
+  function rememberedAccessFor(email){
+    var access = lsGet(LS_ACCESS, null);
+    email = String(email || "").trim().toLowerCase();
+    return access && access.email === email && typeof access.key === "string" &&
+      access.key.length >= 4 && access.key.length <= 200 ? access : null;
+  }
+  function rememberAccess(email, code){
+    email = String(email || "").trim().toLowerCase();
+    // Only a successful personal-access check may remember the key, and only
+    // for the identity still being used by this page. Never remember invitation access.
+    if(email !== String(S.e || "").trim().toLowerCase() || keyCandidates().indexOf(code) < 0) return;
+    lsSet(LS_ACCESS, {email:email, key:code});
+  }
+  function forgetRejectedAccess(email, code){
+    var access = rememberedAccessFor(email);
+    if(access && access.key === code) lsDel(LS_ACCESS);
+  }
+  function pinDisplay(){
+    var access = rememberedAccessFor(S.e);
+    return access && access.key === pin ? "" : pin;
+  }
+
   var revisionByEmail = {}, baseByEmail = {}, pendingSaveByEmail = {};
   var syncConflict = null;
   var CONFLICT_MSG = "The sheet and this device have different answers. Your draft is preserved. Review the differences below to finish saving.";
@@ -788,7 +811,12 @@ window.EAI_CONFIG = {
   function cloudLookupRecord(email, code){
     return jsonp({action:"get", email:String(email||"").trim().toLowerCase(), pin:String(code||"")})
       .then(function(res){
-        if(res && res.ok) return res;
+        if(res && res.ok){
+          if(res.row && String(res.row.e || "").trim().toLowerCase() === String(email || "").trim().toLowerCase())
+            rememberAccess(email, code);
+          return res;
+        }
+        if(res && (res.error === "bad_pin" || res.error === "key_reset")) forgetRejectedAccess(email, code);
         throw {code:(res && res.error) || "refused"};
       });
   }
@@ -844,9 +872,13 @@ window.EAI_CONFIG = {
       });
   }
   function cloudCounts(){
+    var email = S.e;
     return withKey(function(k){
-      return jsonp({action:"counts", email:S.e, pin:k}, 20000).then(function(res){
-        if(res && res.ok) return {counts:res.counts || {}, questions:res.questions || {}};
+      return jsonp({action:"counts", email:email, pin:k}, 20000).then(function(res){
+        if(res && res.ok){
+          rememberAccess(email, k);
+          return {counts:res.counts || {}, questions:res.questions || {}};
+        }
         throw {code:(res && res.error) || "refused"};
       });
     });
@@ -895,7 +927,7 @@ window.EAI_CONFIG = {
   var syncState = { state:"idle", msg:"" };
   var confirmedSub = null;           // last response actually read back from the sheet
   var step = 0, mode = "form", orgTab = "roster", errs = {}, built = null;
-  var needsPin = false;
+  var needsPin = false, autoResume = false;
   var editing = false;   // tracks a saved attendee's current editing session
   var thread = null;     // {key, title} while a discussion thread is open
   var posts = null;      // loaded posts for that thread, or null while loading
@@ -983,7 +1015,7 @@ window.EAI_CONFIG = {
     if(syncState.state === "ok" && (!confirmedSub || !sameSubmission(confirmedSub, S))){
       syncState = {state:"local", msg:"Your latest changes have not reached the sheet yet. Try again below."};
     }
-    lsSet(LS_ME, {sub:S, saved:saved, step:step, editing:editing,
+    lsSet(LS_ME, {sub:S, saved:saved, step:autoResume && returnAfterAccess !== null ? returnAfterAccess : step, editing:editing,
       rev:revisionByEmail[String(S.e || "").trim().toLowerCase()] || "",
       base:baseByEmail[String(S.e || "").trim().toLowerCase()] || null,
       pending:pendingSaveByEmail[String(S.e || "").trim().toLowerCase()] || null});
@@ -998,7 +1030,7 @@ window.EAI_CONFIG = {
     try { history.replaceState(null, "", location.pathname + location.search + (parts.length ? "#" + parts.join("&") : "")); } catch(e){}
   }
 
-  /* ---- boot: preserve the local draft, then purge any older stored code ---- */
+  /* ---- boot: preserve drafts and reuse only previously verified access ---- */
   (function boot(){
     var fromHash = null;
     try {
@@ -1025,6 +1057,13 @@ window.EAI_CONFIG = {
         ? mine.step : saved ? READING : 0;
     } else if(fromHash){
       S = normalize(fromHash); saved = chosen().length === 3; step = saved ? READING : 0;
+    }
+    var access = rememberedAccessFor(S.e);
+    if(API && access && !pin && !/(^|[#&])organizer\b/.test(String(location.hash || ""))){
+      pin = access.key;
+      autoResume = true;
+      returnAfterAccess = step > 0 && step !== READING ? step : null;
+      step = 0;
     }
     if(saved && API && normKey(pin).length < 2){
       step = 0; needsPin = true;
@@ -1054,11 +1093,13 @@ window.EAI_CONFIG = {
      passcode, so the normalized form can never match them. Try the current form
      first, then the legacy one, instead of locking those people out. */
   function keyCandidates(){
+    var access = rememberedAccessFor(S.e);
+    if(access && access.key === pin) return [access.key];
     var a = keyFor(pin), b = String(pin || "").trim();
     return (b && b !== a) ? [a, b] : [a];
   }
   var LOCK_MSG = "Could not load your reading right now. Please try again later.";
-  var verifiedKeyIdentity = "", verifiedKey = ""; // memory only, never browser storage
+  var verifiedKeyIdentity = "", verifiedKey = ""; // active request identity; remembered access is separate
   function withKey(fn){
     var identity = draftIdentity();
     var email = String(S.e || "").trim().toLowerCase();
@@ -1337,6 +1378,7 @@ window.EAI_CONFIG = {
       if(identity !== draftIdentity() || identityEditing || step !== 0 || mode !== "form")
         throw {code:"identity_changed"};
       var email = String(S.e || "").trim().toLowerCase();
+      if(autoResume && !res.row) throw {code:"key_reset"};
       if(res.row){
         matched = res;
         var hasAnswers = chosen().length || ["w", "c", "hopes", "moreWork", "t"].some(function(k){ return !!S[k]; }) ||
@@ -1367,6 +1409,8 @@ window.EAI_CONFIG = {
     }).then(function(){ finish(); }, finish);
 
     function finish(err){
+      var restoringDevice = autoResume;
+      autoResume = false;
       checkingDetails = false;
       if(next){ next.disabled = false; next.textContent = "Continue"; }
       if(load) load.disabled = false;
@@ -1374,6 +1418,9 @@ window.EAI_CONFIG = {
       if(identity !== draftIdentity() || identityEditing) err = {code:"identity_changed"};
       else if(!matched && !gateOk && !err) err = {code:"identity_changed"};
       if(err){
+        if(restoringDevice && (err.code === "bad_pin" || err.code === "key_reset")){
+          pin = ""; needsPin = saved;
+        }
         if(err.code === "invalid_details"){ saveLocal(); render(); return; }
         if(err.code === "bad_gate") errs.gate = "That is not the passcode from your invitation.";
         else if(err.field === "gate") errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
@@ -1450,6 +1497,7 @@ window.EAI_CONFIG = {
   }
 
   function renderStep0(){
+    if(autoResume) return '<section class="step"><div class="head thin"><h2>Loading your reading…</h2></div></section>';
     return ''
     + '<section class="step">'
     + '  <div class="head thin">'
@@ -1471,8 +1519,8 @@ window.EAI_CONFIG = {
     + '    <div class="f' + (errs.pin?" bad":"") + '">'
     + '      <label for="fpin">Favorite AI model</label>'
     + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
-    +          'placeholder="AlphaFold" value="'+esc(pin)+'" />'
-    + '      <div class="hint">Your personal access code. Use the same answer when you return.</div>'
+    +          'placeholder="AlphaFold" value="'+esc(pinDisplay())+'" />'
+    + '      <div class="hint">Your personal access code. Verified access is remembered on this device.</div>'
     +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
     + '    </div>'
     + '  </div>'
@@ -1481,7 +1529,7 @@ window.EAI_CONFIG = {
             : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Returning? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> checks saved answers without discarding this device’s draft.</span>'
+        ? '<span class="note">Returning on a new device? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> checks saved answers without discarding this device’s draft.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -2943,7 +2991,8 @@ window.EAI_CONFIG = {
   if(/(^|[#&])organizer\b/.test(String(location.hash || ""))) mode = "org";
 
   render();
-  if(API && saved && step === READING && normKey(pin).length >= 2){
+  if(autoResume && mode === "form") checkDetailsAndContinue();
+  else if(API && saved && step === READING && normKey(pin).length >= 2){
     refreshCounts();
   }
 

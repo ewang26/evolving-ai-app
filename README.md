@@ -84,6 +84,15 @@ and a hash copied between rows is useless. Eight wrong attempts per email trigge
 15-minute cool-off. A damaged or missing stored key requires organizer-assisted recovery
 after checking the attendee's identity; the app will not let someone claim that row.
 
+After successful personal-access verification, the device remembers the accepted personal
+access key with its email in `eai.access.v1`, separate from the draft and shared links.
+Returning on that device re-verifies the stored key and loads the latest answers,
+preserving unsaved local edits through the existing conflict checks. New devices still
+use the same email and model. Releases keep the storage key stable; remembered access
+is removed only when rejected by the server or when the user clears site storage.
+Accounts, access hashes, and the Sheet are unchanged. Older devices that no longer have
+their in-memory key may need to enter their existing model once to enable this feature.
+
 A one-word answer carries less entropy than a password — that is a deliberate trade for a
 group of people who would (rightly) find a password prompt insulting. The lockout limits
 guessing, but this code does not provide strong account security: a guessed code can expose

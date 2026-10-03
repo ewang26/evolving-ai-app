@@ -1678,3 +1678,103 @@ test('the 1-on-1 progress item focuses the inline dropdown without changing page
   a.t.wireProgress();button.listeners.click();
   assert.equal(focused,true);assert.equal(scrolled,true);assert.equal(a.t.state().step,3);
 });
+
+
+test('successful verification remembers access and repeated reloads restore the same account without asking for a model or writing', async () => {
+  const b=backend(), sub={...sample(),oneOnOne:null};
+  b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
+  let writes=0;
+  const relay=req=>{if(req.action==='put'){writes++;return b.post(req);}return b.get(req);};
+  const first=app({bridge:true,relay});first.t.set({S:sub,pin:'TestModel'});
+  first.nodes.loadMine.listeners.click();await new Promise(setImmediate);
+  assert.deepEqual(JSON.parse(first.storage['eai.access.v1']),{email:sub.e,key:'org:testmodel'});
+  assert.equal(first.storage['eai.gate.v1'],undefined);
+  assert.equal(Object.hasOwn(JSON.parse(first.storage['eai.me.v3']),'pin'),false);
+  const storage=first.storage;
+  for(let i=0;i<3;i++){
+    const returned=app({storage,bridge:true,relay});await new Promise(setImmediate);
+    assert.equal(returned.t.state().step,3);
+    assert.equal(returned.t.state().needsPin,false);
+    assert.equal(returned.t.state().syncState.state,'ok');
+    assert.deepEqual(JSON.parse(JSON.stringify(returned.t.state().S.q)),sub.q);
+    assert.match(returned.nodes.view.innerHTML,/readingProgress/);
+    assert.doesNotMatch(returned.nodes.view.innerHTML,/Favorite AI model/);
+    assert.equal(JSON.parse(storage['eai.access.v1']).key,'org:testmodel');
+    assert.equal(returned.requests.filter(r=>JSON.parse(r.options.body).request.action==='get').length,1);
+    assert.ok(returned.requests.every(r=>!r.url.includes('testmodel')));
+    assert.doesNotMatch(returned.t.myLink(),/testmodel|org:/);
+  }
+  assert.equal(writes,0,'Reopening a verified device must not rewrite existing submissions');
+});
+
+test('remembered access preserves unsaved questions, reading progress, preference, and the current editing step', async () => {
+  const b=backend(), sub=sample();
+  b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
+  const relay=req=>req.action==='put'?b.post(req):b.get(req);
+  const first=app({bridge:true,relay});first.t.set({S:sub,pin:'TestModel'});
+  first.nodes.loadMine.listeners.click();await new Promise(setImmediate);
+  first.t.state().S.q.T1='My unsent new question stays on this device';
+  first.t.state().S.read.paper=1;first.t.set({step:4});first.t.saveLocal();
+  const returned=app({storage:first.storage,bridge:true,relay,autoDraftTimers:false});await new Promise(setImmediate);
+  assert.equal(returned.t.state().step,4);
+  assert.equal(returned.t.state().S.q.T1,'My unsent new question stays on this device');
+  assert.equal(returned.t.state().S.read.paper,1);
+  assert.deepEqual(Array.from(returned.t.state().S.r),sub.r);
+  assert.equal(b.get({action:'get',email:sub.e,pin:'org:testmodel'}).row.q.T1,sub.q.T1);
+  assert.equal(JSON.parse(first.storage['eai.me.v3']).step,4);
+});
+
+test('email alone, a mismatched email, or an unverified model cannot create or reuse remembered access', async () => {
+  const b=backend(), sub=sample();b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
+  const relay=req=>req.action==='put'?b.post(req):b.get(req);
+  const a=app({bridge:true,relay});a.t.set({S:sub,pin:'WrongModel'});
+  a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
+  assert.equal(a.storage['eai.access.v1'],undefined);
+  const storage=localRecord({...sub,e:'different@example.invalid'},{pin:''});
+  storage['eai.access.v1']=JSON.stringify({email:sub.e,key:'org:testmodel'});
+  const other=app({storage,bridge:true,relay});await new Promise(setImmediate);
+  assert.equal(other.t.state().step,0);assert.equal(other.t.state().needsPin,true);
+  assert.equal(other.requests.length,0);
+  assert.equal(JSON.parse(storage['eai.access.v1']).email,sub.e);
+  const emailOnly=app({storage:localRecord(sub,{pin:''}),bridge:true,relay});
+  assert.equal(emailOnly.t.state().needsPin,true);assert.equal(emailOnly.requests.length,0);
+});
+
+test('network failure retains remembered access and drafts; only an explicit access rejection requires the existing model again', async () => {
+  const sub=sample(), storage=localRecord(sub,{pin:'',step:3});
+  storage['eai.access.v1']=JSON.stringify({email:sub.e,key:'org:testmodel'});
+  const offline=app({storage,bridge:true,reply:()=>({ok:false,error:'backend_error'})});await new Promise(setImmediate);
+  assert.equal(JSON.parse(storage['eai.access.v1']).key,'org:testmodel');
+  assert.equal(offline.t.state().S.q.T1,sub.q.T1);
+  const rejected=app({storage,bridge:true,reply:()=>({ok:false,error:'bad_pin'})});await new Promise(setImmediate);
+  assert.equal(storage['eai.access.v1'],undefined);
+  assert.equal(rejected.t.state().needsPin,true);assert.equal(rejected.t.state().pin,'');
+  assert.equal(rejected.t.state().S.q.T1,sub.q.T1);
+  assert.equal(rejected.requests.filter(r=>JSON.parse(r.options.body).request.action==='get').length,1);
+});
+
+test('legacy verified passcodes are remembered as accepted and do not trigger extra failed normalized attempts after reload', async () => {
+  const b=backend(), sub=sample();b.post({action:'put',sub,pin:'LegacyModel',gate:'synthetic-gate'});
+  const relay=req=>req.action==='put'?b.post(req):b.get(req);
+  const a=app({bridge:true,relay});a.t.set({S:sub,pin:'LegacyModel'});
+  a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
+  assert.equal(JSON.parse(a.storage['eai.access.v1']).key,'LegacyModel');
+  const returned=app({storage:a.storage,bridge:true,relay});await new Promise(setImmediate);
+  assert.equal(returned.t.state().step,3);
+  assert.ok(returned.requests.every(r=>JSON.parse(r.options.body).request.pin==='LegacyModel'));
+  assert.ok(!b.c.locked_(sub.e));
+});
+
+
+test('older devices still holding their existing personal code become remembered after verification without resetting answers', async () => {
+  const b=backend(), sub=sample();b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
+  const relay=req=>req.action==='put'?b.post(req):b.get(req);
+  const storage=localRecord(sub,{step:3});
+  const older=app({storage,bridge:true,relay});await new Promise(setImmediate);
+  assert.equal(older.t.state().step,3);
+  assert.equal(JSON.parse(storage['eai.access.v1']).key,'org:testmodel');
+  const returned=app({storage,bridge:true,relay});await new Promise(setImmediate);
+  assert.equal(returned.t.state().step,3);assert.equal(returned.t.state().needsPin,false);
+  assert.equal(returned.t.state().S.q.T1,sub.q.T1);
+  assert.equal(b.get({action:'get',email:sub.e,pin:'org:testmodel'}).row.q.T1,sub.q.T1);
+});
