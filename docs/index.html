@@ -93,6 +93,46 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   }
   .ghost:hover{color:var(--accent);border-color:var(--accent)}
 
+  /* ---------- gathering schedule ---------- */
+  .schedule-shortcut{color:var(--accent);border-color:rgba(236,193,135,.35);min-height:2.75rem}
+  .schedule-dialog{
+    position:fixed;inset:0;margin:auto;width:calc(100% - 2rem);max-width:54rem;
+    max-height:calc(100dvh - 2rem - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    padding:0;background:var(--bg);color:var(--text);border:1px solid rgba(236,193,135,.3);
+    border-radius:12px;box-shadow:0 1.5rem 5rem rgba(0,0,0,.35);overscroll-behavior:contain;
+  }
+  .schedule-dialog::backdrop{background:rgba(8,20,31,.78);backdrop-filter:blur(5px)}
+  .schedule-dialog-top{position:sticky;top:0;z-index:1;display:flex;align-items:center;
+    justify-content:space-between;gap:1rem;background:var(--bg);padding:.8rem 1.25rem;border-bottom:1px solid var(--line-soft)}
+  .schedule-dialog-top .ghost{color:var(--accent);min-height:2.75rem}
+  .schedule-dialog-content{padding:1.5rem}
+  body.schedule-open{overflow:hidden}
+  .gathering-schedule{border-top:1px solid var(--line-soft);padding-top:1.5rem}
+  .schedule-dialog .gathering-schedule{border:0;padding-top:0}
+  .schedule-dialog .schedule-heading{display:none}
+  .schedule-heading{font-weight:400;font-size:calc(1.8rem * var(--text-scale) + var(--text-add));line-height:1.2;margin-top:.45rem}
+  .schedule-days{display:flex;flex-direction:column;gap:1.25rem;margin-top:1.5rem}
+  .schedule-day{padding:1.25rem;background:var(--surface);border:1px solid var(--line-soft);border-radius:8px}
+  .schedule-day-heading{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
+  .schedule-date{flex:none;width:3.25rem;text-align:center;border:1px solid rgba(236,193,135,.3);border-radius:5px;
+    padding:.35rem .2rem;color:var(--accent);font-family:var(--mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase}
+  .schedule-date strong{display:block;font-family:var(--serif);font-size:1.65rem;font-weight:400;line-height:1.1;letter-spacing:0}
+  .schedule-day h3{font-size:calc(1.3rem * var(--text-scale) + var(--text-add));font-weight:400;line-height:1.25}
+  .schedule-venue + .schedule-venue{border-top:1px solid var(--line-soft);margin-top:1.15rem;padding-top:1.15rem}
+  .schedule-events{list-style:none;display:flex;flex-direction:column;gap:.75rem}
+  .schedule-event{display:grid;grid-template-columns:9.25rem 1fr;gap:.25rem 1rem;align-items:baseline}
+  .schedule-time{font-family:var(--mono);font-size:calc(.72rem * var(--text-scale) + var(--text-add));color:var(--accent);font-variant-numeric:tabular-nums}
+  .schedule-event-title{font-family:var(--sans);font-size:calc(.95rem * var(--text-scale) + var(--text-add));font-weight:500;line-height:1.45}
+  .schedule-location{font-family:var(--sans);font-size:calc(.82rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.6;margin-top:.75rem}
+  .schedule-location a{display:inline-block;margin-top:.15rem}
+  .schedule-meals{margin-top:1rem;padding:.85rem 1rem;border-left:2px solid var(--accent);background:rgba(236,193,135,.05);
+    font-family:var(--sans);font-size:calc(.82rem * var(--text-scale) + var(--text-add));color:var(--muted);line-height:1.6}
+  .schedule-meals strong{color:var(--text);font-weight:500}
+  @media (max-width:36rem){
+    .schedule-event{grid-template-columns:1fr;gap:.15rem}
+    .schedule-day,.schedule-dialog-content{padding:1rem}
+  }
+
   .rail{display:flex;gap:.3rem;max-width:40rem;margin-inline:auto;padding:0 1.1rem .7rem}
   .rail i{flex:1;height:3px;background:var(--line);border-radius:3px;transition:background .3s}
   .rail i.on{background:var(--accent)}
@@ -492,11 +532,20 @@ if ((location.hostname === "www.benchmark.com" || location.hostname === "benchma
   <div class="top-in">
     <button class="mark" id="homeBtn" type="button" aria-label="Back to the start of the form">Evolving <em>AI</em></button>
     <div class="top-sp"></div>
+    <button class="ghost schedule-shortcut" id="scheduleBtn" type="button" aria-haspopup="dialog" aria-controls="scheduleDialog">Schedule</button>
   </div>
   <div class="rail" id="rail" aria-hidden="true"></div>
 </div>
 
 <main id="view"></main>
+
+<dialog class="schedule-dialog" id="scheduleDialog" aria-labelledby="scheduleDialogTitle">
+  <div class="schedule-dialog-top">
+    <span class="eyebrow" id="scheduleDialogTitle">Conference schedule</span>
+    <form method="dialog"><button class="ghost" type="submit" autofocus>Close</button></form>
+  </div>
+  <div class="schedule-dialog-content" id="scheduleDialogContent"></div>
+</dialog>
 
 <footer class="site-legal">
   <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a>
@@ -781,7 +830,7 @@ window.EAI_CONFIG = {
     var access = lsGet(LS_ACCESS, null);
     email = String(email || "").trim().toLowerCase();
     return access && access.email === email && typeof access.key === "string" &&
-      access.key.length >= 4 && access.key.length <= 200 ? access : null;
+      access.key.length >= 4 && access.key.length <= 405 ? access : null;
   }
   function rememberAccess(email, code){
     email = String(email || "").trim().toLowerCase();
@@ -792,11 +841,7 @@ window.EAI_CONFIG = {
   }
   function forgetRejectedAccess(email, code){
     var access = rememberedAccessFor(email);
-    if(access && access.key === code) lsDel(LS_ACCESS);
-  }
-  function pinDisplay(){
-    var access = rememberedAccessFor(S.e);
-    return access && access.key === pin ? "" : pin;
+    if(access && (access.key === code || /^name:/.test(code))) lsDel(LS_ACCESS);
   }
 
   var revisionByEmail = {}, baseByEmail = {}, pendingSaveByEmail = {};
@@ -1065,7 +1110,7 @@ window.EAI_CONFIG = {
       returnAfterAccess = step > 0 && step !== READING ? step : null;
       step = 0;
     }
-    if(saved && API && normKey(pin).length < 2){
+    if(saved && API && !accessDetailsReady()){
       step = 0; needsPin = true;
     }
     if(fromHash) clearPersonalLink();
@@ -1080,24 +1125,11 @@ window.EAI_CONFIG = {
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
   function chosen(){ return S.r.filter(function(x){ return x; }); }
-  // Normalized before it is ever hashed, so "GPT-4", "gpt 4" and "gpt4" are
-  // all the same key — nobody gets locked out by capitals, a space, a hyphen
-  // or a plural. The "org:" prefix keeps it above the endpoint's minimum
-  // length even for a two-character answer.
-  function normKey(v){
-    return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/s$/, "");
+  function nameKey(){
+    return "name:" + String(S.n || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
   }
-  function keyFor(v){ var n = normKey(v); return n ? "org:" + n : ""; }
-
-  /* Submissions made before the key became a question were hashed from the raw
-     passcode, so the normalized form can never match them. Try the current form
-     first, then the legacy one, instead of locking those people out. */
-  function keyCandidates(){
-    var access = rememberedAccessFor(S.e);
-    if(access && access.key === pin) return [access.key];
-    var a = keyFor(pin), b = String(pin || "").trim();
-    return (b && b !== a) ? [a, b] : [a];
-  }
+  function accessDetailsReady(){ return !!S.n.trim() && emailOk(S.e); }
+  function keyCandidates(){ return [nameKey()]; }
   var LOCK_MSG = "Could not load your reading right now. Please try again later.";
   var verifiedKeyIdentity = "", verifiedKey = ""; // active request identity; remembered access is separate
   function withKey(fn){
@@ -1156,10 +1188,10 @@ window.EAI_CONFIG = {
   }
   /* Save drafts from personal details onward, and confirm each row before
      telling the participant it reached the sheet. */
-  function draftIdentity(){ return String(S.e || "").trim().toLowerCase() + "|" + pin; }
+  function draftIdentity(){ return String(S.e || "").trim().toLowerCase() + "|" + nameKey(); }
   function queueDraftSave(){
     clearTimeout(readTimer);
-    if(!API || checkingDetails || identityEditing || !S.n.trim() || !emailOk(S.e) || normKey(pin).length < 2) return;
+    if(!API || checkingDetails || identityEditing || !S.n.trim() || !emailOk(S.e) || !accessDetailsReady()) return;
     if(step === 0 && preparedIdentity !== draftIdentity()) return;
     if(autoSaveBlocked === draftIdentity()) return;
     var identity = draftIdentity(), code = gate;
@@ -1335,7 +1367,7 @@ window.EAI_CONFIG = {
       if(err && err.code === "identity_changed") return;
       if(err && (err.code === "bad_pin" || err.code === "locked" || err.code === "conflict")) autoSaveBlocked = draftIdentity();
       syncState = {state:"local", code:err && err.code, msg:err && err.code === "locked" ? LOCK_MSG
-        : err && err.code === "bad_pin" ? "Could not verify this email and favorite AI model. Use the same email and model you originally submitted. Your draft is preserved."
+        : err && err.code === "bad_pin" ? "Could not verify this name and email. Use the name and email you originally submitted. Your draft is preserved."
         : err && err.code === "conflict" ? (syncConflict ? CONFLICT_MSG : "The sheet changed while saving. Your draft is preserved. Select Save my progress to compare the latest answers.")
         : err && (err.code === "key_reset" || err.code === "corrupt_payload") ? "This account needs an organizer to restore access. Your draft is preserved on this device."
         : err && (err.code === "invalid_submission" || err.code === "too_large") ? "Some answers are too long or invalid for the sheet. Shorten them and try again."
@@ -1424,7 +1456,7 @@ window.EAI_CONFIG = {
         if(err.code === "invalid_details"){ saveLocal(); render(); return; }
         if(err.code === "bad_gate") errs.gate = "That is not the passcode from your invitation.";
         else if(err.field === "gate") errs.gate = "Could not verify the passcode right now. Check your connection and try again.";
-        else errs.pin = err.code === "bad_pin" ? keyErrMsg()
+        else errs.e = err.code === "bad_pin" ? keyErrMsg()
           : err.code === "locked" ? LOCK_MSG
           : err.code === "key_reset" || err.code === "corrupt_payload" ? RESET_MSG
           : err.code === "conflict" ? CONFLICT_MSG
@@ -1516,20 +1548,10 @@ window.EAI_CONFIG = {
     + fld("e","Email","email","darwin@cam.ac.uk", S.e)
     +      (emailTypo(S.e) ? '<div class="err">Did you mean .' + emailTypo(S.e) + '?</div>' : '')
     + fld("a","Affiliation","text","Cambridge", S.a)
-    + '    <div class="f' + (errs.pin?" bad":"") + '">'
-    + '      <label for="fpin">Favorite AI model</label>'
-    + '      <input id="fpin" type="text" autocomplete="off" spellcheck="false" '
-    +          'placeholder="AlphaFold" value="'+esc(pinDisplay())+'" />'
-    + '      <div class="hint">Your personal access code. Verified access is remembered on this device.</div>'
-    +        (errs.pin?'<div class="err">'+errs.pin+'</div>':'')
-    + '    </div>'
     + '  </div>'
-    +      (needsPin
-            ? '<div class="sync warn">Name your favorite AI model to finish saving. Your answers are still here.</div>'
-            : '')
     + '  <div class="resume">'
     +   (API
-        ? '<span class="note">Returning on a new device? Use the same email and model, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> checks saved answers without discarding this device’s draft.</span>'
+        ? '<span class="note">Returning on a new device? Use the same name and email, then Continue. <button class="linkish" id="loadMine" type="button">Load my reading</button> checks saved answers without discarding this device’s draft.</span>'
         : '<span class="note">Already submitted? Open the link you saved to get your reading back.</span>')
     + '    <div class="note" id="loadMsg"></div>'
     + '  </div>'
@@ -1638,8 +1660,8 @@ window.EAI_CONFIG = {
     var identity = draftIdentity();
     if(!force && participantState.identity === identity && participantState.status !== "idle") return;
     var current = participantState = {identity:identity, status:"loading", items:[], message:""};
-    if(!API || !emailOk(S.e) || normKey(pin).length < 2){
-      current.status = "error"; current.message = "Enter your email and favorite AI model in Your details to load participants.";
+    if(!API || !emailOk(S.e) || !accessDetailsReady()){
+      current.status = "error"; current.message = "Enter your name and email in Your details to load participants.";
       updateOneOnOne(); return;
     }
     updateOneOnOne();
@@ -1795,6 +1817,53 @@ window.EAI_CONFIG = {
       + '</div>';
   }
 
+  function renderSchedule(){
+    var hebMap = "https://www.google.com/maps/search/?api=1&query=11+Divinity+Avenue+Cambridge+MA+02138";
+    var harvestMap = "https://www.google.com/maps/search/?api=1&query=44+Brattle+Street+Cambridge+MA";
+    var facultyMap = "https://www.google.com/maps/search/?api=1&query=20+Quincy+Street+Cambridge+MA";
+    function event(time, title){
+      return '<li class="schedule-event"><span class="schedule-time">' + time + '</span>'
+        + '<span class="schedule-event-title">' + title + '</span></li>';
+    }
+    function location(name, address, map){
+      return '<p class="schedule-location">' + name
+        + (map ? '<br><a href="' + map + '" target="_blank" rel="noopener noreferrer">' + address + ' ↗</a>' : '')
+        + '</p>';
+    }
+    function day(date, weekday){
+      return '<section class="schedule-day"><div class="schedule-day-heading">'
+        + '<span class="schedule-date" aria-hidden="true">Oct<strong>' + date + '</strong></span>'
+        + '<h3>' + weekday + ', October ' + date + '</h3></div>';
+    }
+    return '<section class="gathering-schedule" aria-label="Conference schedule">'
+      + '<h2 class="schedule-heading">Conference schedule</h2>'
+      + '<div class="schedule-days">'
+      + day("8", "Thursday")
+      + '<div class="schedule-venue"><ul class="schedule-events">'
+      + event("2:00–6:00 PM", "Informal gathering at HEB") + '</ul>'
+      + location("Harvard Human Evolutionary Biology", "11 Divinity Avenue · Cambridge, MA 02138", hebMap) + '</div>'
+      + '<div class="schedule-venue"><ul class="schedule-events">'
+      + event("6:00–7:00 PM", "Welcome reception at Harvest")
+      + event("7:00 PM", "Dinner") + '</ul>'
+      + location("Harvest", "44 Brattle Street · Cambridge, MA", harvestMap) + '</div></section>'
+      + day("9", "Friday")
+      + '<div class="schedule-venue"><ul class="schedule-events">'
+      + event("9:00 AM–5:00 PM", "Gathering at Gutman") + '</ul>'
+      + location("Gutman Conference Center / Harvard Graduate School of Education")
+      + '<div class="schedule-meals"><p><strong>Breakfast:</strong> Available at your hotel, or at Gutman from 8:30–9:30 AM.</p>'
+      + '<p><strong>Lunch:</strong> Provided from 12:00–1:00 PM.</p>'
+      + '<p><strong>Coffee:</strong> Multiple breaks throughout the day.</p></div></div>'
+      + '<div class="schedule-venue"><ul class="schedule-events">'
+      + event("5:30 PM", "Reception at Harvard Faculty Club")
+      + event("6:15 PM", "Dinner") + '</ul>'
+      + location("Harvard Faculty Club", "20 Quincy Street · Cambridge, MA", facultyMap) + '</div></section>'
+      + day("10", "Saturday")
+      + '<div class="schedule-venue"><ul class="schedule-events">'
+      + event("9:00 AM–12:00 PM", "Unconference at HEB") + '</ul>'
+      + location("Harvard Human Evolutionary Biology", "11 Divinity Avenue · Cambridge, MA", hebMap) + '</div></section>'
+      + '</div></section>';
+  }
+
   function renderReading(){
     var ids = chosen(), done = saved;
     var otherTopics = TOPICS.filter(function(t){ return ids.indexOf(t.id) === -1; });
@@ -1856,7 +1925,7 @@ window.EAI_CONFIG = {
     + '      <span class="gsub">For everyone</span>'
     + '      <span class="gbadge">' + (counts["general"] || 0) + '</span>'
     + '    </button>'
-    + '    <p class="note">Bookmark this page. On another device, use the same email and favorite AI model to resume.</p>'
+    + '    <p class="note">Bookmark this page. On another device, use the same name and email to resume.</p>'
     + '    <div class="btnrow">'
     + '      <button class="btn btn-out" id="copyLink" type="button" style="flex:0 1 auto">Copy app link</button>'
     + '      <button class="btn btn-out" id="copyRead" type="button">Copy reading list</button>'
@@ -1865,6 +1934,7 @@ window.EAI_CONFIG = {
             ? '<button class="btn btn-out" id="retrySync" type="button"' + (syncState.state === "ok" ? ' hidden' : '') + (syncState.state === "saving" ? ' disabled>Saving…' : '>Save my progress') + '</button>' : '')
     + '    </div>'
     + '  </div>' : '')
+    + renderSchedule()
     + '</section>';
   }
 
@@ -2033,10 +2103,9 @@ window.EAI_CONFIG = {
     errs = {};
     if(n===0){
       if(!accessOnly && !gateOk && (!saved || API) && !String(gate).trim()) errs.gate = "Enter the passcode from your invitation.";
-      if(!accessOnly && !S.n.trim()) errs.n = "We need a name to put on your questions.";
+      if(!S.n.trim()) errs.n = "We need a name to put on your questions.";
       if(!emailOk(S.e)) errs.e = "Enter an email we can reach you at.";
       if(!accessOnly && !S.a.trim()) errs.a = "Where are you coming from?";
-      if(normKey(pin).length < 2) errs.pin = "Name a model.";
     }
     if(n===WORK){
       if(S.w.trim().length < 10) errs.w = "One sentence is enough.";
@@ -2418,6 +2487,17 @@ window.EAI_CONFIG = {
   var modeBtn = null;   // the console has no button: it opens on #organizer
   var homeBtn = document.getElementById("homeBtn");
 
+  var scheduleDialog = document.getElementById("scheduleDialog");
+  document.getElementById("scheduleDialogContent").innerHTML = renderSchedule();
+  document.getElementById("scheduleBtn").addEventListener("click", function(){
+    scheduleDialog.showModal();
+    scheduleDialog.scrollTop = 0;
+    document.body.classList.add("schedule-open");
+  });
+  scheduleDialog.addEventListener("close", function(){
+    document.body.classList.remove("schedule-open");
+  });
+
   function render(){
     if(mode === "thread" || mode === "topic"){
       rail.innerHTML = "";
@@ -2473,7 +2553,7 @@ window.EAI_CONFIG = {
     }
     if(code === "bad_pin" || code === "locked"){
       syncState = {state:"local", msg:code === "locked" ? ""
-        : "Could not verify your email and favorite AI model. Your draft is preserved. Use Back or Your details to check the personal code you originally used."};
+        : "Could not verify your name and email. Your draft is preserved. Use Back or Your details to check the name and email you originally submitted."};
       saveLocal(); render();
       return;
     }
@@ -2488,11 +2568,11 @@ window.EAI_CONFIG = {
 
   /* Writes the record as soon as the topics are picked. Nothing forces anybody
      into the questions: they can close the tab, read over a few days, and come
-     back to the same reading with email + model. */
+     back to the same reading with name and email. */
   /* Authentication failures do not establish whether a submission exists.
      Local saved state cannot distinguish a missing row from a wrong code. */
   function keyErrMsg(){
-    return "Could not verify this email and favorite AI model. Use the same email and model you originally submitted. This error does not tell us whether your answers were saved.";
+    return "Could not verify this name and email. Use the name and email you originally submitted. This error does not tell us whether your answers were saved.";
   }
 
   function confirmCurrentSave(row){
@@ -2583,7 +2663,7 @@ window.EAI_CONFIG = {
     wireSyncActions();
     if(step === READING){ wireOneOnOne(); loadParticipants(false); }
     else if(API && (step === WORK || step === STEP_TOPICS) &&
-      (gateOk || verifiedKeyIdentity === draftIdentity()) && emailOk(S.e) && normKey(pin).length >= 2){
+      (gateOk || verifiedKeyIdentity === draftIdentity()) && emailOk(S.e) && accessDetailsReady()){
       // Start after verified access, while the attendee uses the earlier pages.
       // loadParticipants reuses the same in-flight request and session result.
       loadParticipants(false);
@@ -2593,11 +2673,11 @@ window.EAI_CONFIG = {
         var k = inp.getAttribute("data-k");
         S[k] = inp.value;
         saveLocal();
-        if(k === "e"){ identityEditing = true; clearTimeout(readTimer); }
+        if(k === "e" || k === "n"){ identityEditing = true; clearTimeout(readTimer); }
         else queueDraftSave();
       });
       inp.addEventListener("change", function(){
-        if(inp.getAttribute("data-k") === "e") identityEditing = false;
+        if(inp.getAttribute("data-k") === "e" || inp.getAttribute("data-k") === "n") identityEditing = false;
         saveLocal(); queueDraftSave();
       });
     });
@@ -2618,12 +2698,6 @@ window.EAI_CONFIG = {
 
     var gateEl = document.getElementById("fgate");
     if(gateEl) gateEl.addEventListener("input", function(){ gate = gateEl.value; gateOk = false; queueDraftSave(); });
-
-    var pinEl = document.getElementById("fpin");
-    if(pinEl){
-      pinEl.addEventListener("input", function(){ pin = pinEl.value; identityEditing = true; clearTimeout(readTimer); saveLocal(); });
-      pinEl.addEventListener("change", function(){ identityEditing = false; queueDraftSave(); });
-    }
 
     var next = document.getElementById("next");
     if(next) next.addEventListener("click", function(){
@@ -2697,7 +2771,7 @@ window.EAI_CONFIG = {
       if(checkingDetails) return;
       var msg = document.getElementById("loadMsg");
       if(!emailOk(S.e)){ msg.innerHTML = '<span class="warnt">Enter your email above first.</span>'; return; }
-      if(normKey(pin).length < 2){ msg.innerHTML = '<span class="warnt">Fill in your model above too.</span>'; return; }
+      if(!accessDetailsReady()){ msg.innerHTML = '<span class="warnt">Enter your name above too.</span>'; return; }
       var identity = draftIdentity(), next = document.getElementById("next");
       checkingDetails = true; identityEditing = false; clearTimeout(readTimer);
       lm.disabled = true; if(next) next.disabled = true;
@@ -2992,7 +3066,7 @@ window.EAI_CONFIG = {
 
   render();
   if(autoResume && mode === "form") checkDetailsAndContinue();
-  else if(API && saved && step === READING && normKey(pin).length >= 2){
+  else if(API && saved && step === READING && accessDetailsReady()){
     refreshCounts();
   }
 

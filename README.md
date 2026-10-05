@@ -61,7 +61,7 @@ re-deploying changes nothing, because the web app serves the deployed version.
 **To rotate the invitation passcode:** change the private `GATE_CODE` in the same
 script project and deploy a new version to the existing web app. The new code is
 needed only for new attendee entries; existing attendees keep access through their
-email and favorite-model answer. Give invitees the new code through the normal
+name and email. Give invitees the new code through the normal
 invitation channel, and do not put it in this repository.
 
 **To move the endpoint** (new Google account, or a fresh deployment): paste
@@ -74,33 +74,20 @@ Pacific on November 10, 2026. It does not delete any Google Sheet rows. The
 organizer keeps submissions and discussion data until they explicitly request
 removal. No cleanup trigger is installed.
 
-**The key is a question, not a password.** Participants name a favorite AI model, which
-gates both directions: you cannot read somebody's submission back, and you cannot overwrite
-it, without theirs. The answer is normalized in the browser (lowercased, punctuation and
-spaces stripped, a trailing "s" dropped) and prefixed `org:`, so "GPT-4", "gpt 4" and
-"gpt4" are one key and nobody is locked out by capitals or a hyphen. Only a salted
-SHA-256 of `email + key` reaches the sheet, so it cannot be used to recover anyone's answer
-and a hash copied between rows is useless. Eight wrong attempts per email triggers a
-15-minute cool-off. A damaged or missing stored key requires organizer-assisted recovery
-after checking the attendee's identity; the app will not let someone claim that row.
+**Returning access uses name and email.** Participants enter the name and email
+saved on their attendee entry; the favorite-model question is no longer required.
+Names are matched without case or whitespace differences. The existing relay
+protocol carries a `name:` lookup value in its `pin` field, and all attendee reads,
+saves, and discussions use this lookup. This is convenient lookup, not proof of
+identity: someone who knows the matching name and email can access that entry.
+New registrations still require the invitation passcode. Wrong-name attempts keep
+the existing eight-attempt, 15-minute cooldown.
 
-After successful personal-access verification, the device remembers the accepted personal
-access key with its email in `eai.access.v1`, separate from the draft and shared links.
-Returning on that device re-verifies the stored key and loads the latest answers,
-preserving unsaved local edits through the existing conflict checks. New devices still
-use the same email and model. Releases keep the storage key stable; remembered access
-is removed only when rejected by the server or when the user clears site storage.
-Accounts, access hashes, and the Sheet are unchanged. Older devices that no longer have
-their in-memory key may need to enter their existing model once to enable this feature.
-
-A one-word answer carries less entropy than a password — that is a deliberate trade for a
-group of people who would (rightly) find a password prompt insulting. The lockout limits
-guessing, but this code does not provide strong account security: a guessed code can expose
-an attendee's full submission and discussion access.
-
-Older cached releases can send the personal answer in a JSONP URL. It is HTTPS in transit,
-but URLs may be retained in request logs. The shared invitation code should be rotated
-because an older public commit contained it.
+Legacy model hashes stay in place so cached clients can still access their entries.
+Reading an existing entry never rewrites it. Name-based saves preserve the old hash,
+row revisions, and fields an older client does not know about. Verified devices
+remember their lookup details in `eai.access.v1`; shared links contain only the
+public app address. To request removal of an entry, contact the organizer.
 
 Reserved `@example.invalid` test accounts use the same reading and saving flow, but
 their discussion questions, posts, and counts are separated from real attendee
@@ -218,7 +205,7 @@ them into rooms.
 
 ## Data
 
-Submissions contain a name, email, affiliation, a salted personal-answer hash, topic choices,
+Submissions contain a name, email, affiliation, legacy access hashes, topic choices,
 questions, and optional work details. They are stored in the organizer's Google Sheet and
 the participant's local draft. Current copied links contain only the public app address;
 older `#s=` links may still contain a readable submission. There is no analytics SDK.
@@ -289,7 +276,7 @@ chose a topic before allowing its thread to be read or posted to.
 **General discussion.** The same thread machinery under the key `general`, reached from the
 reading page.
 
-**Who can take part.** Reading *and* posting require the same email + favorite-AI-model key
+**Who can take part.** Reading *and* posting require the same name and email lookup
 that guards a submission, checked server-side against the Submissions row. Posts are
 attributable, and only people with a saved attendee entry can join.
 

@@ -190,7 +190,7 @@ test('old personal link preserves the draft but purges the stored personal code'
   const reloaded = app({ storage: a.storage });
   assert.equal(reloaded.t.state().S.q.T1, draft.q.T1);
   assert.equal(reloaded.t.state().pin, '');
-  assert.equal(reloaded.t.state().needsPin, true);
+  assert.equal(reloaded.t.state().needsPin, false);
 });
 
 test('an invitation code left by an older release is removed from browser storage', async () => {
@@ -221,14 +221,14 @@ test('a different attendee link never inherits the previous attendee code', () =
   const a = app({ hash: linkHash(linked), storage: localRecord(sample()) });
   assert.equal(a.t.state().S.e, linked.e);
   assert.equal(a.t.state().pin, '');
-  assert.equal(a.t.state().needsPin, true);
-  assert.equal(a.t.state().step, 0);
+  assert.equal(a.t.state().needsPin, false);
+  assert.equal(a.t.state().step, 3);
 });
 
-test('new-device import preserves answers and requests the missing personal code', () => {
+test('new-device import preserves answers without requiring a model', () => {
   const a = app({ hash: linkHash(sample()) });
   assert.equal(a.t.state().S.q.T1, sample().q.T1);
-  assert.equal(a.t.state().needsPin, true);
+  assert.equal(a.t.state().needsPin, false);
   assert.equal(a.t.state().saved, true);
   assert.equal(a.context.location.hash, '');
 });
@@ -480,7 +480,7 @@ test('authentication rejection never claims answers are pending based on local s
   for (const saved of [false, true]) {
     const a = app({ api: '' });
     a.t.set({ saved });
-    assert.match(a.t.keyErrMsg(), /Could not verify this email and favorite AI model/);
+    assert.match(a.t.keyErrMsg(), /Could not verify this name and email/);
     assert.match(a.t.keyErrMsg(), /does not tell us whether your answers were saved/);
     assert.doesNotMatch(a.t.keyErrMsg(), /Give it a moment|not reached the sheet yet/);
   }
@@ -527,7 +527,7 @@ test('save authentication failures preserve the current step and display an expl
     if (code === 'locked') {
       assert.match(a.nodes.view.innerHTML, /Saved on this device\. Latest sheet save unconfirmed/);
       assert.doesNotMatch(a.nodes.view.innerHTML, /Wait 15 minutes|temporarily locked|personal code is/);
-    } else assert.match(a.nodes.view.innerHTML, /favorite AI model/);
+    } else assert.match(a.nodes.view.innerHTML, /name and email/);
   }
 });
 
@@ -678,7 +678,7 @@ test('rejected credentials do not create an automatic save retry loop', async ()
   await a.t.saveDraftNow();
   assert.equal(a.requests.length, attempts);
   assert.equal(a.t.state().syncState.state, 'local');
-  assert.match(a.t.state().syncState.msg, /Could not verify this email and favorite AI model/);
+  assert.match(a.t.state().syncState.msg, /Could not verify this name and email/);
   assert.doesNotMatch(a.t.state().syncState.msg, /organizer|restore access/);
 });
 
@@ -696,8 +696,8 @@ for (const variant of [
       actions.push(request.action);
       return request.action === 'put' ? b.post(request) : b.get(request);
     } });
-    // Returning users need only email + model, not name, affiliation or invite.
-    a.t.set({ S: a.t.normalize({ e: sub.e }), pin: 'TestModel' });
+    // Returning users need only name and email; legacy model hashes remain unchanged.
+    a.t.set({ S: a.t.normalize({ n: sub.n, e: sub.e }), pin: 'TestModel' });
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
     assert.equal(a.t.state().step, 3);
@@ -717,7 +717,7 @@ test('Continue resumes partially saved submissions at work or topics', async () 
     const before = JSON.stringify(b.tabs.Submissions.rows);
     const a = app({ bridge: true, relay: request =>
       request.action === 'put' ? b.post(request) : b.get(request) });
-    a.t.set({ S: a.t.normalize({ e: sub.e }), pin: 'TestModel' });
+    a.t.set({ S: a.t.normalize({ n: sub.n, e: sub.e }), pin: 'TestModel' });
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
     assert.equal(a.t.state().step, expectedStep);
@@ -731,10 +731,10 @@ test('Continue auto-loads after a reload left only login fields on this device',
   const b = backend(), sub = sample();
   assert.equal(b.post({ sub, pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
   const before = JSON.stringify(b.tabs.Submissions.rows);
-  const storage = localRecord({ n: '', e: sub.e, a: '', r: [], q: {} }, { pin: '', saved: false, step: 0 });
+  const storage = localRecord({ n: sub.n, e: sub.e, a: '', r: [], q: {} }, { pin: '', saved: false, step: 0 });
   const a = app({ storage, bridge: true, relay: request =>
     request.action === 'put' ? b.post(request) : b.get(request) });
-  a.nodes.fpin.value = 'TestModel'; a.nodes.fpin.listeners.input();
+  a.t.state().S.n = sample().n;
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 3);
@@ -754,7 +754,7 @@ test('Continue switches between previously loaded accounts without mixing or rew
     return b.get(request);
   } });
   for (const sub of [first, second, first]) {
-    a.t.state().S.e = sub.e;
+    a.t.state().S.e = sub.e; a.t.state().S.n = sub.n;
     a.t.set({ pin: 'TestModel', step: 0 }); a.t.wireForm();
     a.nodes.next.listeners.click();
     await new Promise(setImmediate);
@@ -771,12 +771,12 @@ test('Continue still requires registration details when the authenticated lookup
     actions.push(request.action);
     return request.action === 'put' ? b.post(request) : b.get(request);
   } });
-  a.t.set({ S: a.t.normalize({ e: sample().e }), pin: 'TestModel' });
+  a.t.set({ S: a.t.normalize({ n: sample().n, e: sample().e }), pin: 'TestModel' });
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
   assert.match(a.nodes.view.innerHTML, /Enter the passcode from your invitation/);
-  assert.match(a.nodes.view.innerHTML, /We need a name/);
+  assert.doesNotMatch(a.nodes.view.innerHTML, /We need a name/);
   assert.match(a.nodes.view.innerHTML, /Where are you coming from/);
   assert.deepEqual(actions, ['get']);
   assert.equal(b.tabs.Submissions.rows.length, 1);
@@ -788,7 +788,7 @@ test('Continue does not replace or upload an older local draft whose saved revis
   const before = JSON.stringify(b.tabs.Submissions.rows);
   const a = app({ storage: localRecord(local, { pin: '', step: 0 }), bridge: true,
     relay: request => request.action === 'put' ? b.post(request) : b.get(request) });
-  a.nodes.fpin.value = 'TestModel'; a.nodes.fpin.listeners.input();
+  a.t.state().S.n = sample().n;
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
@@ -819,13 +819,13 @@ test('Continue verifies a returning attendee before advancing beyond their detai
     if (request.action === 'put') { writes++; return b.post(request); }
     return b.get(request);
   } });
-  a.t.set({ S: sample(), pin: 'DifferentModel' });
+  a.t.set({ S: { ...sample(), n: 'Wrong attendee' }, pin: '' });
   a.nodes.fgate.value = 'synthetic-gate';
   a.nodes.fgate.listeners.input();
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
-  assert.match(a.nodes.view.innerHTML, /same email and model you originally submitted/);
+  assert.match(a.nodes.view.innerHTML, /name and email you originally submitted/);
   assert.equal(writes, 0);
   assert.equal(a.t.state().S.q.T1, sample().q.T1);
 });
@@ -835,15 +835,14 @@ test('correcting access from the questions page saves the preserved draft and re
   assert.equal(b.post({ sub: sample(), pin: 'org:testmodel', gate: 'synthetic-gate' }).ok, true);
   const a = app({ bridge: true, relay: request =>
     request.action === 'put' ? b.post(request) : b.get(request) });
-  a.t.set({ S: draft, pin: 'DifferentModel', saved: true, step: 4 });
+  a.t.set({ S: { ...draft, n: 'Wrong attendee' }, pin: '', saved: true, step: 4 });
   await a.t.saveDraftNow();
   assert.equal(a.t.state().syncState.code, 'bad_pin');
   assert.doesNotMatch(a.t.state().syncState.msg, /organizer|restore access/);
   a.nodes.checkAccess.onclick();
   assert.equal(a.t.state().step, 0);
   assert.equal(a.t.state().S.q.T1, draft.q.T1);
-  a.nodes.fpin.value = 'TestModel';
-  a.nodes.fpin.listeners.input();
+  a.t.state().S.n = sample().n;
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 4);
@@ -893,12 +892,10 @@ test('reloading an older local draft preserves unsent answers when the sheet onl
   const storage = { 'eai.me.v3': JSON.stringify({ sub: draft, saved: true, step: 4, rev: recorded.rev }) };
   const a = app({ storage, bridge: true, relay: request =>
     request.action === 'put' ? b.post(request) : b.get(request) });
-  assert.equal(a.t.state().step, 0);
+  assert.equal(a.t.state().step, 4);
   assert.deepEqual(JSON.parse(JSON.stringify(a.t.state().S.q)), draft.q);
-  a.nodes.fpin.value = 'TestModel';
-  a.nodes.fpin.listeners.input();
-  a.nodes.next.listeners.click();
-  await new Promise(setImmediate);
+  a.t.state().S.n = sample().n;
+  await a.t.saveDraftNow();
   assert.equal(a.t.state().syncState.state, 'ok');
   const restored = b.get({ action: 'get', email: initial.e, pin: 'org:testmodel' }).row;
   assert.deepEqual(restored.q, draft.q);
@@ -947,8 +944,7 @@ test('Continue waits for a slow access check and ignores credentials changed dur
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
   assert.equal(a.nodes.next.disabled, true);
-  a.nodes.fpin.value = 'DifferentModel';
-  a.nodes.fpin.listeners.input();
+  a.t.state().S.n = 'Changed attendee name';
   finishLookup({ ok: true, row: sample(), rev: 'test-revision' });
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
@@ -956,13 +952,13 @@ test('Continue waits for a slow access check and ignores credentials changed dur
   assert.match(a.nodes.view.innerHTML, /access details changed while checking/);
 });
 
-test('a slow reading lookup cannot accept a personal code changed while it was running', async () => {
+test('a slow reading lookup cannot accept a name changed while it was running', async () => {
   let finishLookup;
   const a = app({ bridge: true, relay: () => new Promise(resolve => { finishLookup = resolve; }) });
   a.t.set({ S: sample(), pin: 'TestModel' });
   a.nodes.loadMine.listeners.click();
   await new Promise(setImmediate);
-  a.t.set({ pin: 'DifferentModel' });
+  a.t.state().S.n = 'Changed attendee name';
   finishLookup({ ok: true, row: sample(), rev: 'test-revision' });
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
@@ -1025,8 +1021,7 @@ test('re-entering a code after reload cannot overwrite a newer sheet revision', 
   const a = app({ storage, bridge: true, relay: request =>
     request.action === 'put' ? b.post(request) : b.get(request) });
   assert.equal(a.t.state().pin, '');
-  a.nodes.fpin.value = 'TestModel';
-  a.nodes.fpin.listeners.input();
+  a.t.state().S.n = sample().n;
   a.nodes.next.listeners.click();
   await new Promise(setImmediate);
   assert.equal(a.t.state().step, 0);
@@ -1063,7 +1058,7 @@ for (const storedKey of [null, 'org:testmodel', 'TestModel']) {
     await new Promise(setImmediate);
     assert.equal(a.t.state().step, 4);
     assert.equal(a.t.state().syncState.state, 'ok');
-    const restored = b.get({ action: 'get', email: sample().e, pin: storedKey || 'org:testmodel' });
+    const restored = b.get({ action: 'get', email: sample().e, pin: storedKey || 'name:test attendee' });
     assert.equal(restored.ok, true);
     assert.deepEqual(restored.row.r, ['T1', 'T2', 'T3']);
     assert.equal(restored.row.hopes, 'Compare approaches and share research');
@@ -1384,7 +1379,7 @@ for (const useSheet of [false, true]) {
     const local = sample(); local.q.T1 = 'Local-only answer that must survive';
     const storage = localRecord(local, { pin: '', rev: 'older-revision', step: 0 });
     const a = app({ bridge: true, storage, relay });
-    a.nodes.fpin.value = 'TestModel'; a.nodes.fpin.listeners.input();
+    a.t.state().S.n = sample().n;
     const before = JSON.stringify(b.tabs.Submissions.rows);
     a.nodes.loadMine.listeners.click();
     await new Promise(setImmediate);
@@ -1472,9 +1467,9 @@ test('a known unsent draft survives loading a reading even when its Sheet revisi
   assert.equal(a.t.state().syncState.state, 'ok');
 });
 
-test('Load my reading restores an email-only login retained from a previous reload', async () => {
+test('Load my reading restores a name-and-email login retained from a previous reload', async () => {
   const { b, relay } = savedBackend();
-  const a = app({ bridge: true, storage: localRecord({ e: sample().e }, { saved: false, step: 0 }), relay });
+  const a = app({ bridge: true, storage: localRecord({ n: sample().n, e: sample().e }, { saved: false, step: 0 }), relay });
   const before = JSON.stringify(b.tabs.Submissions.rows);
   a.nodes.loadMine.listeners.click(); await new Promise(setImmediate);
   assert.equal(a.t.state().step, 3);
@@ -1687,7 +1682,7 @@ test('successful verification remembers access and repeated reloads restore the 
   const relay=req=>{if(req.action==='put'){writes++;return b.post(req);}return b.get(req);};
   const first=app({bridge:true,relay});first.t.set({S:sub,pin:'TestModel'});
   first.nodes.loadMine.listeners.click();await new Promise(setImmediate);
-  assert.deepEqual(JSON.parse(first.storage['eai.access.v1']),{email:sub.e,key:'org:testmodel'});
+  assert.deepEqual(JSON.parse(first.storage['eai.access.v1']),{email:sub.e,key:'name:test attendee'});
   assert.equal(first.storage['eai.gate.v1'],undefined);
   assert.equal(Object.hasOwn(JSON.parse(first.storage['eai.me.v3']),'pin'),false);
   const storage=first.storage;
@@ -1699,7 +1694,7 @@ test('successful verification remembers access and repeated reloads restore the 
     assert.deepEqual(JSON.parse(JSON.stringify(returned.t.state().S.q)),sub.q);
     assert.match(returned.nodes.view.innerHTML,/readingProgress/);
     assert.doesNotMatch(returned.nodes.view.innerHTML,/Favorite AI model/);
-    assert.equal(JSON.parse(storage['eai.access.v1']).key,'org:testmodel');
+    assert.equal(JSON.parse(storage['eai.access.v1']).key,'name:test attendee');
     assert.equal(returned.requests.filter(r=>JSON.parse(r.options.body).request.action==='get').length,1);
     assert.ok(returned.requests.every(r=>!r.url.includes('testmodel')));
     assert.doesNotMatch(returned.t.myLink(),/testmodel|org:/);
@@ -1724,23 +1719,24 @@ test('remembered access preserves unsaved questions, reading progress, preferenc
   assert.equal(JSON.parse(first.storage['eai.me.v3']).step,4);
 });
 
-test('email alone, a mismatched email, or an unverified model cannot create or reuse remembered access', async () => {
-  const b=backend(), sub=sample();b.post({action:'put',sub,pin:'org:testmodel',gate:'synthetic-gate'});
-  const relay=req=>req.action==='put'?b.post(req):b.get(req);
-  const a=app({bridge:true,relay});a.t.set({S:sub,pin:'WrongModel'});
-  a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
-  assert.equal(a.storage['eai.access.v1'],undefined);
-  const storage=localRecord({...sub,e:'different@example.invalid'},{pin:''});
-  storage['eai.access.v1']=JSON.stringify({email:sub.e,key:'org:testmodel'});
-  const other=app({storage,bridge:true,relay});await new Promise(setImmediate);
-  assert.equal(other.t.state().step,0);assert.equal(other.t.state().needsPin,true);
-  assert.equal(other.requests.length,0);
-  assert.equal(JSON.parse(storage['eai.access.v1']).email,sub.e);
-  const emailOnly=app({storage:localRecord(sub,{pin:''}),bridge:true,relay});
-  assert.equal(emailOnly.t.state().needsPin,true);assert.equal(emailOnly.requests.length,0);
+test('missing or mismatched names cannot fetch saved information', async () => {
+  const b = backend(), sub = sample();
+  b.post({action:'put', sub, pin:'org:testmodel', gate:'synthetic-gate'});
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  const relay = req => req.action === 'put' ? b.post(req) : b.get(req);
+  for (const name of ['', 'Wrong attendee']) {
+    const a = app({bridge:true, relay});
+    a.t.set({S:{...sub, n:name}, pin:''});
+    a.nodes.loadMine.listeners.click(); await new Promise(setImmediate);
+    assert.equal(a.t.state().step, 0);
+    assert.equal(a.storage['eai.access.v1'], undefined);
+    if (!name) assert.equal(a.requests.length, 0);
+    else assert.ok(a.requests.length > 0);
+  }
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
 });
 
-test('network failure retains remembered access and drafts; only an explicit access rejection requires the existing model again', async () => {
+test('network failure retains remembered access and drafts; an explicit access rejection returns to name and email', async () => {
   const sub=sample(), storage=localRecord(sub,{pin:'',step:3});
   storage['eai.access.v1']=JSON.stringify({email:sub.e,key:'org:testmodel'});
   const offline=app({storage,bridge:true,reply:()=>({ok:false,error:'backend_error'})});await new Promise(setImmediate);
@@ -1753,15 +1749,15 @@ test('network failure retains remembered access and drafts; only an explicit acc
   assert.equal(rejected.requests.filter(r=>JSON.parse(r.options.body).request.action==='get').length,1);
 });
 
-test('legacy verified passcodes are remembered as accepted and do not trigger extra failed normalized attempts after reload', async () => {
+test('legacy entries resume by name and email without guessing or changing their model key', async () => {
   const b=backend(), sub=sample();b.post({action:'put',sub,pin:'LegacyModel',gate:'synthetic-gate'});
   const relay=req=>req.action==='put'?b.post(req):b.get(req);
   const a=app({bridge:true,relay});a.t.set({S:sub,pin:'LegacyModel'});
   a.nodes.loadMine.listeners.click();await new Promise(setImmediate);
-  assert.equal(JSON.parse(a.storage['eai.access.v1']).key,'LegacyModel');
+  assert.equal(JSON.parse(a.storage['eai.access.v1']).key,'name:test attendee');
   const returned=app({storage:a.storage,bridge:true,relay});await new Promise(setImmediate);
   assert.equal(returned.t.state().step,3);
-  assert.ok(returned.requests.every(r=>JSON.parse(r.options.body).request.pin==='LegacyModel'));
+  assert.ok(returned.requests.every(r=>JSON.parse(r.options.body).request.pin==='name:test attendee'));
   assert.ok(!b.c.locked_(sub.e));
 });
 
@@ -1772,9 +1768,34 @@ test('older devices still holding their existing personal code become remembered
   const storage=localRecord(sub,{step:3});
   const older=app({storage,bridge:true,relay});await new Promise(setImmediate);
   assert.equal(older.t.state().step,3);
-  assert.equal(JSON.parse(storage['eai.access.v1']).key,'org:testmodel');
+  assert.equal(JSON.parse(storage['eai.access.v1']).key,'name:test attendee');
   const returned=app({storage,bridge:true,relay});await new Promise(setImmediate);
   assert.equal(returned.t.state().step,3);assert.equal(returned.t.state().needsPin,false);
   assert.equal(returned.t.state().S.q.T1,sub.q.T1);
   assert.equal(b.get({action:'get',email:sub.e,pin:'org:testmodel'}).row.q.T1,sub.q.T1);
+});
+
+test('the attendee screens omit deletion and model controls, and returning access needs name and email only', async () => {
+  const b = backend(), sub = sample();
+  b.post({sub, pin:'LegacyModel', gate:'synthetic-gate'});
+  const before = JSON.stringify(b.tabs.Submissions.rows);
+  const a = app({bridge:true, relay:req => req.action === 'put' ? b.post(req) : b.get(req)});
+  assert.doesNotMatch(a.t.renderStep0(), /Favorite AI model|fpin|Delete my attendee entry|showDelete/);
+  a.t.set({S:a.t.normalize({n:sub.n, e:sub.e}), pin:''});
+  a.nodes.next.listeners.click(); await new Promise(setImmediate);
+  assert.equal(a.t.state().step, 3);
+  assert.equal(a.t.state().S.q.T1, sub.q.T1);
+  assert.equal(JSON.stringify(b.tabs.Submissions.rows), before);
+  assert.doesNotMatch(a.t.renderReading(), /Delete my attendee entry|showDelete/);
+  assert.match(a.t.renderReading(), /Conference schedule/);
+  assert.match(a.nodes.scheduleDialogContent.innerHTML, /Saturday, October 10/);
+});
+
+test('changing the name during a save cannot accept an earlier attendee identity', async () => {
+  const a = app(); a.t.set({S:sample(), pin:''});
+  let complete;
+  const request = a.t.withKey(() => new Promise(resolve => { complete = resolve; }));
+  a.t.state().S.n = 'Different attendee';
+  const rejection = assert.rejects(request, err => err.code === 'identity_changed');
+  complete({ok:true}); await rejection;
 });

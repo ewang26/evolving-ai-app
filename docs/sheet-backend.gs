@@ -272,10 +272,20 @@ function tab_(name, headers) {
 }
 
 /**
- * Discussion is for people who have submitted. The same email + favorite-model
- * key that guards a submission also gates reading and posting, so posts are
- * attributable and outsiders who find this URL see nothing.
+ * Discussion is for people who have submitted. Name and email lookup gates
+ * current clients; legacy model keys continue to work for cached clients.
  */
+// Name and email are the attendee lookup details; this is not a secret password.
+// Keep legacy model hashes intact so cached clients can continue to use them.
+function nameNorm_(value) {
+  return String(value || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+}
+function nameAccess_(code) { return /^name:/.test(String(code || "")); }
+function nameMatches_(code, name) {
+  var supplied = nameNorm_(String(code).slice(5));
+  return !!supplied && same_(supplied, nameNorm_(plain_(name)));
+}
+
 function verify_(email, code) {
   if (String(code || "").trim().length < 4) return null;
   if (locked_(email)) return "locked";
@@ -283,8 +293,9 @@ function verify_(email, code) {
   var at = findRow_(sh, email);
   if (at < 0) return null;
   var onFile = sh.getRange(at, PASS_COL).getValue();
-  if (!onFile || corrupt_(onFile)) return "reset";      // organizer-assisted recovery
-  if (!keyMatches_(onFile, hash_(email, code))) { noteFail_(email); return null; }
+  if (!nameAccess_(code) && (!onFile || corrupt_(onFile))) return "reset";      // organizer-assisted recovery
+  if (!(nameAccess_(code) ? nameMatches_(code, sh.getRange(at, 2).getValue())
+      : keyMatches_(onFile, hash_(email, code)))) { noteFail_(email); return null; }
   clearFails_(email);
   var row = sh.getRange(at, 1, 1, HEADERS.length).getValues()[0];
   return {name: plain_(row[1]), email: row[2], affiliation: plain_(row[3]),
@@ -602,6 +613,7 @@ function doPost(e) {
     var code = String(body.pin || "");
     if (!validSubmission_(sub)) return out_({ok: false, error: "invalid_submission"});
     if (code.trim().length < 4) return out_({ok: false, error: "bad_pin"});
+    if (nameAccess_(code) && !nameMatches_(code, sub.n)) return out_({ok:false, error:"bad_pin"});
     if (locked_(sub.e)) return out_({ok: false, error: "locked"});
 
     var sh = sheet_();
@@ -620,11 +632,12 @@ function doPost(e) {
     if (existing < 0 && body.ifMatch && body.ifMatch !== "absent")
       return out_({ok: false, error: "conflict"});
 
-    // An existing entry may only be overwritten by whoever set its passcode.
+    // Updates require matching name/email or a valid legacy key, plus the row revision.
     if (existing > 0) {
       var onFile = sh.getRange(existing, PASS_COL).getValue();
-      if (!onFile || corrupt_(onFile)) return out_({ok: false, error: "key_reset"});
-      if (!keyMatches_(onFile, mine)) {
+      if (!nameAccess_(code) && (!onFile || corrupt_(onFile))) return out_({ok: false, error: "key_reset"});
+      if (!(nameAccess_(code) ? nameMatches_(code, sh.getRange(existing, 2).getValue())
+          : keyMatches_(onFile, mine))) {
         noteFail_(sub.e);
         return out_({ok: false, error: "bad_pin"});
       }
@@ -653,7 +666,7 @@ function doPost(e) {
       new Date(), literal_(sub.n), String(sub.e).trim(), literal_(sub.a || ""),
       sub.r[0] || "", sub.r[1] || "", sub.r[2] || "",
       literal_(qs[0] || ""), literal_(qs[1] || ""), literal_(qs[2] || ""),
-      stored_(mine),
+      existing > 0 && nameAccess_(code) ? onFile : stored_(mine),
       payload,
       literal_(sub.t || ""),
       literal_(sub.w || ""),
@@ -702,11 +715,12 @@ function doGet(e) {
       if (at < 0) return out_({ok: true, row: null}, cb);
 
       var onFile = sh.getRange(at, PASS_COL).getValue();
-      // No key on file (a pre-key row): nobody may read it back.
-      if (!onFile) return out_({ok: false, error: "key_reset"}, cb);
+      // Legacy access requires a stored key; name lookup uses the attendee name.
+      if (!nameAccess_(code) && !onFile) return out_({ok: false, error: "key_reset"}, cb);
       // A damaged stored key needs organizer-assisted recovery.
-      if (corrupt_(onFile)) return out_({ok: false, error: "key_reset"}, cb);
-      if (!keyMatches_(onFile, hash_(p.email, code))) {
+      if (!nameAccess_(code) && corrupt_(onFile)) return out_({ok: false, error: "key_reset"}, cb);
+      if (!(nameAccess_(code) ? nameMatches_(code, sh.getRange(at, 2).getValue())
+          : keyMatches_(onFile, hash_(p.email, code)))) {
         noteFail_(p.email);
         return out_({ok: false, error: "bad_pin"}, cb);
       }
