@@ -16,7 +16,7 @@ const localRecord = (sub, extra = {}) => ({ 'eai.me.v3': JSON.stringify({ sub, p
 
 // Run the real inline application with browser/network boundaries replaced.
 // No requests leave this process, and all credentials and responses are synthetic.
-function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now, relay, autoDraftTimers = true,
+function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, now, relay, digest, autoDraftTimers = true,
   api = 'https://script.google.com/macros/s/test/exec',
   reply = () => ({ ok: false, error: 'bad_pin' }), post = () => Promise.resolve({ type: 'opaque' }) } = {}) {
   const nodes = {}, requests = [], scripts = [], relayResponses = new Map(), listeners = {};
@@ -38,7 +38,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
       context.location.hash = u.hash; context.location.search = u.search; } },
     localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => storage[k] = v, removeItem: k => delete storage[k] },
     navigator: {}, EAI_CONFIG: { apiUrl: api, bridge }, EAI_PUBLIC_URL: publicURL,
-    crypto: { getRandomValues(bytes) { bytes.forEach((_, i) => bytes[i] = ++nonceByte % 256); return bytes; } },
+    crypto: { subtle: { digest: digest || ((algorithm, bytes) => require('node:crypto').webcrypto.subtle.digest(algorithm, bytes)) }, getRandomValues(bytes) { bytes.forEach((_, i) => bytes[i] = ++nonceByte % 256); return bytes; } },
     addEventListener(event, fn) { (listeners[event] ||= new Set()).add(fn); },
     removeEventListener(event, fn) { listeners[event]?.delete(fn); }, scrollTo() {},
     setTimeout(fn, delay) { const id = ++nextTimer; pending.set(id, { fn, delay });
@@ -81,7 +81,7 @@ function app({ hash = '', search = '', storage = {}, publicURL, bridge = false, 
   context.window = context;
   const hooks = `window.test = { state:()=>({S,pin,saved,step,editing,identityEditing,needsPin,gateOk,syncState,API,mode,pendingPosts,counts}),
     set:s=>{if(s.S)S=s.S;if('pin'in s)pin=s.pin;if('saved'in s)saved=s.saved;if('step'in s)step=s.step;if('identityEditing'in s)identityEditing=s.identityEditing;},
-    requiredReadings,renderProgress,wireProgress,loadParticipants,participantOptions,renderOneOnOne,mergeDraft,cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
+    loadAssignments,renderAssignedGroups,renderSchedule,requiredReadings,renderProgress,wireProgress,loadParticipants,participantOptions,renderOneOnOne,mergeDraft,cloudPush,cloudLookup,cloudAll,cloudGate,normalize,sameSubmission,confirmCurrentSave,saveLocal,holdPlace,submit,myLink,decodeAll,readCard,renderReading,renderStep1,renderOrg,wireForm,refreshCounts,keyErrMsg,holdWork,syncFailed,withKey,renderStep0,queueReadSave,flushReadSave,queueDraftSave,saveDraftNow,renderWork,validate,rosterTsv,openThread,openTopic,setRoster:r=>{roster=r} };`;
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, hooks + '})();'), context);
   return { t: context.test, context, storage, requests, scripts, nodes,
     expireTimers(delay) { for (const [id, timer] of pending) {
@@ -1798,4 +1798,104 @@ test('changing the name during a save cannot accept an earlier attendee identity
   a.t.state().S.n = 'Different attendee';
   const rejection = assert.rejects(request, err => err.code === 'identity_changed');
   complete({ok:true}); await rejection;
+});
+
+
+test('the progress block uses approved assignments independently of preferences and preserves answers', async () => {
+  const sub = {...sample(), n:'Chen Shani', e:'attendee@example.test', r:['T6','T2','T4']};
+  const before = JSON.stringify(sub);
+  const a = app(); a.t.set({S:sub, saved:true, step:3});
+  await a.t.loadAssignments();
+  const progress = a.t.renderProgress();
+  assert.match(progress, /Round 1 · Group 1H/);
+  assert.match(progress, /T5 · Steering Open-Ended AI Ecosystems/);
+  assert.match(progress, /Round 2 · Group 2C/);
+  assert.match(progress, /Round 3 · Group 3J/);
+  assert.ok(progress.indexOf('Your breakout groups') > progress.indexOf('data-go="one-on-one"'));
+  assert.equal(JSON.stringify(a.t.state().S), before);
+  assert.equal(a.requests.length, 0);
+});
+
+test('approved name aliases, accent variations, and attendees without submissions resolve to their own groups', async () => {
+  for (const [name, groups] of [
+    ['Alex Pentland', ['1F','2C','3I']],
+    ['Jim Fan', ['1A','2H','3E']],
+    ['Paul Aligica', ['1H','2F','3I']],
+    ['Terrence W Deacon', ['1I','2B','3E']],
+    ['Viktor Mu\u0308ller', ['1E','2E','3A']],
+    ['Pavan Agrawal', ['1C','2H','3F']]
+  ]) {
+    const a = app(); a.t.set({S:{...sample(), n:name, e:'alias@example.test'}});
+    await a.t.loadAssignments();
+    const assigned = a.t.renderAssignedGroups();
+    for (const group of groups) assert.ok(assigned.includes('Group ' + group), name + ': ' + group);
+  }
+});
+
+test('an explicitly unassigned round stays empty rather than generating a group', async () => {
+  const a = app(); a.t.set({S:{...sample(), n:'Joseph Henrich', e:'attendee@example.test'}});
+  await a.t.loadAssignments();
+  const assigned = a.t.renderAssignedGroups();
+  assert.match(assigned, /Round 1 · Group 1E/);
+  assert.match(assigned, /Round 2<[^]*?No subgroup assigned for this round/);
+  assert.doesNotMatch(assigned, /Round 2 · Group/);
+  assert.match(assigned, /Round 3 · Group 3F/);
+});
+
+test('unknown attendees and synthetic test accounts do not inherit another person’s assignments', async () => {
+  for (const [name, email] of [['Unknown Attendee','unknown@example.test'], ['Chen Shani','test@example.invalid']]) {
+    const a = app(); a.t.set({S:{...sample(), n:name, e:email}});
+    await a.t.loadAssignments();
+    assert.match(a.t.renderAssignedGroups(), /No subgroup assignment is listed for you/);
+    assert.doesNotMatch(a.t.renderAssignedGroups(), /Group 1H|Group 2C|Group 3J/);
+  }
+});
+
+test('an earlier assignment lookup cannot display groups after the attendee changes', async () => {
+  const pending = [];
+  const a = app({digest:(algorithm, bytes) => new Promise(resolve => {
+    pending.push(() => require('node:crypto').webcrypto.subtle.digest(algorithm, bytes).then(resolve));
+  })});
+  a.t.set({S:{...sample(),n:'Chen Shani',e:'first@example.test'}});
+  const first = a.t.loadAssignments();
+  a.t.set({S:{...sample(),n:'Pavan Agrawal',e:'second@example.test'}});
+  const second = a.t.loadAssignments();
+  await Promise.all(pending.slice(0,2).map(f => f())); await first;
+  assert.doesNotMatch(a.t.renderAssignedGroups(), /Group 1H/);
+  await Promise.all(pending.slice(2).map(f => f())); await second;
+  assert.match(a.t.renderAssignedGroups(), /Group 1C/);
+  assert.doesNotMatch(a.t.renderAssignedGroups(), /Group 1H/);
+});
+
+test('the source document remains available if the browser cannot calculate a lookup fingerprint', async () => {
+  const a = app({digest:() => Promise.reject(new Error('unavailable'))});
+  a.t.set({S:{...sample(),n:'Chen Shani',e:'attendee@example.test'}});
+  await a.t.loadAssignments();
+  assert.match(a.t.renderAssignedGroups(), /Please open the subgroup assignments below/);
+  assert.match(a.t.renderAssignedGroups(), /1f0_sPAezhQoBDyGYYH8nTOsiZiszgon42f8c79eUQp8/);
+  assert.doesNotMatch(a.t.renderAssignedGroups(), /No subgroup assignment is listed/);
+});
+
+test('Friday’s detailed schedule includes all breakout times and speakers while the other days retain their events', () => {
+  const a = app(), schedule = a.t.renderSchedule();
+  const friday = schedule.split('Friday, October 9')[1].split('Saturday, October 10')[0];
+  assert.match(friday, /All times Eastern/);
+  for (const [time, title] of [
+    ['9:00–9:10 AM','Opening remarks: Peter Fenton &amp; David Sloan Wilson'],
+    ['9:10–9:35 AM','Plenary 1: Joe Henrich'],
+    ['9:35–10:00 AM','Plenary 2: Jonathan Frankle &amp; James Tamplin'],
+    ['10:00–10:25 AM','Plenary 3: Sandy Pentland &amp; Athena Aktipis'],
+    ['10:45–11:45 AM','Breakout groups round 1'],
+    ['1:30–2:30 PM','Breakout groups round 2'],
+    ['3:15–4:15 PM','Breakout groups round 3'],
+    ['4:30–4:50 PM','Closing discussion'],
+    ['4:50–5:00 PM','Conclusion'],
+    ['5:30 PM','Reception at Harvard Faculty Club'],
+    ['6:15 PM','Dinner']
+  ]) assert.ok(friday.includes(time + '</span><span class="schedule-event-title">' + title), title);
+  assert.match(friday, /Lightning talks/);
+  assert.match(friday, /Sign up sheet for 1 min talks/);
+  assert.match(schedule, /2:00–6:00 PM[^]*?Informal gathering at HEB/);
+  assert.match(schedule, /6:00–7:00 PM[^]*?Welcome reception at Harvest/);
+  assert.match(schedule, /Saturday, October 10[^]*?9:00 AM–12:00 PM[^]*?Unconference at HEB/);
 });
