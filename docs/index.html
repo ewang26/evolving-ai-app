@@ -1876,12 +1876,15 @@ window.EAI_CONFIG = {
     return String(S.e || "").trim().toLowerCase() + "|" + assignmentName(S.n);
   }
   function assignmentDigest(value){
-    if(!window.crypto || !window.crypto.subtle) return Promise.reject(new Error("digest_unavailable"));
-    return window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)).then(function(buffer){
-      return Array.prototype.map.call(new Uint8Array(buffer), function(byte){
-        return ("0" + byte.toString(16)).slice(-2);
-      }).join("");
-    });
+    try {
+      if(!window.crypto || !window.crypto.subtle || typeof TextEncoder !== "function")
+        throw new Error("digest_unavailable");
+      return window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)).then(function(buffer){
+        return Array.prototype.map.call(new Uint8Array(buffer), function(byte){
+          return ("0" + byte.toString(16)).slice(-2);
+        }).join("");
+      });
+    } catch(err){ return Promise.reject(err); }
   }
   function loadAssignments(){
     var identity = assignmentIdentity();

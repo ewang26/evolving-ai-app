@@ -1876,6 +1876,27 @@ test('the source document remains available if the browser cannot calculate a lo
   assert.doesNotMatch(a.t.renderAssignedGroups(), /No subgroup assignment is listed/);
 });
 
+for (const [environment, disable] of [
+  ['the encoding API is missing', context => { context.TextEncoder = undefined; }],
+  ['the crypto API is missing', context => { context.crypto.subtle = undefined; }],
+  ['the crypto provider throws immediately', context => {
+    context.crypto.subtle.digest = () => { throw new Error('unavailable'); };
+  }]
+]) {
+  test('assignment lookup shows the document fallback when ' + environment, async () => {
+    const a = app({api:''});
+    a.t.set({S:{...sample(),n:'Chen Shani',e:'attendee@example.test'},saved:true,step:3});
+    disable(a.context);
+    await a.t.loadAssignments();
+    const progress = a.t.renderProgress();
+    assert.match(progress, /Please open the subgroup assignments below/);
+    assert.match(progress, /View subgroup assignments/);
+    assert.doesNotMatch(progress, /Loading your assignments/);
+    assert.match(a.t.renderReading(), /seminar prep/);
+    assert.equal(a.requests.length, 0);
+  });
+}
+
 test('Friday’s detailed schedule includes all breakout times and speakers while the other days retain their events', () => {
   const a = app(), schedule = a.t.renderSchedule();
   const friday = schedule.split('Friday, October 9')[1].split('Saturday, October 10')[0];
