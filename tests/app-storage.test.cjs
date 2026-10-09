@@ -1832,6 +1832,64 @@ test('approved name aliases, accent variations, and attendees without submission
   }
 });
 
+test('moderators see a subtle role only beside the sessions they lead', async () => {
+  const moderators = {
+    'Jonathan Frankle':['1A','2D','3J'],
+    'David Sloan Wilson':['1C','2A','3H'],
+    'Erik Wang':['1D','2I'],
+    'Joseph Henrich':['1E','3F'],
+    'Sandy Pentland':['1F','2C','3I'],
+    'Peter Fenton':['1G','3C'],
+    'Athena Aktipis':['1H','2E','3D'],
+    'Terrence Deacon':['1I','3E'],
+    'James Tamplin':['1J','2H','3A'],
+    'Rob Dunn':['2B'],
+    'Paul Dragos Aligica':['2F'],
+    'Geoffrey Miller':['2G'],
+    'Peter M. Todd':['3G']
+  };
+  for (const [name, groups] of Object.entries(moderators)) {
+    const sub = {...sample(), n:name, e:'moderator@example.test'};
+    const before = JSON.stringify(sub);
+    const a = app(); a.t.set({S:sub, saved:true, step:3});
+    await a.t.loadAssignments();
+    const assigned = a.t.renderAssignedGroups();
+    const rows = [...assigned.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(match => match[1]);
+    assert.equal(rows.length, 3, name);
+    for (const row of rows) {
+      const group = row.match(/Group ([123][A-J])/);
+      assert.equal(row.includes(' · Moderating'), !!group && groups.includes(group[1]), name + ': ' + row);
+    }
+    assert.equal(JSON.stringify(a.t.state().S), before, name);
+    assert.equal(a.requests.length, 0, name);
+  }
+});
+
+test('moderator aliases keep the correct session roles', async () => {
+  for (const [name, groups] of [
+    ['Alex Pentland',['1F','2C','3I']],
+    ['Paul Aligica',['2F']],
+    ['Terrence W Deacon',['1I','3E']]
+  ]) {
+    const a = app(); a.t.set({S:{...sample(), n:name, e:'alias@example.test'}});
+    await a.t.loadAssignments();
+    const assigned = a.t.renderAssignedGroups();
+    assert.equal((assigned.match(/ · Moderating/g) || []).length, groups.length, name);
+    for (const group of groups) assert.ok(assigned.includes('Group ' + group + '<span class="pgassignment-role"> · Moderating</span>'), name);
+  }
+});
+
+test('switching from a moderator to another attendee clears moderation labels', async () => {
+  const a = app(); a.t.set({S:{...sample(), n:'Sandy Pentland', e:'first@example.test'}});
+  await a.t.loadAssignments();
+  assert.equal((a.t.renderAssignedGroups().match(/ · Moderating/g) || []).length, 3);
+  a.t.set({S:{...sample(), n:'Rachel Calcott', e:'second@example.test'}});
+  await a.t.loadAssignments();
+  const assigned = a.t.renderAssignedGroups();
+  assert.match(assigned, /Round 2 · Group 2G/);
+  assert.doesNotMatch(assigned, /Moderating/);
+});
+
 test('an explicitly unassigned round stays empty rather than generating a group', async () => {
   const a = app(); a.t.set({S:{...sample(), n:'Joseph Henrich', e:'attendee@example.test'}});
   await a.t.loadAssignments();
